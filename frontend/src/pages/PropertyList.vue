@@ -1,10 +1,5 @@
 <template>
   <div class="property-list">
-    <div class="page-header">
-      <h1>物件清單</h1>
-      <p class="subtitle">共 {{ total }} 筆{{ statusLabel }}物件</p>
-    </div>
-
     <FilterBar :available-districts="TRACKED_DISTRICTS" />
 
     <div v-if="loading" class="loading">載入中…</div>
@@ -36,6 +31,8 @@
           下一頁 →
         </button>
       </div>
+
+      <p class="total-count">共 {{ total }} 筆{{ statusLabel }}物件</p>
     </template>
   </div>
 </template>
@@ -110,17 +107,6 @@ onMounted(() => fetchProperties())
   margin: 0 auto;
   padding: 1.5rem;
 }
-.page-header {
-  margin-bottom: 1rem;
-}
-h1 {
-  font-size: 1.6rem;
-  margin-bottom: 0.25rem;
-}
-.subtitle {
-  color: #6b7280;
-  font-size: 0.9rem;
-}
 .loading,
 .error,
 .empty {
@@ -144,22 +130,33 @@ h1 {
   margin-top: 2rem;
 }
 .page-btn {
-  padding: 0.4rem 1rem;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  background: #fff;
+  padding: 0.4rem 1.1rem;
+  border: 1.5px solid #a5b4fc;
+  border-radius: 20px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 0.85rem;
+  font-weight: 600;
   cursor: pointer;
-  font-size: 0.9rem;
+  transition: all 0.15s;
 }
 .page-btn:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: not-allowed;
 }
 .page-btn:not(:disabled):hover {
-  background: #f3f4f6;
+  background: #4f46e5;
+  border-color: #4f46e5;
+  color: #fff;
 }
 .page-info {
   font-size: 0.9rem;
   color: #6b7280;
+}
+.total-count {
+  text-align: center;
+  margin-top: 1rem;
+  font-size: 0.85rem;
+  color: #9ca3af;
 }
 </style>
