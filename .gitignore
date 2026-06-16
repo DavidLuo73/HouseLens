@@ -1,0 +1,65 @@
+# .NET / C#
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+packages/
+*.nupkg
+*.snupkg
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+# Secrets & config overrides (MUST NOT enter version control)
+appsettings.*.json
+!appsettings.Development.json
+secrets.json
+.env
+.env.*
+usersecrets/
+
+# SQLite database files
+*.db
+*.db-shm
+*.db-wal
+
+# Crawl debug logs (本機爬蟲除錯暫存)
+crawl-log.txt
+crawl-log.txt.err
+backend/crawl-log.*
+
+# Node.js / Frontend
+node_modules/
+dist/
+.output/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# Vite / Vue build output
+frontend/dist/
+frontend/.vite/
+
+# Playwright browsers (install separately)
+backend/src/**/bin/**/.local-chromium/
+backend/src/**/bin/**/.local-firefox/
+backend/src/**/bin/**/.local-webkit/
+playwright-report/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.idea/
+*.iml
+*.swp
+*.swo

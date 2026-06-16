@@ -1,0 +1,32 @@
+root = true
+
+[*]
+indent_style = space
+indent_size = 4
+end_of_line = lf
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+[*.{csproj,sln,slnx,props,targets}]
+indent_size = 2
+
+[*.{json,yaml,yml,md}]
+indent_size = 2
+
+[*.{ts,tsx,vue,js,jsx}]
+indent_size = 2
+
+[*.{css,scss}]
+indent_size = 2
+
+# C# specific
+[*.cs]
+dotnet_sort_system_directives_first = true
+csharp_new_line_before_open_brace = all
+csharp_indent_labels = flush_left
+csharp_space_after_cast = false
+dotnet_style_qualification_for_field = false
+dotnet_style_qualification_for_property = false
+dotnet_style_predefined_type_for_locals_parameters_members = true
+dotnet_style_predefined_type_for_member_access = true

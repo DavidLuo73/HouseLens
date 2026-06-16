@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/HouseLens.Api/HouseLens.Api.csproj" />
+    <Project Path="src/HouseLens.Application/HouseLens.Application.csproj" />
+    <Project Path="src/HouseLens.Domain/HouseLens.Domain.csproj" />
+    <Project Path="src/HouseLens.Infrastructure/HouseLens.Infrastructure.csproj" />
+    <Project Path="src/HouseLens.Worker/HouseLens.Worker.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/HouseLens.IntegrationTests/HouseLens.IntegrationTests.csproj" />
+    <Project Path="tests/HouseLens.UnitTests/HouseLens.UnitTests.csproj" />
+  </Folder>
+</Solution>
