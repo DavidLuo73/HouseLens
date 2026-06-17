@@ -11,6 +11,8 @@ public static class ProxyEndpoints
     private static readonly string[] AllowedContentTypes =
         ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
+    private const long MaxImageBytes = 5 * 1024 * 1024; // 5 MB
+
     public static IEndpointRouteBuilder MapProxyEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapGet("/api/proxy/image", GetImage);
@@ -33,7 +35,7 @@ public static class ProxyEndpoints
         try
         {
             var client = factory.CreateClient("ImageProxy");
-            using var response = await client.GetAsync(url);
+            using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
             if (!response.IsSuccessStatusCode)
                 return Results.NotFound();
 
@@ -41,7 +43,23 @@ public static class ProxyEndpoints
             if (!AllowedContentTypes.Contains(contentType))
                 return Results.NotFound();
 
-            var data = await response.Content.ReadAsByteArrayAsync();
+            // Content-Length 預檢，避免串流前就知道超限
+            if (response.Content.Headers.ContentLength is long declaredLen && declaredLen > MaxImageBytes)
+                return Results.NotFound();
+
+            // 串流讀取並強制上限，防止無上限緩衝耗盡記憶體
+            await using var src = await response.Content.ReadAsStreamAsync();
+            using var ms = new MemoryStream();
+            var buf = new byte[81920];
+            int n;
+            long total = 0;
+            while ((n = await src.ReadAsync(buf)) > 0)
+            {
+                total += n;
+                if (total > MaxImageBytes) return Results.NotFound();
+                ms.Write(buf, 0, n);
+            }
+            var data = ms.ToArray();
 
             cache.Set(url, new ImageCache(data, contentType),
                 new MemoryCacheEntryOptions
