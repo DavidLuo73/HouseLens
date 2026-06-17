@@ -31,6 +31,10 @@ builder.Services.AddHttpClient("ImageProxy", client =>
     client.DefaultRequestHeaders.Add("User-Agent",
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
     client.Timeout = TimeSpan.FromSeconds(10);
+})
+.ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+{
+    AllowAutoRedirect = false,  // 防止 SSRF via redirect 繞過 host 白名單
 });
 
 builder.Services.AddProblemDetails();

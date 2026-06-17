@@ -7,6 +7,10 @@ public static class ProxyEndpoints
     private static readonly string[] AllowedHosts =
         ["res.sinyi.com.tw", "s.591.com.tw", "img.591.com.tw"];
 
+    // 僅允許安全的點陣圖格式；明確排除 image/svg+xml（可內嵌 script）與 text/html
+    private static readonly string[] AllowedContentTypes =
+        ["image/jpeg", "image/png", "image/webp", "image/gif"];
+
     public static IEndpointRouteBuilder MapProxyEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapGet("/api/proxy/image", GetImage);
@@ -33,8 +37,11 @@ public static class ProxyEndpoints
             if (!response.IsSuccessStatusCode)
                 return Results.NotFound();
 
+            var contentType = response.Content.Headers.ContentType?.MediaType ?? "";
+            if (!AllowedContentTypes.Contains(contentType))
+                return Results.NotFound();
+
             var data = await response.Content.ReadAsByteArrayAsync();
-            var contentType = response.Content.Headers.ContentType?.MediaType ?? "image/jpeg";
 
             cache.Set(url, new ImageCache(data, contentType),
                 new MemoryCacheEntryOptions
