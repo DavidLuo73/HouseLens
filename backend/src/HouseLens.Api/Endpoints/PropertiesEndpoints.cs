@@ -90,7 +90,18 @@ public static class PropertiesEndpoints
                     .Select(h => h.IsBigDrop).FirstOrDefault(),
                 ImageUrl = p.Listings.Select(l => l.ImageUrl).FirstOrDefault(u => u != null),
                 ListingUrl = p.Listings.Select(l => l.Url).FirstOrDefault(),
-                Sources = p.Listings.Select(l => new { SourceSite = l.SourceSite.ToString(), l.Url, l.ImageUrl })
+                Sources = p.Listings.Select(l => new { SourceSite = l.SourceSite.ToString(), l.Url, l.ImageUrl }),
+                PriceHistory = p.PriceHistory
+                    .OrderByDescending(h => h.CapturedAt)
+                    .Select(h => new
+                    {
+                        h.CapturedAt,
+                        h.TotalPrice,
+                        h.UnitPrice,
+                        ChangeFlag = h.ChangeFlag.ToString().ToLower(),
+                        h.ChangePercent,
+                        h.IsBigDrop
+                    })
             })
             .ToListAsync();
 
