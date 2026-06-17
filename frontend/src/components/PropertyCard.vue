@@ -66,16 +66,50 @@
           ▲ {{ formatPercent(property.latestChangePercent) }}
         </span>
       </div>
+
+      <div class="card-trend">
+        <VChart v-if="hasTrend" :option="sparkOption" autoresize class="card-spark" />
+        <span v-else class="card-spark-empty">—</span>
+        <button type="button" class="spark-btn" @click="emit('open-history', property)">看明細</button>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+import VChart from 'vue-echarts'
+import { use } from 'echarts/core'
+import { LineChart } from 'echarts/charts'
+import { GridComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
 import type { Property } from '@/services/api'
 
-defineProps<{
-  property: Property
-}>()
+use([LineChart, GridComponent, CanvasRenderer])
+
+const props = defineProps<{ property: Property }>()
+const emit = defineEmits<{ 'open-history': [property: Property] }>()
+
+const hasTrend = computed(() => props.property.priceHistory.length >= 2)
+
+const sparkOption = computed(() => {
+  const ascending = [...props.property.priceHistory].reverse()
+  return {
+    grid: { left: 2, right: 2, top: 4, bottom: 4 },
+    xAxis: { type: 'category', show: false, data: ascending.map((_, i) => i) },
+    yAxis: { type: 'value', show: false, scale: true },
+    series: [
+      {
+        type: 'line',
+        data: ascending.map((h) => h.totalPrice),
+        showSymbol: false,
+        smooth: true,
+        lineStyle: { width: 1.5, color: '#06b6d4' },
+        areaStyle: { color: 'rgba(6, 182, 212, 0.12)' },
+      },
+    ],
+  }
+})
 
 function formatPercent(val?: number): string {
   if (val == null) return ''
@@ -202,5 +236,37 @@ function formatPercent(val?: number): string {
 }
 .price-change--up {
   color: #059669;
+}
+.card-trend {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+.card-spark {
+  flex: 1;
+  height: 36px;
+}
+.card-spark-empty {
+  flex: 1;
+  color: #d1d5db;
+  font-size: 0.85rem;
+}
+.spark-btn {
+  flex-shrink: 0;
+  padding: 0.25rem 0.7rem;
+  border: 1.5px solid #a5f3fc;
+  border-radius: 14px;
+  background: #ecfeff;
+  color: #0891b2;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.spark-btn:hover {
+  background: #06b6d4;
+  border-color: #06b6d4;
+  color: #fff;
 }
 </style>
