@@ -23,6 +23,16 @@ builder.Services.AddCors(options =>
               .AllowAnyMethod());
 });
 
+// 圖片 proxy：快取上限 50 MB，防盜鏈繞過用
+builder.Services.AddMemoryCache(opts => opts.SizeLimit = 50 * 1024 * 1024);
+builder.Services.AddHttpClient("ImageProxy", client =>
+{
+    client.DefaultRequestHeaders.Add("Referer", "https://www.sinyi.com.tw/");
+    client.DefaultRequestHeaders.Add("User-Agent",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+
 builder.Services.AddProblemDetails();
 
 var app = builder.Build();
@@ -43,6 +53,7 @@ app.MapCrawlRunEndpoints();
 app.MapAnalyticsEndpoints();
 app.MapConfigEndpoints();
 app.MapAdminEndpoints();
+app.MapProxyEndpoints();
 
 app.Run();
 

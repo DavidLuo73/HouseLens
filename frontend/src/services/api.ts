@@ -136,11 +136,22 @@ export interface AppConfig {
   }
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function toProxyUrl(url?: string): string | undefined {
+  if (!url) return undefined
+  return `/api/proxy/image?url=${encodeURIComponent(url)}`
+}
+
+function mapProperty<T extends Property>(p: T): T {
+  return { ...p, imageUrl: toProxyUrl(p.imageUrl) }
+}
+
 // ─── API functions ───────────────────────────────────────────────────────────
 
 export const api = {
   properties: {
-    list: (params: Record<string, unknown> = {}) => {
+    list: async (params: Record<string, unknown> = {}): Promise<PagedResult<Property>> => {
       const qs = new URLSearchParams()
       for (const [k, v] of Object.entries(params)) {
         if (v !== undefined && v !== null) {
@@ -148,9 +159,13 @@ export const api = {
           else qs.set(k, String(v))
         }
       }
-      return request<PagedResult<Property>>(`/properties?${qs}`)
+      const result = await request<PagedResult<Property>>(`/properties?${qs}`)
+      return { ...result, items: result.items.map(mapProperty) }
     },
-    get: (id: string) => request<PropertyDetail>(`/properties/${id}`),
+    get: async (id: string): Promise<PropertyDetail> => {
+      const p = await request<PropertyDetail>(`/properties/${id}`)
+      return mapProperty(p)
+    },
   },
 
   analytics: {

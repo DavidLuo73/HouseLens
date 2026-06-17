@@ -146,9 +146,28 @@ public partial class SinyiScraper(HttpFetcher fetcher, ILogger<SinyiScraper> log
         // 優先從 <img src> / <img data-src> 取得真實 URL；後備用 listingKey 組合
         var imgNode = card.SelectSingleNode(".//img[@src]");
         var imgSrc = imgNode?.GetAttributeValue("src", "");
-        if (string.IsNullOrEmpty(imgSrc) || !imgSrc.StartsWith("http"))
+
+        // Next.js Image Optimization 產生 /_next/image?url=... 相對路徑，解析出原始 CDN URL
+        if (!string.IsNullOrEmpty(imgSrc) && imgSrc.StartsWith("/_next/image", StringComparison.Ordinal))
+        {
+            var qIdx = imgSrc.IndexOf('?');
+            if (qIdx >= 0)
+            {
+                foreach (var pair in imgSrc[(qIdx + 1)..].Split('&'))
+                {
+                    var eqIdx = pair.IndexOf('=');
+                    if (eqIdx > 0 && pair[..eqIdx] == "url")
+                    {
+                        imgSrc = Uri.UnescapeDataString(pair[(eqIdx + 1)..]);
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (string.IsNullOrEmpty(imgSrc) || !imgSrc.StartsWith("http", StringComparison.Ordinal))
             imgSrc = imgNode?.GetAttributeValue("data-src", "");
-        var imageUrl = (!string.IsNullOrEmpty(imgSrc) && imgSrc.StartsWith("http"))
+        var imageUrl = (!string.IsNullOrEmpty(imgSrc) && imgSrc.StartsWith("http", StringComparison.Ordinal))
             ? imgSrc
             : $"https://res.sinyi.com.tw/buy/{listingKey}/smallimg/A.JPG";
 
