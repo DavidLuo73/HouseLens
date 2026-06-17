@@ -11,7 +11,12 @@
       </div>
 
       <div v-else class="grid">
-        <PropertyCard v-for="p in items" :key="p.id" :property="p" />
+        <PropertyCard
+          v-for="p in items"
+          :key="p.id"
+          :property="p"
+          @open-history="openHistory"
+        />
       </div>
 
       <div v-if="totalPages > 1" class="pagination">
@@ -34,6 +39,12 @@
 
       <p class="total-count">共 {{ total }} 筆{{ statusLabel }}物件</p>
     </template>
+
+    <PriceHistoryModal
+      v-if="historyTarget"
+      :property="historyTarget"
+      @close="closeHistory"
+    />
   </div>
 </template>
 
@@ -43,6 +54,7 @@ import { api, type Property } from '@/services/api'
 import { useFiltersStore, TRACKED_DISTRICTS } from '@/stores/filters'
 import FilterBar from '@/components/FilterBar.vue'
 import PropertyCard from '@/components/PropertyCard.vue'
+import PriceHistoryModal from '@/components/PriceHistoryModal.vue'
 
 const filters = useFiltersStore()
 
@@ -50,6 +62,14 @@ const items = ref<Property[]>([])
 const total = ref(0)
 const loading = ref(false)
 const error = ref<string | null>(null)
+
+const historyTarget = ref<Property | null>(null)
+function openHistory(p: Property) {
+  historyTarget.value = p
+}
+function closeHistory() {
+  historyTarget.value = null
+}
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / filters.pageSize)))
 
