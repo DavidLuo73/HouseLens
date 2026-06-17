@@ -25,7 +25,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="h in history" :key="h.capturedAt" :class="{ 'row--bigdrop': h.isBigDrop }">
+          <tr v-for="(h, i) in history" :key="`${h.capturedAt}-${i}`" :class="{ 'row--bigdrop': h.isBigDrop }">
             <td>{{ formatDate(h.capturedAt) }}</td>
             <td>{{ h.totalPrice }}</td>
             <td>{{ h.unitPrice != null ? h.unitPrice.toFixed(1) : '—' }}</td>
@@ -92,7 +92,7 @@ const chartOption = computed(() => {
               name: '大降價',
               coord: [formatDate(h.capturedAt), h.totalPrice],
               symbol: 'pin',
-              itemStyle: { color: '#e74c3c' },
+              itemStyle: { color: '#dc2626' },
             })),
         },
       },

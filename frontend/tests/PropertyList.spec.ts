@@ -1,14 +1,6 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Property } from '../src/services/api'
-
-const sampleProperty = {
-  id: 'p1', title: '測試物件', city: '新北市', district: '中和區', areaPing: 30,
-  hasParking: false, currentTotalPrice: 1280, status: 'active', isNew: false,
-  latestIsBigDrop: false, sources: [], priceHistory: [],
-} as unknown as Property
-
 vi.mock('../src/services/api', () => ({
   api: {
     properties: {
@@ -63,6 +55,3 @@ describe('PropertyList modal wiring', () => {
     expect(wrapper.find('.modal-stub').exists()).toBe(false)
   })
 })
-
-// Keep sampleProperty in scope to avoid unused variable warning
-void sampleProperty

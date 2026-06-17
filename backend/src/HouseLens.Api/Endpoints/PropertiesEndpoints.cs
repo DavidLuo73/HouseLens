@@ -66,7 +66,6 @@ public static class PropertiesEndpoints
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Include(p => p.Listings)
-            .Include(p => p.PriceHistory.OrderByDescending(h => h.CapturedAt).Take(1))
             .Select(p => new
             {
                 p.Id,

@@ -95,6 +95,7 @@ const hasTrend = computed(() => props.property.priceHistory.length >= 2)
 const sparkOption = computed(() => {
   const ascending = [...props.property.priceHistory].reverse()
   return {
+    tooltip: { show: false },
     grid: { left: 2, right: 2, top: 4, bottom: 4 },
     xAxis: { type: 'category', show: false, data: ascending.map((_, i) => i) },
     yAxis: { type: 'value', show: false, scale: true },
