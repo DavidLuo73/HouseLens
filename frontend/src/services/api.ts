@@ -59,13 +59,13 @@ export interface Property {
   imageUrl?: string
   listingUrl?: string
   sources: PropertySource[]
+  priceHistory: PriceHistoryEntry[]
 }
 
 export interface PropertyDetail extends Property {
   address?: string
   firstSeenAt: string
   lastSeenAt: string
-  priceHistory: PriceHistoryEntry[]
 }
 
 export interface PagedResult<T> {
