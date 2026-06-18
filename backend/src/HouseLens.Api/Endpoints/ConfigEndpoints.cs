@@ -23,8 +23,8 @@ public static class ConfigEndpoints
 
     private static async Task<IResult> GetConfig(AppDbContext db)
     {
-        var tracking = await db.TrackingCriteria.FirstOrDefaultAsync() ?? new TrackingCriteria();
-        var scoring = await db.ScoringConfigs.FirstOrDefaultAsync() ?? new ScoringConfig();
+        var tracking = await db.TrackingCriteria.OrderBy(x => x.Id).FirstOrDefaultAsync() ?? new TrackingCriteria();
+        var scoring = await db.ScoringConfigs.OrderBy(x => x.Id).FirstOrDefaultAsync() ?? new ScoringConfig();
 
         return Results.Ok(new
         {
@@ -60,14 +60,14 @@ public static class ConfigEndpoints
             });
         }
 
-        var tracking = await db.TrackingCriteria.FirstOrDefaultAsync() ?? new TrackingCriteria();
+        var tracking = await db.TrackingCriteria.OrderBy(x => x.Id).FirstOrDefaultAsync() ?? new TrackingCriteria();
         tracking.Districts = System.Text.Json.JsonSerializer.Serialize(request.Tracking.Districts);
         tracking.MaxTotalPrice = request.Tracking.MaxTotalPrice;
 
         if (db.Entry(tracking).State == Microsoft.EntityFrameworkCore.EntityState.Detached)
             db.TrackingCriteria.Add(tracking);
 
-        var scoring = await db.ScoringConfigs.FirstOrDefaultAsync() ?? new ScoringConfig();
+        var scoring = await db.ScoringConfigs.OrderBy(x => x.Id).FirstOrDefaultAsync() ?? new ScoringConfig();
         scoring.WeightUnitPrice = request.Scoring.WeightUnitPrice;
         scoring.WeightAge = request.Scoring.WeightAge;
         scoring.WeightParking = request.Scoring.WeightParking;

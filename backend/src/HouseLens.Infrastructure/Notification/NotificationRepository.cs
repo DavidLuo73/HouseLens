@@ -42,7 +42,7 @@ public class NotificationRepository(AppDbContext db) : INotificationRepository
 
     public async Task<IReadOnlyList<string>> GetTrackingDistrictsAsync(CancellationToken ct = default)
     {
-        var criteria = await db.TrackingCriteria.FirstOrDefaultAsync(ct);
+        var criteria = await db.TrackingCriteria.OrderBy(x => x.Id).FirstOrDefaultAsync(ct);
         if (criteria is null) return [];
         return System.Text.Json.JsonSerializer.Deserialize<string[]>(criteria.Districts) ?? [];
     }
