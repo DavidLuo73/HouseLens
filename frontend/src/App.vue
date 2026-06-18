@@ -117,11 +117,15 @@ watch(isCrawling, (running) => {
 
 function startProgressStream() {
   stopProgressStream()
+  let hasSeenRunning = false
   const es = new EventSource('/api/crawl-runs/stream')
   es.onmessage = (e: MessageEvent) => {
     const data: ProgressData = JSON.parse(e.data)
-    progressData.value = data
-    if (!data.isRunning) {
+    if (data.isRunning) {
+      hasSeenRunning = true
+      progressData.value = data
+    } else if (hasSeenRunning) {
+      // 確認爬取曾啟動後才視為完成，避免初始快照（isRunning=false）誤觸關閉
       isCrawling.value = false
       progressData.value = null
       stopProgressStream()
