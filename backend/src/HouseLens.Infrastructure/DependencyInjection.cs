@@ -18,11 +18,11 @@ public static class DependencyInjection
         var connectionString = configuration.GetConnectionString("Default")
             ?? "Data Source=HouseLens.db";
 
-        // BusyTimeout：每次連線等待最多 5 秒再拋錯，防止爬蟲寫入期間讀取立即失敗
-        var connectionStringWithTimeout = connectionString.TrimEnd(';') + ";BusyTimeout=5000";
+        services.AddSingleton<SqlitePragmaInterceptor>();
 
-        services.AddDbContext<AppDbContext>(options =>
-            options.UseSqlite(connectionStringWithTimeout));
+        services.AddDbContext<AppDbContext>((sp, options) =>
+            options.UseSqlite(connectionString)
+                   .AddInterceptors(sp.GetRequiredService<SqlitePragmaInterceptor>()));
 
         services.AddScoped<ICrawlRepository, CrawlRepository>();
         services.AddScoped<INotificationRepository, NotificationRepository>();
