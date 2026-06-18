@@ -61,8 +61,21 @@ public class CrawlRepository(AppDbContext db) : ICrawlRepository
 
     public async Task SavePriceHistoryAsync(PriceHistoryEntry entry, CancellationToken ct = default)
     {
+        // 同一物件可能出現在多個行政區查詢（邊界物件），僅記錄第一次
+        var exists = await db.PriceHistoryEntries
+            .AnyAsync(h => h.PropertyId == entry.PropertyId && h.CrawlRunId == entry.CrawlRunId, ct);
+        if (exists) return;
+
         db.PriceHistoryEntries.Add(entry);
-        await db.SaveChangesAsync(ct);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch
+        {
+            db.Entry(entry).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
+            throw;
+        }
     }
 
     public async Task SaveSourceRunResultAsync(SourceRunResult result, CancellationToken ct = default)

@@ -22,7 +22,7 @@ public class SinyiScraperLiveTests
 
         var districtMaxPrices = new Dictionary<string, decimal> { ["中和區"] = 800m };
 
-        var results = await scraper.FetchAsync(districtMaxPrices);
+        var results = await scraper.FetchAsync(districtMaxPrices, progress: null);
 
         results.Should().NotBeEmpty("信義中和區 800萬以下應有物件");
 

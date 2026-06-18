@@ -10,5 +10,6 @@ public interface ISourceScraper
     /// </summary>
     Task<IReadOnlyList<PropertyDto>> FetchAsync(
         IReadOnlyDictionary<string, decimal> districtMaxPrices,
+        IProgress<ScraperDistrictProgress>? progress,
         CancellationToken cancellationToken = default);
 }

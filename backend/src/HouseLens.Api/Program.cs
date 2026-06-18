@@ -13,6 +13,7 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 // Crawl services（供 /api/admin/trigger-crawl 手動觸發使用）
 builder.Services.AddSingleton<HttpFetcher>();
+builder.Services.AddSingleton<CrawlProgressState>();
 builder.Services.AddScoped<ISourceScraper, F591Scraper>();
 builder.Services.AddScoped<ISourceScraper, SinyiScraper>();
 builder.Services.AddScoped<CrawlOrchestrator>();
@@ -72,6 +73,7 @@ app.MapCrawlRunEndpoints();
 app.MapAnalyticsEndpoints();
 app.MapConfigEndpoints();
 app.MapAdminEndpoints();
+app.MapCrawlProgressEndpoints();
 app.MapProxyEndpoints();
 
 app.Run();

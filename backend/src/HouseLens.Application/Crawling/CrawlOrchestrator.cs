@@ -27,8 +27,19 @@ public interface ICrawlRepository
 public class CrawlOrchestrator(
     IEnumerable<ISourceScraper> scrapers,
     ICrawlRepository repository,
+    CrawlProgressState progressState,
     ILogger<CrawlOrchestrator> logger)
 {
+    private static string GetPlatformDisplayName(SourceSite site) => site switch
+    {
+        SourceSite.F591      => "591 房屋",
+        SourceSite.Sinyi     => "信義房屋",
+        SourceSite.Rakuya    => "樂居",
+        SourceSite.Yungching => "永慶不動產",
+        SourceSite.TwHouse   => "台灣房屋",
+        _                    => site.ToString()
+    };
+
     public async Task<Guid> RunAsync(CancellationToken ct = default)
     {
         var districtConfigs = await repository.GetEnabledDistrictConfigsAsync(ct);
@@ -48,6 +59,9 @@ public class CrawlOrchestrator(
 
         var config = await repository.GetScoringConfigAsync(ct);
 
+        var scraperList = scrapers.ToList();
+        progressState.StartRun(scraperList.Count);
+
         var run = await repository.CreateCrawlRunAsync(ct);
         logger.LogInformation("CrawlRun {RunId} started for {DistrictCount} districts", run.Id, districtMaxPrices.Count);
 
@@ -59,9 +73,9 @@ public class CrawlOrchestrator(
         foreach (var p in previouslyNew)
             await repository.UpdatePropertyAsync(p, ct);
 
-        foreach (var scraper in scrapers)
+        for (var i = 0; i < scraperList.Count; i++)
         {
-            await RunScraperAsync(scraper, run, districtMaxPrices, config, seenPropertyIds, knownProperties, ct);
+            await RunScraperAsync(scraperList[i], i, run, districtMaxPrices, config, seenPropertyIds, knownProperties, ct);
         }
 
         await MarkMissingPropertiesAsync(run, seenPropertyIds, ct);
@@ -70,6 +84,7 @@ public class CrawlOrchestrator(
         run.FinishedAt = DateTime.UtcNow;
         run.Status = RunStatus.Completed;
         await repository.CompleteCrawlRunAsync(run, ct);
+        progressState.EndRun();
 
         logger.LogInformation("CrawlRun {RunId} completed. New={New}, Delisted={Del}, BigDrop={Drop}",
             run.Id, run.NewCount, run.DelistedCount, run.BigDropCount);
@@ -116,6 +131,7 @@ public class CrawlOrchestrator(
 
     private async Task RunScraperAsync(
         ISourceScraper scraper,
+        int platformIndex,
         CrawlRun run,
         IReadOnlyDictionary<string, decimal> districtMaxPrices,
         ScoringConfig config,
@@ -123,6 +139,8 @@ public class CrawlOrchestrator(
         List<Property> knownProperties,
         CancellationToken ct)
     {
+        progressState.StartPlatform(GetPlatformDisplayName(scraper.SourceSite), platformIndex);
+
         var sourceResult = new SourceRunResult
         {
             CrawlRunId = run.Id,
@@ -134,7 +152,8 @@ public class CrawlOrchestrator(
             using var scraperCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             scraperCts.CancelAfter(TimeSpan.FromMinutes(15)); // 單一爬蟲最多 15 分鐘，防止卡住整個排程
 
-            var dtos = await scraper.FetchAsync(districtMaxPrices, scraperCts.Token);
+            var progress = new Progress<ScraperDistrictProgress>(p => progressState.UpdateDistrict(p));
+            var dtos = await scraper.FetchAsync(districtMaxPrices, progress, scraperCts.Token);
             var validDtos = dtos.Where(d => PropertyNormalizer.MeetsTrackingCriteria(d, districtMaxPrices)).ToList();
 
             foreach (var dto in validDtos)

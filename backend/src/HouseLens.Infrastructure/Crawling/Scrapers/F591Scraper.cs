@@ -28,6 +28,7 @@ public class F591Scraper(HttpFetcher fetcher, ILogger<F591Scraper> logger) : ISo
 
     public async Task<IReadOnlyList<PropertyDto>> FetchAsync(
         IReadOnlyDictionary<string, decimal> districtMaxPrices,
+        IProgress<ScraperDistrictProgress>? progress,
         CancellationToken cancellationToken = default)
     {
         var results = new List<PropertyDto>();
@@ -70,9 +71,13 @@ public class F591Scraper(HttpFetcher fetcher, ILogger<F591Scraper> logger) : ISo
 
         var citiesQueried = new HashSet<int>(); // regionId
         var cityListingsCache = new Dictionary<int, List<PropertyDto>>(); // regionId → listings
+        var total = knownDistricts.Count;
 
-        foreach (var district in knownDistricts)
+        for (var i = 0; i < knownDistricts.Count; i++)
         {
+            var district = knownDistricts[i];
+            progress?.Report(new(district, i, total, IsStarting: true, FetchedCount: 0));
+
             var (regionId, city) = DistrictMap[district];
             // 用該縣市所有啟用地區的最高上限來抓城市資料（城市層級一次抓最廣範圍）
             var cityMaxPrice = districtMaxPrices
@@ -102,6 +107,8 @@ public class F591Scraper(HttpFetcher fetcher, ILogger<F591Scraper> logger) : ISo
             var districtMaxPrice = districtMaxPrices[district];
             var districtResults = FilterByDistrict(cityListings, district, districtMaxPrice);
             results.AddRange(districtResults);
+
+            progress?.Report(new(district, i, total, IsStarting: false, FetchedCount: districtResults.Count));
             logger.LogInformation("District {District} (max={Max}萬): {Count} listings (filtered from city cache)",
                 district, districtMaxPrice, districtResults.Count);
         }
