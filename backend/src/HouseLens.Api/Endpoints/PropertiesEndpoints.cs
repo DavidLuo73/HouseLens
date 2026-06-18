@@ -76,11 +76,11 @@ public static class PropertiesEndpoints
         var items = await query
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Include(p => p.Listings)
+            .AsSplitQuery()
             .Select(p => new
             {
                 p.Id,
-                Title = p.Listings.FirstOrDefault() != null ? p.Listings.First().Title : p.Address ?? "未提供",
+                Title = p.Listings.OrderBy(l => l.Id).Select(l => l.Title).FirstOrDefault() ?? p.Address ?? "未提供",
                 p.City,
                 p.District,
                 p.AreaPing,
@@ -98,8 +98,8 @@ public static class PropertiesEndpoints
                     .Select(h => h.ChangePercent).FirstOrDefault(),
                 LatestIsBigDrop = p.PriceHistory.OrderByDescending(h => h.CapturedAt)
                     .Select(h => h.IsBigDrop).FirstOrDefault(),
-                ImageUrl = p.Listings.Select(l => l.ImageUrl).FirstOrDefault(u => u != null),
-                ListingUrl = p.Listings.Select(l => l.Url).FirstOrDefault(),
+                ImageUrl = p.Listings.OrderBy(l => l.Id).Where(l => l.ImageUrl != null).Select(l => l.ImageUrl).FirstOrDefault(),
+                ListingUrl = p.Listings.OrderBy(l => l.Id).Select(l => l.Url).FirstOrDefault(),
                 Sources = p.Listings.Select(l => new { SourceSite = l.SourceSite.ToString(), l.Url, l.ImageUrl }),
                 PriceHistory = p.PriceHistory
                     .OrderByDescending(h => h.CapturedAt)
@@ -123,6 +123,7 @@ public static class PropertiesEndpoints
         var property = await db.Properties
             .Include(p => p.Listings)
             .Include(p => p.PriceHistory.OrderByDescending(h => h.CapturedAt))
+            .AsSplitQuery()
             .FirstOrDefaultAsync(p => p.Id == id);
 
         if (property is null)

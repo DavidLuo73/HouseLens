@@ -1,8 +1,8 @@
 <template>
   <div class="property-card" :class="{ 'property-card--delisted': property.status === 'delisted' }">
-    <!-- 圖片縮圖 -->
+    <!-- 圖片縮圖：無圖或載入失敗時顯示佔位灰塊，保持卡片高度一致 -->
     <a
-      v-if="property.imageUrl"
+      v-if="property.imageUrl && !imgError"
       :href="property.listingUrl"
       target="_blank"
       rel="noopener noreferrer"
@@ -13,9 +13,10 @@
         :alt="property.title"
         class="card-image"
         loading="lazy"
-        @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
+        @error="imgError = true"
       />
     </a>
+    <div v-else class="card-image-placeholder" />
 
     <div class="card-body">
       <div class="card-header">
@@ -90,6 +91,8 @@ use([LineChart, GridComponent, CanvasRenderer])
 const props = defineProps<{ property: Property }>()
 const emit = defineEmits<{ 'open-history': [property: Property] }>()
 
+const imgError = ref(false)
+
 const hasTrend = computed(() => props.property.priceHistory.length >= 2)
 
 const sparkOption = computed(() => {
@@ -141,6 +144,11 @@ function formatPercent(val?: number): string {
   height: 160px;
   object-fit: cover;
   display: block;
+}
+.card-image-placeholder {
+  width: 100%;
+  height: 160px;
+  background: #f3f4f6;
 }
 .card-body {
   padding: 1rem;
