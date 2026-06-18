@@ -498,8 +498,8 @@ public class F591Scraper(HttpFetcher fetcher, ILogger<F591Scraper> logger) : ISo
 
     private static string? GetJsonFirstImageUrl(JsonElement item)
     {
-        // 591 BFF imgs 可能是物件陣列 [{src:...,id:...}] 或字串陣列 ["url"]
-        // 跳過影片媒體（type=video 或影片副檔名），取第一張靜態圖片
+        // 591 BFF imgs 可能是物件陣列 [{src:...,type:...}] 或字串陣列 ["url"]
+        // 影片物件優先取縮圖欄位，沒有才回傳影片 URL 讓前端自行顯示（不再跳過）
         foreach (var key in new[] { "imgs", "img_list", "photos" })
         {
             if (item.TryGetProperty(key, out var arr) && arr.ValueKind == JsonValueKind.Array)
@@ -515,26 +515,25 @@ public class F591Scraper(HttpFetcher fetcher, ILogger<F591Scraper> logger) : ISo
                     {
                         var type = GetJsonString(el, "type", "media_type");
                         if (string.Equals(type, "video", StringComparison.OrdinalIgnoreCase))
-                            continue;
-                        candidate = GetJsonString(el, "src", "url", "path");
+                        {
+                            // 優先取縮圖，沒有才用影片 URL（前端用 <video> 顯示）
+                            candidate = GetJsonString(el, "thumbnail", "poster", "cover", "img", "thumb")
+                                     ?? GetJsonString(el, "src", "url", "path");
+                        }
+                        else
+                        {
+                            candidate = GetJsonString(el, "src", "url", "path");
+                        }
                     }
 
-                    if (!string.IsNullOrEmpty(candidate) && !IsVideoUrl(candidate))
+                    if (!string.IsNullOrEmpty(candidate))
                         return candidate;
                 }
             }
         }
         // 單一圖片欄位（591 BFF list 用 photo_url）
-        var single = GetJsonString(item, "photo_url", "img", "main_img", "photo_path", "thumbnail_url", "cover");
-        return IsVideoUrl(single) ? null : single;
-    }
-
-    private static bool IsVideoUrl(string? url)
-    {
-        if (string.IsNullOrEmpty(url)) return false;
-        var lower = url.ToLowerInvariant();
-        return lower.EndsWith(".mp4") || lower.EndsWith(".m3u8") || lower.EndsWith(".webm")
-            || lower.EndsWith(".mov") || lower.Contains("/video/") || lower.Contains("_video");
+        return GetJsonString(item, "photo_url", "cover_img", "img", "main_img",
+                                  "photo_path", "thumbnail_url", "cover", "thumb_url");
     }
 
     private static int? ParseIntFromText(string text)

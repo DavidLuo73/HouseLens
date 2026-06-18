@@ -8,7 +8,18 @@
       rel="noopener noreferrer"
       class="card-image-link"
     >
+      <video
+        v-if="isVideoUrl(property.imageUrl)"
+        :src="property.imageUrl"
+        class="card-image"
+        muted
+        autoplay
+        loop
+        playsinline
+        @error="imgError = true"
+      />
       <img
+        v-else
         :src="property.imageUrl"
         :alt="property.title"
         class="card-image"
@@ -92,6 +103,12 @@ const props = defineProps<{ property: Property }>()
 const emit = defineEmits<{ 'open-history': [property: Property] }>()
 
 const imgError = ref(false)
+
+function isVideoUrl(url?: string | null): boolean {
+  if (!url) return false
+  const lower = url.toLowerCase()
+  return lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.m3u8') || lower.endsWith('.mov')
+}
 
 const hasTrend = computed(() => props.property.priceHistory.length >= 2)
 
