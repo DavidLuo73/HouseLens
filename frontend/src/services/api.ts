@@ -140,7 +140,11 @@ export interface AppConfig {
 
 function toProxyUrl(url?: string): string | undefined {
   if (!url) return undefined
-  return `/api/proxy/image?url=${encodeURIComponent(url)}`
+  // 只有信義房屋需要後端代理繞過防盜鏈（Referer: sinyi.com.tw）
+  // 591 等其他平台可直接存取，且影片檔不應受限於代理的 5 MB 上限
+  if (url.includes('sinyi.com.tw'))
+    return `/api/proxy/image?url=${encodeURIComponent(url)}`
+  return url
 }
 
 function mapProperty<T extends Property>(p: T): T {
