@@ -15,6 +15,21 @@
       </div>
     </div>
 
+    <div class="filter-row">
+      <span class="filter-label">平台</span>
+      <div class="district-chips">
+        <button
+          v-for="site in SOURCE_SITES"
+          :key="site.value"
+          class="chip"
+          :class="{ 'chip--active': filters.sourceSites.includes(site.value) }"
+          @click="filters.toggleSourceSite(site.value)"
+        >
+          {{ site.label }}
+        </button>
+      </div>
+    </div>
+
     <div class="filter-row filter-row--wrap">
       <div class="filter-item">
         <span class="filter-label">總價 (萬)</span>
@@ -86,6 +101,14 @@ defineProps<{
 }>()
 
 const filters = useFiltersStore()
+
+const SOURCE_SITES = [
+  { value: 'F591', label: '591' },
+  { value: 'Sinyi', label: '信義' },
+  { value: 'Yungching', label: '永慶' },
+  { value: 'Rakuya', label: '樂屋' },
+  { value: 'TwHouse', label: '台灣好屋' },
+]
 
 function onMinPrice(e: Event) {
   const val = (e.target as HTMLInputElement).valueAsNumber

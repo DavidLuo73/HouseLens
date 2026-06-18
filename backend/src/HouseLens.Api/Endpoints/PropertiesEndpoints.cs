@@ -17,6 +17,7 @@ public static class PropertiesEndpoints
     private static async Task<IResult> GetProperties(
         AppDbContext db,
         string[]? district = null,
+        string[]? sourceSite = null,
         decimal? minPrice = null,
         decimal? maxPrice = null,
         bool? hasParking = null,
@@ -34,6 +35,16 @@ public static class PropertiesEndpoints
 
         if (district is { Length: > 0 })
             query = query.Where(p => district.Contains(p.District));
+
+        if (sourceSite is { Length: > 0 })
+        {
+            var sites = sourceSite
+                .Select(s => Enum.TryParse<SourceSite>(s, true, out var v) ? (SourceSite?)v : null)
+                .OfType<SourceSite>()
+                .ToHashSet();
+            if (sites.Count > 0)
+                query = query.Where(p => p.Listings.Any(l => sites.Contains(l.SourceSite)));
+        }
 
         if (minPrice.HasValue)
             query = query.Where(p => p.CurrentTotalPrice >= minPrice.Value);

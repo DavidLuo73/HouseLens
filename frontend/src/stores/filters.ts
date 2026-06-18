@@ -6,6 +6,7 @@ export const TRACKED_DISTRICTS = [
 
 interface FilterState {
   districts: string[]
+  sourceSites: string[]
   minPrice: number | null
   maxPrice: number | null
   hasParking: boolean | null
@@ -19,6 +20,7 @@ interface FilterState {
 export const useFiltersStore = defineStore('filters', {
   state: (): FilterState => ({
     districts: [],
+    sourceSites: [],
     minPrice: null,
     maxPrice: null,
     hasParking: null,
@@ -35,8 +37,15 @@ export const useFiltersStore = defineStore('filters', {
       else this.districts.splice(idx, 1)
       this.page = 1
     },
+    toggleSourceSite(site: string) {
+      const idx = this.sourceSites.indexOf(site)
+      if (idx === -1) this.sourceSites.push(site)
+      else this.sourceSites.splice(idx, 1)
+      this.page = 1
+    },
     reset() {
       this.districts = []
+      this.sourceSites = []
       this.minPrice = null
       this.maxPrice = null
       this.hasParking = null

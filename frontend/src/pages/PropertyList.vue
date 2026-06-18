@@ -88,6 +88,7 @@ async function fetchProperties() {
       status: filters.status,
     }
     if (filters.districts.length) params.district = filters.districts
+    if (filters.sourceSites.length) params.sourceSite = filters.sourceSites
     if (filters.minPrice !== null) params.minPrice = filters.minPrice
     if (filters.maxPrice !== null) params.maxPrice = filters.maxPrice
     if (filters.hasParking !== null) params.hasParking = filters.hasParking
@@ -106,6 +107,7 @@ async function fetchProperties() {
 watch(
   () => [
     filters.districts,
+    filters.sourceSites,
     filters.minPrice,
     filters.maxPrice,
     filters.hasParking,
