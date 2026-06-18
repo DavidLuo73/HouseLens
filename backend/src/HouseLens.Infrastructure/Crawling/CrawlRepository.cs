@@ -10,7 +10,7 @@ public class CrawlRepository(AppDbContext db) : ICrawlRepository
 {
     public async Task<TrackingCriteria> GetTrackingCriteriaAsync(CancellationToken ct = default)
     {
-        return await db.TrackingCriteria.FirstOrDefaultAsync(ct)
+        return await db.TrackingCriteria.OrderBy(x => x.Id).FirstOrDefaultAsync(ct)
             ?? new TrackingCriteria
             {
                 Districts = System.Text.Json.JsonSerializer.Serialize(
@@ -87,7 +87,7 @@ public class CrawlRepository(AppDbContext db) : ICrawlRepository
 
     public async Task<ScoringConfig> GetScoringConfigAsync(CancellationToken ct = default)
     {
-        return await db.ScoringConfigs.FirstOrDefaultAsync(ct) ?? new ScoringConfig();
+        return await db.ScoringConfigs.OrderBy(x => x.Id).FirstOrDefaultAsync(ct) ?? new ScoringConfig();
     }
 
     public async Task<IReadOnlyList<Property>> GetActivePropertiesAsync(CancellationToken ct = default)

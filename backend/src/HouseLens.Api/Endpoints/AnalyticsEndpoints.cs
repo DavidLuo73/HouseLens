@@ -16,7 +16,7 @@ public static class AnalyticsEndpoints
 
     private static async Task<IResult> GetDistricts(AppDbContext db)
     {
-        var criteria = await db.TrackingCriteria.FirstOrDefaultAsync();
+        var criteria = await db.TrackingCriteria.OrderBy(x => x.Id).FirstOrDefaultAsync();
         var districts = criteria is not null
             ? System.Text.Json.JsonSerializer.Deserialize<string[]>(criteria.Districts) ?? []
             : Array.Empty<string>();
@@ -52,7 +52,7 @@ public static class AnalyticsEndpoints
         }
 
         // topRated
-        var criteria = await db.TrackingCriteria.FirstOrDefaultAsync();
+        var criteria = await db.TrackingCriteria.OrderBy(x => x.Id).FirstOrDefaultAsync();
         var districts = criteria is not null
             ? System.Text.Json.JsonSerializer.Deserialize<string[]>(criteria.Districts) ?? []
             : Array.Empty<string>();
