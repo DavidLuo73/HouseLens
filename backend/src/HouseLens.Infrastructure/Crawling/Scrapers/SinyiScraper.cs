@@ -143,33 +143,22 @@ public partial class SinyiScraper(HttpFetcher fetcher, ILogger<SinyiScraper> log
         var listingKey = keyMatch.Groups[1].Value;
         var url = $"{BaseUrl}/buy/house/{listingKey}";
 
-        // 優先從 <img src> / <img data-src> 取得真實 URL；後備用 listingKey 組合
-        var imgNode = card.SelectSingleNode(".//img[@src]");
-        var imgSrc = imgNode?.GetAttributeValue("src", "");
-
-        // Next.js Image Optimization 產生 /_next/image?url=... 相對路徑，解析出原始 CDN URL
-        if (!string.IsNullOrEmpty(imgSrc) && imgSrc.StartsWith("/_next/image", StringComparison.Ordinal))
+        // 取第一張非影片圖片（如果第一個媒體是影片則跳過，嘗試下一張）
+        string? imageUrl = null;
+        var imgNodes = card.SelectNodes(".//img[@src]");
+        if (imgNodes != null)
         {
-            var qIdx = imgSrc.IndexOf('?');
-            if (qIdx >= 0)
+            foreach (var img in imgNodes)
             {
-                foreach (var pair in imgSrc[(qIdx + 1)..].Split('&'))
+                var resolved = ResolveImgSrc(img);
+                if (!string.IsNullOrEmpty(resolved) && !IsVideoUrl(resolved))
                 {
-                    var eqIdx = pair.IndexOf('=');
-                    if (eqIdx > 0 && pair[..eqIdx] == "url")
-                    {
-                        imgSrc = Uri.UnescapeDataString(pair[(eqIdx + 1)..]);
-                        break;
-                    }
+                    imageUrl = resolved;
+                    break;
                 }
             }
         }
-
-        if (string.IsNullOrEmpty(imgSrc) || !imgSrc.StartsWith("http", StringComparison.Ordinal))
-            imgSrc = imgNode?.GetAttributeValue("data-src", "");
-        var imageUrl = (!string.IsNullOrEmpty(imgSrc) && imgSrc.StartsWith("http", StringComparison.Ordinal))
-            ? imgSrc
-            : $"https://res.sinyi.com.tw/buy/{listingKey}/smallimg/A.JPG";
+        imageUrl ??= $"https://res.sinyi.com.tw/buy/{listingKey}/smallimg/A.JPG";
 
         // 標題
         var titleNode = card.SelectSingleNode(".//div[contains(@class,'LongInfoCard_Type_Name')]");
@@ -227,6 +216,45 @@ public partial class SinyiScraper(HttpFetcher fetcher, ILogger<SinyiScraper> log
             Url: url,
             PostedDate: null,
             ImageUrl: imageUrl);
+    }
+
+    /// <summary>
+    /// 解析 img 節點的真實圖片 URL（處理 Next.js /_next/image?url= 編碼）。
+    /// </summary>
+    private static string? ResolveImgSrc(HtmlNode imgNode)
+    {
+        var src = imgNode.GetAttributeValue("src", "");
+
+        // Next.js Image Optimization：/_next/image?url=<encoded-cdn-url>&w=...
+        if (!string.IsNullOrEmpty(src) && src.StartsWith("/_next/image", StringComparison.Ordinal))
+        {
+            var qIdx = src.IndexOf('?');
+            if (qIdx >= 0)
+            {
+                foreach (var pair in src[(qIdx + 1)..].Split('&'))
+                {
+                    var eqIdx = pair.IndexOf('=');
+                    if (eqIdx > 0 && pair[..eqIdx] == "url")
+                    {
+                        src = Uri.UnescapeDataString(pair[(eqIdx + 1)..]);
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (string.IsNullOrEmpty(src) || !src.StartsWith("http", StringComparison.Ordinal))
+            src = imgNode.GetAttributeValue("data-src", "");
+
+        return src?.StartsWith("http", StringComparison.Ordinal) == true ? src : null;
+    }
+
+    private static bool IsVideoUrl(string? url)
+    {
+        if (string.IsNullOrEmpty(url)) return false;
+        var lower = url.ToLowerInvariant();
+        return lower.EndsWith(".mp4") || lower.EndsWith(".m3u8") || lower.EndsWith(".webm")
+            || lower.EndsWith(".mov") || lower.Contains("/video/") || lower.Contains("_video");
     }
 
     private static string? CleanText(string? s)
