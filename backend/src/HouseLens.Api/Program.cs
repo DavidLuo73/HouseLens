@@ -54,6 +54,9 @@ if (!app.Environment.IsEnvironment("Testing"))
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await SeedData.SeedAsync(db);
 
+    // WAL 模式：允許讀寫並行，爬蟲寫入時讀取 API 不再被阻塞（設定持久化，只需執行一次）
+    await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
+
     // 清理孤兒 CrawlRun：上次後端非正常關閉時可能留下 Running 狀態的記錄，
     // 啟動時一律標為 Failed，防止前端永遠顯示「爬取中」
     await db.CrawlRuns
