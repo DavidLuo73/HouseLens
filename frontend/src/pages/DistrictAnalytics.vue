@@ -1,57 +1,59 @@
 <template>
-  <div class="district-analytics">
-    <h1>區域分析</h1>
+  <div class="analytics-page">
+    <div class="page-inner">
+      <div class="page-header">
+        <h1>區域分析</h1>
+        <p class="page-subtitle" v-if="!loading && !error">
+          共 {{ districts.length }} 個追蹤區域，{{ activeCount }} 區有效資料
+        </p>
+      </div>
 
-    <div v-if="loading" class="loading">載入中…</div>
-    <div v-else-if="error" class="error">{{ error }}</div>
+      <div v-if="loading" class="state-box">
+        <div class="loader" />
+        <p>載入中…</p>
+      </div>
+      <div v-else-if="error" class="state-box state-box--error">{{ error }}</div>
 
-    <template v-else>
-      <p class="subtitle">共 {{ districts.length }} 個追蹤區域，有效資料 {{ activeCount }} 區</p>
-
-      <div class="district-grid">
+      <div v-else class="district-grid">
         <div
           v-for="d in districts"
           :key="d.district"
           class="district-card"
           :class="{ 'district-card--insufficient': d.insufficientData }"
         >
-          <div class="card-header">
+          <div class="card-top">
             <h2 class="district-name">{{ d.district }}</h2>
-            <span v-if="d.insufficientData" class="badge badge--insufficient">資料不足</span>
-            <span v-else class="badge badge--ok">{{ d.propertyCount }} 筆</span>
+            <span v-if="d.insufficientData" class="tag tag--muted">資料不足</span>
+            <span v-else class="tag tag--count">{{ d.propertyCount }} 筆</span>
           </div>
 
-          <div v-if="!d.insufficientData" class="stats-row">
-            <div class="stat">
-              <span class="stat-label">平均單價</span>
-              <span class="stat-value stat-value--primary">{{ d.avgUnitPrice.toFixed(1) }} 萬/坪</span>
+          <template v-if="!d.insufficientData">
+            <div class="stats-row">
+              <div class="stat">
+                <span class="stat-label">平均單價</span>
+                <span class="stat-value stat-value--accent">{{ d.avgUnitPrice.toFixed(1) }} <em>萬/坪</em></span>
+              </div>
+              <div class="stat">
+                <span class="stat-label">總價範圍</span>
+                <span class="stat-value">{{ d.minTotalPrice }}–{{ d.maxTotalPrice }} <em>萬</em></span>
+              </div>
             </div>
-            <div class="stat">
-              <span class="stat-label">總價範圍</span>
-              <span class="stat-value">{{ d.minTotalPrice }}–{{ d.maxTotalPrice }} 萬</span>
-            </div>
-          </div>
 
-          <div v-if="!d.insufficientData && d.priceBuckets.length" class="chart-section">
-            <p class="chart-label">總價分布</p>
-            <div class="chart-container">
-              <VChart :option="bucketChartOption(d)" autoresize style="height: 180px" />
+            <div v-if="d.priceBuckets.length" class="chart-block">
+              <p class="chart-label">總價分布</p>
+              <VChart :option="bucketChartOption(d)" autoresize style="height: 160px" />
             </div>
-          </div>
 
-          <div v-if="!d.insufficientData && d.trend.length" class="chart-section">
-            <p class="chart-label">單價趨勢</p>
-            <div class="chart-container">
-              <VChart :option="trendChartOption(d)" autoresize style="height: 160px" />
+            <div v-if="d.trend.length" class="chart-block">
+              <p class="chart-label">單價趨勢</p>
+              <VChart :option="trendChartOption(d)" autoresize style="height: 140px" />
             </div>
-          </div>
+          </template>
 
-          <div v-if="d.insufficientData" class="insufficient-msg">
-            此區域物件數量不足，無法計算統計數據
-          </div>
+          <div v-else class="insufficient-msg">此區域物件數量不足，無法計算統計數據</div>
         </div>
       </div>
-    </template>
+    </div>
   </div>
 </template>
 
@@ -93,17 +95,23 @@ function bucketChartOption(d: DistrictStats) {
     xAxis: {
       type: 'category',
       data: d.priceBuckets.map((b) => b.range),
-      axisLabel: { fontSize: 10, rotate: 20 },
+      axisLabel: { fontSize: 10, rotate: 20, color: '#717171' },
+      axisLine: { lineStyle: { color: '#EBEBEB' } },
     },
-    yAxis: { type: 'value', name: '筆', minInterval: 1 },
-    series: [
-      {
-        type: 'bar',
-        data: d.priceBuckets.map((b) => b.count),
-        itemStyle: { color: '#3b82f6' },
-      },
-    ],
-    grid: { left: 40, right: 10, top: 10, bottom: 50 },
+    yAxis: {
+      type: 'value',
+      name: '筆',
+      minInterval: 1,
+      axisLabel: { fontSize: 10, color: '#717171' },
+      splitLine: { lineStyle: { color: '#F7F7F7' } },
+    },
+    series: [{
+      type: 'bar',
+      data: d.priceBuckets.map((b) => b.count),
+      itemStyle: { color: '#FF385C', borderRadius: [3, 3, 0, 0] },
+      barMaxWidth: 32,
+    }],
+    grid: { left: 36, right: 10, top: 12, bottom: 52 },
   }
 }
 
@@ -117,128 +125,191 @@ function trendChartOption(d: DistrictStats) {
     xAxis: {
       type: 'category',
       data: d.trend.map((t) => t.date),
-      axisLabel: { fontSize: 10 },
+      axisLabel: { fontSize: 10, color: '#717171' },
+      axisLine: { lineStyle: { color: '#EBEBEB' } },
     },
-    yAxis: { type: 'value', name: '萬/坪', min: 'dataMin' },
-    series: [
-      {
-        type: 'line',
-        data: d.trend.map((t) => t.avgUnitPrice),
-        smooth: true,
-        itemStyle: { color: '#0891b2' },
-        lineStyle: { width: 2 },
-        symbol: 'circle',
-        symbolSize: 5,
-      },
-    ],
-    grid: { left: 50, right: 10, top: 10, bottom: 30 },
+    yAxis: {
+      type: 'value',
+      name: '萬/坪',
+      min: 'dataMin',
+      axisLabel: { fontSize: 10, color: '#717171' },
+      splitLine: { lineStyle: { color: '#F7F7F7' } },
+    },
+    series: [{
+      type: 'line',
+      data: d.trend.map((t) => t.avgUnitPrice),
+      smooth: true,
+      lineStyle: { color: '#222222', width: 2 },
+      itemStyle: { color: '#222222' },
+      areaStyle: { color: 'rgba(34,34,34,0.05)' },
+      symbol: 'circle',
+      symbolSize: 4,
+    }],
+    grid: { left: 48, right: 10, top: 12, bottom: 28 },
   }
 }
 </script>
 
 <style scoped>
-.district-analytics {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 1.5rem;
+.analytics-page {
+  background: var(--color-bg-soft);
+  min-height: 100vh;
 }
+
+.page-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+}
+
+@media (max-width: 640px) {
+  .page-inner { padding: 20px 16px 48px; }
+}
+
+.page-header { margin-bottom: 28px; }
+
 h1 {
   font-size: 1.6rem;
-  margin-bottom: 0.25rem;
+  font-weight: 800;
+  color: var(--color-fg);
+  letter-spacing: -0.3px;
+  margin-bottom: 6px;
 }
-.subtitle {
-  color: #6b7280;
-  font-size: 0.9rem;
-  margin-bottom: 1.5rem;
+
+.page-subtitle {
+  font-size: 0.88rem;
+  color: var(--color-fg-2);
 }
+
+.state-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 80px 24px;
+  color: var(--color-fg-2);
+}
+.state-box--error { color: var(--color-price-down); }
+.loader {
+  width: 32px; height: 32px;
+  border: 3px solid var(--color-border-soft);
+  border-top-color: var(--color-rausch);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
 .district-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
 }
+
+@media (max-width: 480px) {
+  .district-grid { grid-template-columns: 1fr; }
+}
+
 .district-card {
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 1rem 1.25rem;
   background: #fff;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-border-soft);
+  padding: 20px;
 }
+
 .district-card--insufficient {
-  background: #f9fafb;
-  opacity: 0.8;
+  opacity: 0.7;
 }
-.card-header {
+
+.card-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 0.75rem;
+  margin-bottom: 16px;
 }
+
 .district-name {
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 700;
+  color: var(--color-fg);
   margin: 0;
 }
-.badge {
-  padding: 0.15rem 0.5rem;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 600;
+
+.tag {
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 0.72rem;
+  font-weight: 700;
 }
-.badge--ok {
-  background: #dbeafe;
-  color: #1d4ed8;
+
+.tag--count {
+  background: var(--color-bg-soft);
+  color: var(--color-fg-2);
+  border: 1px solid var(--color-border);
 }
-.badge--insufficient {
-  background: #f3f4f6;
-  color: #6b7280;
+
+.tag--muted {
+  background: var(--color-bg-soft);
+  color: var(--color-fg-3);
+  border: 1px solid var(--color-border-soft);
 }
+
 .stats-row {
   display: flex;
-  gap: 1.5rem;
-  margin-bottom: 0.75rem;
+  gap: 24px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-border-soft);
 }
+
 .stat {
   display: flex;
   flex-direction: column;
-  gap: 0.1rem;
+  gap: 4px;
 }
+
 .stat-label {
-  font-size: 0.75rem;
-  color: #6b7280;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-fg-2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
+
 .stat-value {
-  font-size: 0.95rem;
-  font-weight: 600;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-fg);
 }
-.stat-value--primary {
-  color: #0891b2;
-  font-size: 1.05rem;
+
+.stat-value--accent {
+  font-size: 1.1rem;
+  color: var(--color-rausch);
 }
-.chart-section {
-  margin-top: 0.75rem;
-}
-.chart-label {
+
+.stat-value em {
+  font-style: normal;
   font-size: 0.78rem;
-  color: #6b7280;
-  margin: 0 0 0.25rem;
+  font-weight: 500;
+  color: var(--color-fg-2);
 }
-.chart-container {
-  border: 1px solid #f3f4f6;
-  border-radius: 6px;
-  background: #fafafa;
+
+.chart-block {
+  margin-top: 12px;
 }
+
+.chart-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-fg-2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 6px;
+}
+
 .insufficient-msg {
-  color: #9ca3af;
   font-size: 0.85rem;
+  color: var(--color-fg-3);
   text-align: center;
-  padding: 1.5rem 0;
-}
-.loading,
-.error {
-  text-align: center;
-  padding: 3rem;
-  color: #6b7280;
-}
-.error {
-  color: #dc2626;
+  padding: 24px 0;
 }
 </style>

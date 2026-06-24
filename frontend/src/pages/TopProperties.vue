@@ -1,44 +1,54 @@
 <template>
-  <div class="top-properties">
-    <h1>各區優質排行</h1>
+  <div class="top-page">
+    <div class="page-inner">
+      <div class="page-header">
+        <h1>各區優質排行</h1>
+        <p class="page-subtitle">依綜合評分排列，每區前 5 名</p>
+      </div>
 
-    <div v-if="loading" class="loading">載入中…</div>
-    <div v-else-if="error" class="error">{{ error }}</div>
+      <div v-if="loading" class="state-box">
+        <div class="loader" />
+        <p>載入中…</p>
+      </div>
+      <div v-else-if="error" class="state-box state-box--error">{{ error }}</div>
 
-    <template v-else>
-      <div v-if="!byDistrict.length" class="empty">尚無評分資料，請先執行爬取。</div>
+      <template v-else>
+        <div v-if="!byDistrict.length" class="state-box">
+          <p>尚無評分資料，請先執行爬取。</p>
+        </div>
 
-      <div v-for="group in byDistrict" :key="group.district" class="district-group">
-        <h2 class="district-name">{{ group.district }}</h2>
+        <div v-else class="groups-grid">
+          <div v-for="group in byDistrict" :key="group.district" class="group-card">
+            <h2 class="group-title">{{ group.district }}</h2>
 
-        <div v-if="!group.items.length" class="no-data">目前無評分物件</div>
+            <div v-if="!group.items.length" class="no-data">目前無評分物件</div>
 
-        <div v-else class="items-list">
-          <div v-for="(item, i) in group.items" :key="item.id" class="rank-item">
-            <div class="rank-badge" :class="rankClass(i)">
-              {{ i + 1 }}
-            </div>
-            <div class="item-info">
-              <div class="item-title">{{ item.title }}</div>
-              <div class="item-meta">
-                <span class="price">{{ item.totalPrice.toFixed(0) }} 萬</span>
-                <span v-if="item.unitPrice" class="unit-price">
-                  ・{{ item.unitPrice.toFixed(1) }} 萬/坪
-                </span>
-                <span v-if="item.ageYears != null" class="age">
-                  ・{{ item.ageYears }} 年
-                </span>
-                <span v-if="item.hasParking" class="parking-tag">P</span>
-              </div>
-            </div>
-            <div class="score-badge">
-              <span class="score-value">{{ Math.round(item.score * 100) }}</span>
-              <span class="score-label">分</span>
-            </div>
+            <ul v-else class="rank-list">
+              <li v-for="(item, i) in group.items" :key="item.id" class="rank-item">
+                <div class="rank-badge" :class="rankClass(i)">{{ i + 1 }}</div>
+
+                <div class="rank-info">
+                  <div class="rank-title">{{ item.title }}</div>
+                  <div class="rank-meta">
+                    <span class="rank-price">{{ item.totalPrice.toFixed(0) }} 萬</span>
+                    <span v-if="item.unitPrice">· {{ item.unitPrice.toFixed(1) }} 萬/坪</span>
+                    <span v-if="item.ageYears != null">· {{ item.ageYears }} 年</span>
+                    <span v-if="item.hasParking" class="parking-chip">P</span>
+                  </div>
+                </div>
+
+                <div class="rank-score">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="#FF385C" stroke="none">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                  </svg>
+                  <span class="score-num">{{ (item.score * 5).toFixed(1) }}</span>
+                </div>
+              </li>
+            </ul>
           </div>
         </div>
-      </div>
-    </template>
+      </template>
+    </div>
   </div>
 </template>
 
@@ -75,129 +85,187 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.top-properties {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 1.5rem;
+.top-page {
+  background: var(--color-bg-soft);
+  min-height: 100vh;
 }
+
+.page-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+}
+
+@media (max-width: 640px) {
+  .page-inner { padding: 20px 16px 48px; }
+}
+
+.page-header { margin-bottom: 28px; }
+
 h1 {
   font-size: 1.6rem;
-  margin-bottom: 1.5rem;
+  font-weight: 800;
+  color: var(--color-fg);
+  letter-spacing: -0.3px;
+  margin-bottom: 6px;
 }
-.loading,
-.error,
-.empty {
-  text-align: center;
-  padding: 3rem;
-  color: #6b7280;
-}
-.error {
-  color: #dc2626;
-}
-.district-group {
-  margin-bottom: 2rem;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 1.25rem;
-}
-.district-name {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: #111827;
-  margin: 0 0 1rem;
-  padding-bottom: 0.6rem;
-  border-bottom: 2px solid #f3f4f6;
-}
-.no-data {
-  color: #9ca3af;
+
+.page-subtitle {
   font-size: 0.88rem;
-  padding: 0.5rem 0;
+  color: var(--color-fg-2);
 }
-.items-list {
+
+.state-box {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  align-items: center;
+  gap: 12px;
+  padding: 80px 24px;
+  color: var(--color-fg-2);
 }
+.state-box--error { color: var(--color-price-down); }
+.loader {
+  width: 32px; height: 32px;
+  border: 3px solid var(--color-border-soft);
+  border-top-color: var(--color-rausch);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.groups-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+@media (max-width: 480px) {
+  .groups-grid { grid-template-columns: 1fr; }
+}
+
+.group-card {
+  background: #fff;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-border-soft);
+  padding: 20px;
+}
+
+.group-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-fg);
+  margin: 0 0 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-border-soft);
+}
+
+.no-data {
+  font-size: 0.85rem;
+  color: var(--color-fg-3);
+  padding: 12px 0;
+}
+
+.rank-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .rank-item {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.6rem 0.5rem;
-  border-radius: 8px;
+  gap: 12px;
+  padding: 10px 8px;
+  border-radius: var(--radius-input);
   transition: background 0.1s;
 }
+
 .rank-item:hover {
-  background: #f9fafb;
+  background: var(--color-bg-soft);
 }
+
 .rank-badge {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: #e5e7eb;
-  color: #6b7280;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.82rem;
-  font-weight: 700;
+  font-size: 0.8rem;
+  font-weight: 800;
   flex-shrink: 0;
+  background: var(--color-bg-soft);
+  color: var(--color-fg-2);
+  border: 1px solid var(--color-border);
 }
+
 .rank-badge--gold {
-  background: #fef3c7;
-  color: #d97706;
+  background: #FEF3C7;
+  color: #D97706;
+  border-color: #FDE68A;
 }
+
 .rank-badge--silver {
-  background: #f3f4f6;
-  color: #4b5563;
+  background: #F3F4F6;
+  color: #374151;
+  border-color: #E5E7EB;
 }
+
 .rank-badge--bronze {
-  background: #fef0e5;
-  color: #b45309;
+  background: #FEF0E5;
+  color: #B45309;
+  border-color: #FDE4C8;
 }
-.item-info {
+
+.rank-info {
   flex: 1;
   min-width: 0;
 }
-.item-title {
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: #111827;
+
+.rank-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--color-fg);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.item-meta {
-  font-size: 0.8rem;
-  color: #6b7280;
-  margin-top: 0.15rem;
+
+.rank-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: var(--color-fg-2);
+  margin-top: 2px;
+  flex-wrap: wrap;
 }
-.price {
-  color: #111827;
+
+.rank-price {
   font-weight: 600;
+  color: var(--color-fg);
 }
-.parking-tag {
-  display: inline-block;
-  margin-left: 0.35rem;
-  padding: 0.05rem 0.35rem;
-  background: #dbeafe;
-  color: #1d4ed8;
-  border-radius: 4px;
-  font-size: 0.72rem;
+
+.parking-chip {
+  padding: 1px 6px;
+  background: var(--color-badge-parking-bg);
+  color: var(--color-badge-parking-text);
+  border-radius: var(--radius-pill);
+  font-size: 0.7rem;
   font-weight: 700;
 }
-.score-badge {
+
+.rank-score {
+  display: flex;
+  align-items: center;
+  gap: 3px;
   flex-shrink: 0;
-  text-align: right;
 }
-.score-value {
-  font-size: 1.2rem;
+
+.score-num {
+  font-size: 0.88rem;
   font-weight: 700;
-  color: #059669;
-}
-.score-label {
-  font-size: 0.72rem;
-  color: #6b7280;
-  margin-left: 1px;
+  color: var(--color-fg);
 }
 </style>

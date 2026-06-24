@@ -1,109 +1,105 @@
 <template>
-  <div class="scoring-config">
-    <h1>評分權重設定</h1>
+  <div class="config-page">
+    <div class="page-inner">
+      <div class="page-header">
+        <h1>評分權重設定</h1>
+        <p class="page-subtitle">調整各因子在綜合評分中的影響比重</p>
+      </div>
 
-    <div v-if="loading" class="loading">載入中…</div>
-    <div v-else-if="loadError" class="error">{{ loadError }}</div>
+      <div v-if="loading" class="state-box">
+        <div class="loader" />
+        <p>載入中…</p>
+      </div>
+      <div v-else-if="loadError" class="state-box state-box--error">{{ loadError }}</div>
 
-    <template v-else>
-      <form class="config-form" @submit.prevent="save">
-        <section class="section">
-          <h2 class="section-title">評分因子權重（合計必須為 1.0）</h2>
+      <form v-else class="config-form" @submit.prevent="save">
+        <!-- 權重設定卡片 -->
+        <div class="config-card">
+          <h2 class="card-title">評分因子權重</h2>
+          <p class="card-desc">四項因子合計必須為 1.0</p>
 
-          <div class="weight-grid">
+          <div class="weight-list">
             <div class="weight-row">
               <label class="weight-label">單價（相對行情）</label>
               <input
                 v-model.number="form.scoring.weightUnitPrice"
-                type="number"
-                step="0.01"
-                min="0"
-                max="1"
+                type="number" step="0.01" min="0" max="1"
                 class="weight-input"
-                @input="resetSaveError"
+                @input="resetSaveState"
               />
             </div>
             <div class="weight-row">
               <label class="weight-label">屋齡</label>
               <input
                 v-model.number="form.scoring.weightAge"
-                type="number"
-                step="0.01"
-                min="0"
-                max="1"
+                type="number" step="0.01" min="0" max="1"
                 class="weight-input"
-                @input="resetSaveError"
+                @input="resetSaveState"
               />
             </div>
             <div class="weight-row">
               <label class="weight-label">車位</label>
               <input
                 v-model.number="form.scoring.weightParking"
-                type="number"
-                step="0.01"
-                min="0"
-                max="1"
+                type="number" step="0.01" min="0" max="1"
                 class="weight-input"
-                @input="resetSaveError"
+                @input="resetSaveState"
               />
             </div>
             <div class="weight-row">
               <label class="weight-label">地段</label>
               <input
                 v-model.number="form.scoring.weightLocation"
-                type="number"
-                step="0.01"
-                min="0"
-                max="1"
+                type="number" step="0.01" min="0" max="1"
                 class="weight-input"
-                @input="resetSaveError"
+                @input="resetSaveState"
               />
             </div>
           </div>
 
-          <div class="weight-sum" :class="weightSumClass">
+          <div class="weight-sum" :class="weightSumOk ? 'weight-sum--ok' : 'weight-sum--error'">
             合計：{{ weightSum.toFixed(2) }}
-            <span v-if="!weightSumOk" class="sum-error">（必須為 1.00）</span>
+            <span v-if="!weightSumOk" class="sum-hint">（需調整至 1.00）</span>
           </div>
-        </section>
+        </div>
 
-        <section class="section">
-          <h2 class="section-title">大降價門檻</h2>
-          <div class="threshold-grid">
-            <div class="threshold-row">
+        <!-- 大降價門檻卡片 -->
+        <div class="config-card">
+          <h2 class="card-title">大降價門檻</h2>
+          <p class="card-desc">符合任一條件即標記為「大降價」</p>
+
+          <div class="weight-list">
+            <div class="weight-row">
               <label class="weight-label">降幅（%）</label>
               <input
                 v-model.number="bigDropPercentDisplay"
-                type="number"
-                step="0.1"
-                min="0"
-                max="100"
+                type="number" step="0.1" min="0" max="100"
                 class="weight-input"
               />
             </div>
-            <div class="threshold-row">
+            <div class="weight-row">
               <label class="weight-label">降幅（萬）</label>
               <input
                 v-model.number="form.scoring.bigDropAmount"
-                type="number"
-                step="1"
-                min="0"
+                type="number" step="1" min="0"
                 class="weight-input"
               />
             </div>
           </div>
-        </section>
+        </div>
 
-        <div v-if="saveError" class="save-error">{{ saveError }}</div>
-        <div v-if="saveSuccess" class="save-success">設定已儲存</div>
-
-        <div class="form-actions">
-          <button type="submit" class="save-btn" :disabled="saving || !weightSumOk">
+        <!-- 操作列 -->
+        <div class="form-footer">
+          <transition name="fade">
+            <span v-if="saveError" class="feedback feedback--error">{{ saveError }}</span>
+            <span v-else-if="saveSuccess" class="feedback feedback--ok">✓ 設定已儲存</span>
+          </transition>
+          <button type="submit" class="btn-save" :disabled="saving || !weightSumOk">
             {{ saving ? '儲存中…' : '儲存設定' }}
           </button>
         </div>
       </form>
-    </template>
+    </div>
   </div>
 </template>
 
@@ -143,11 +139,7 @@ const weightSum = computed(() =>
 
 const weightSumOk = computed(() => Math.abs(weightSum.value - 1.0) < 0.001)
 
-const weightSumClass = computed(() =>
-  weightSumOk.value ? 'weight-sum--ok' : 'weight-sum--error'
-)
-
-function resetSaveError() {
+function resetSaveState() {
   saveError.value = null
   saveSuccess.value = false
 }
@@ -183,112 +175,176 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.scoring-config {
-  max-width: 600px;
-  margin: 0 auto;
-  padding: 1.5rem;
+.config-page {
+  background: var(--color-bg-soft);
+  min-height: 100vh;
 }
+
+.page-inner {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+}
+
+@media (max-width: 640px) {
+  .page-inner { padding: 20px 16px 48px; }
+}
+
+.page-header { margin-bottom: 28px; }
+
 h1 {
   font-size: 1.6rem;
-  margin-bottom: 1.5rem;
+  font-weight: 800;
+  color: var(--color-fg);
+  letter-spacing: -0.3px;
+  margin-bottom: 6px;
 }
-.loading,
-.error {
-  text-align: center;
-  padding: 3rem;
-  color: #6b7280;
+
+.page-subtitle {
+  font-size: 0.88rem;
+  color: var(--color-fg-2);
 }
-.error {
-  color: #dc2626;
-}
-.section {
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 1.25rem;
-  margin-bottom: 1.25rem;
-}
-.section-title {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: #374151;
-  margin: 0 0 1rem;
-}
-.weight-grid,
-.threshold-grid {
+
+.state-box {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  align-items: center;
+  gap: 12px;
+  padding: 80px 24px;
+  color: var(--color-fg-2);
 }
-.weight-row,
-.threshold-row {
+.state-box--error { color: var(--color-price-down); }
+.loader {
+  width: 32px; height: 32px;
+  border: 3px solid var(--color-border-soft);
+  border-top-color: var(--color-rausch);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.config-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.config-card {
+  background: #fff;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-border-soft);
+  padding: 24px;
+}
+
+.card-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-fg);
+  margin: 0 0 4px;
+}
+
+.card-desc {
+  font-size: 0.82rem;
+  color: var(--color-fg-2);
+  margin: 0 0 20px;
+}
+
+.weight-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.weight-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 16px;
 }
+
 .weight-label {
   font-size: 0.9rem;
-  color: #374151;
+  font-weight: 500;
+  color: var(--color-fg);
   flex: 1;
 }
+
 .weight-input {
-  width: 90px;
-  padding: 0.3rem 0.5rem;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
+  width: 96px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-input);
   font-size: 0.9rem;
   text-align: right;
+  color: var(--color-fg);
+  outline: none;
+  transition: border-color 0.15s;
 }
+
+.weight-input:focus {
+  border-color: var(--color-fg);
+}
+
 .weight-sum {
-  margin-top: 0.85rem;
-  padding: 0.5rem 0.75rem;
-  border-radius: 6px;
+  margin-top: 16px;
+  padding: 10px 14px;
+  border-radius: var(--radius-input);
   font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.weight-sum--ok {
+  background: var(--color-badge-parking-bg);
+  color: var(--color-badge-parking-text);
+}
+
+.weight-sum--error {
+  background: var(--color-badge-drop-bg);
+  color: var(--color-price-down);
+}
+
+.sum-hint {
+  font-weight: 400;
+  margin-left: 4px;
+}
+
+.form-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+}
+
+.feedback {
+  font-size: 0.85rem;
   font-weight: 600;
 }
-.weight-sum--ok {
-  background: #d1fae5;
-  color: #065f46;
-}
-.weight-sum--error {
-  background: #fee2e2;
-  color: #991b1b;
-}
-.sum-error {
-  margin-left: 0.4rem;
-  font-weight: 400;
-}
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-.save-btn {
-  padding: 0.5rem 1.5rem;
-  background: #2563eb;
+
+.feedback--error { color: var(--color-price-down); }
+.feedback--ok { color: var(--color-badge-parking-text); }
+
+.btn-save {
+  padding: 12px 28px;
+  background: var(--color-rausch);
   color: #fff;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-pill);
   font-size: 0.9rem;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
+  transition: background 0.15s;
 }
-.save-btn:disabled {
-  opacity: 0.45;
+
+.btn-save:hover:not(:disabled) {
+  background: var(--color-rausch-hover);
+}
+
+.btn-save:disabled {
+  background: var(--color-border);
+  color: var(--color-fg-3);
   cursor: not-allowed;
 }
-.save-btn:not(:disabled):hover {
-  background: #1d4ed8;
-}
-.save-error {
-  color: #dc2626;
-  font-size: 0.88rem;
-  margin-bottom: 0.75rem;
-}
-.save-success {
-  color: #059669;
-  font-size: 0.88rem;
-  margin-bottom: 0.75rem;
-  font-weight: 500;
-}
+
+.fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
 </style>
