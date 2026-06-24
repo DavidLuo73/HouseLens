@@ -22,6 +22,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\HouseLens.Application\HouseLens.Application.csproj" />
     <ProjectReference Include="..\..\src\HouseLens.Domain\HouseLens.Domain.csproj" />
+    <ProjectReference Include="..\..\src\HouseLens.Infrastructure\HouseLens.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

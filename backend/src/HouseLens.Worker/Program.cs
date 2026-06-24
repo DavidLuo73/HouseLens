@@ -14,6 +14,7 @@ builder.Services.AddSingleton<HttpFetcher>();
 builder.Services.AddScoped<ICrawlRepository, CrawlRepository>();
 builder.Services.AddScoped<ISourceScraper, F591Scraper>();
 builder.Services.AddScoped<ISourceScraper, SinyiScraper>();
+builder.Services.AddScoped<ISourceScraper, YungchingScraper>();
 builder.Services.AddScoped<CrawlOrchestrator>();
 
 // Quartz scheduler

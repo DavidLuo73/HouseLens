@@ -16,6 +16,7 @@ builder.Services.AddSingleton<HttpFetcher>();
 builder.Services.AddSingleton<CrawlProgressState>();
 builder.Services.AddScoped<ISourceScraper, F591Scraper>();
 builder.Services.AddScoped<ISourceScraper, SinyiScraper>();
+builder.Services.AddScoped<ISourceScraper, YungchingScraper>();
 builder.Services.AddScoped<CrawlOrchestrator>();
 
 builder.Services.AddCors(options =>
