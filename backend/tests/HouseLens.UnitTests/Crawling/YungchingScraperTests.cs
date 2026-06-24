@@ -168,6 +168,8 @@ public class YungchingScraperTests
         dto.AgeYears.Should().Be(12);  // C# Banker's Rounding: Math.Round(12.5) = 12
         dto.HasParking.Should().BeFalse();
         dto.ImageUrl.Should().StartWith("https://yccdn.yungching.com.tw/");
+        dto.ImageUrl.Should().Contain("width=1200");
+        dto.ImageUrl.Should().NotContain("width=480");
         dto.UnitPrice.Should().BeApproximately(750m / 28.50m, 0.01m);
     }
 
@@ -251,12 +253,14 @@ public class YungchingScraperTests
     }
 
     [Fact]
-    public void ParseListings_ImageUrl_StartsWithYccdn()
+    public void ParseListings_ImageUrl_UpscaledTo1200()
     {
         var html = WrapInList(ApartmentCard);
 
         var results = _scraper.ParseListings(html, "新北市", "中和區", maxWan: 800);
 
         results[0].ImageUrl.Should().StartWith("https://yccdn.yungching.com.tw/");
+        results[0].ImageUrl.Should().Contain("width=1200");
+        results[0].ImageUrl.Should().NotContain("width=480");
     }
 }

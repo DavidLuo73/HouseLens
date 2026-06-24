@@ -217,13 +217,15 @@ public partial class YungchingScraper(HttpFetcher fetcher, ILogger<YungchingScra
         if (maxWan > 0 && totalPrice > maxWan) return null;
 
         // 圖片（img-wrapper 內第一張 img 的 src）
+        // 永慶 CDN（yccdn.yungching.com.tw/v1/image/）支援 width= 參數調整尺寸，
+        // 列表頁縮圖為 width=480，替換為 1200 以取得高解析度圖片。
         string? imageUrl = null;
         var imgNode = card.SelectSingleNode(".//*[contains(@class,'img-wrapper')]//img[@src]");
         if (imgNode is not null)
         {
             var src = imgNode.GetAttributeValue("src", "");
             if (!string.IsNullOrEmpty(src) && src.StartsWith("http", StringComparison.Ordinal))
-                imageUrl = src;
+                imageUrl = UpscaleYccdnUrl(src);
         }
 
         var unitPrice = areaPing > 0 ? Math.Round(totalPrice / areaPing, 2) : (decimal?)null;
@@ -246,6 +248,9 @@ public partial class YungchingScraper(HttpFetcher fetcher, ILogger<YungchingScra
             ImageUrl: imageUrl);
     }
 
+    private static string UpscaleYccdnUrl(string src) =>
+        YccdnWidthRegex().IsMatch(src) ? YccdnWidthRegex().Replace(src, "width=1200") : src;
+
     private static string? CleanText(string? s)
     {
         if (string.IsNullOrWhiteSpace(s)) return null;
@@ -265,4 +270,7 @@ public partial class YungchingScraper(HttpFetcher fetcher, ILogger<YungchingScra
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex WhitespaceRegex();
+
+    [GeneratedRegex(@"width=\d+")]
+    private static partial Regex YccdnWidthRegex();
 }
