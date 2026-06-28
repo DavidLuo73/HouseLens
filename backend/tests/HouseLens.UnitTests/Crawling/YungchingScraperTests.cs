@@ -8,8 +8,9 @@ namespace HouseLens.UnitTests.Crawling;
 
 public class YungchingScraperTests
 {
+    // ParseListings 不呼叫 fetcher，傳 null! 即可
     private readonly YungchingScraper _scraper = new(
-        new HttpFetcher(NullLogger<HttpFetcher>.Instance),
+        null!,
         NullLogger<YungchingScraper>.Instance);
 
     // ── 住宅卡片（公寓，應被解析）

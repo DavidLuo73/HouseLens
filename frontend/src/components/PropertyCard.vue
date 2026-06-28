@@ -43,6 +43,11 @@
         <span v-if="property.latestIsBigDrop" class="badge badge--bigdrop">大降價</span>
         <span v-if="property.hasParking" class="badge badge--parking">有車位</span>
         <span v-if="property.status === 'delisted'" class="badge badge--delisted">已下架</span>
+        <span
+          v-for="site in uniqueSourceSites"
+          :key="site"
+          class="badge badge--source"
+        >{{ sourceLabel(site) }}</span>
       </div>
 
       <!-- 收藏愛心（右上） -->
@@ -134,6 +139,7 @@ import { LineChart } from 'echarts/charts'
 import { GridComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { Property } from '@/services/api'
+import { SOURCE_LABELS } from '@/constants/sources'
 
 use([LineChart, GridComponent, CanvasRenderer])
 
@@ -172,6 +178,14 @@ function isVideoUrl(url?: string | null): boolean {
   if (!url) return false
   const lower = url.toLowerCase()
   return lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.m3u8') || lower.endsWith('.mov')
+}
+
+const uniqueSourceSites = computed(() =>
+  [...new Set(props.property.sources.map((s) => s.sourceSite))]
+)
+
+function sourceLabel(site: string): string {
+  return SOURCE_LABELS[site] ?? site
 }
 
 const hasTrend = computed(() => props.property.priceHistory.length >= 2)
@@ -292,6 +306,11 @@ function formatPercent(val?: number): string {
 .badge--delisted {
   background: var(--color-badge-delisted-bg);
   color: var(--color-badge-delisted-text);
+}
+
+.badge--source {
+  background: rgba(30, 30, 30, 0.55);
+  color: #fff;
 }
 
 /* ===== 愛心按鈕 ===== */

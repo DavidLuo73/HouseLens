@@ -19,7 +19,7 @@ public class CrawlJob(IServiceScopeFactory scopeFactory, ILogger<CrawlJob> logge
 
         try
         {
-            var runId = await orchestrator.RunAsync(context.CancellationToken);
+            var runId = await orchestrator.RunAsync(ct: context.CancellationToken);
             await notificationService.SendDailyNotificationsAsync(runId, context.CancellationToken);
             logger.LogInformation("CrawlJob completed at {Time}", DateTimeOffset.Now);
         }

@@ -13,11 +13,15 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 // Crawl services（供 /api/admin/trigger-crawl 手動觸發使用）
 builder.Services.AddSingleton<HttpFetcher>();
+builder.Services.AddSingleton<PlaywrightFetcher>();
 builder.Services.AddSingleton<CrawlProgressState>();
 builder.Services.AddScoped<ISourceScraper, F591Scraper>();
 builder.Services.AddScoped<ISourceScraper, SinyiScraper>();
 builder.Services.AddScoped<ISourceScraper, YungchingScraper>();
+builder.Services.AddScoped<ISourceScraper, HBHousingScraper>();
+builder.Services.AddScoped<ISourceScraper, RakuyaScraper>();
 builder.Services.AddScoped<CrawlOrchestrator>();
+builder.Services.AddScoped<PlatformDataService>();
 
 builder.Services.AddCors(options =>
 {

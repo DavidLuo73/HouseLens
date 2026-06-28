@@ -8,11 +8,11 @@ namespace HouseLens.Infrastructure.Crawling.Scrapers;
 
 /// <summary>
 /// 永慶房屋買屋網（buy.yungching.com.tw）爬蟲。
-/// 含永慶直營與有巢氏加盟物件，使用 Angular SSR，物件卡片直接內嵌於 HTML，
-/// 以 HttpFetcher 取頁面、HtmlAgilityPack 解析即可，不需 Playwright。
+/// 含永慶直營與有巢氏加盟物件，使用 Angular SSR，物件卡片直接內嵌於 HTML。
+/// 網站具有 TLS 指紋辨識等強力反爬機制，以 PlaywrightFetcher（真實 Chromium）繞過。
 /// 分頁：?pg=N（N≥2）；URL 格式：/list/{城市}-{行政區}_c。
 /// </summary>
-public partial class YungchingScraper(HttpFetcher fetcher, ILogger<YungchingScraper> logger) : ISourceScraper
+public partial class YungchingScraper(PlaywrightFetcher fetcher, ILogger<YungchingScraper> logger) : ISourceScraper
 {
     public SourceSite SourceSite => SourceSite.Yungching;
 
@@ -48,11 +48,11 @@ public partial class YungchingScraper(HttpFetcher fetcher, ILogger<YungchingScra
     {
         var results = new List<PropertyDto>();
 
-        if (!await fetcher.CheckRobotsAsync($"{BaseUrl}/list", cancellationToken))
-        {
-            logger.LogInformation("robots.txt disallows crawling yungching buy list");
-            return results;
-        }
+        // 暖機：訪永慶首頁讓 WAF 設置 challenge cookies，後續列表頁請求會帶著這些 cookies。
+        // 即使首頁返回 403，WAF 可能仍透過 Set-Cookie 設置驗證 token，
+        // 下次請求帶著該 token 才會被放行。
+        logger.LogInformation("Yungching: warming up via homepage {BaseUrl}", BaseUrl);
+        await fetcher.FetchAsync(BaseUrl, cancellationToken);
 
         var validDistricts = districtMaxPrices
             .Where(kv => DistrictMap.ContainsKey(kv.Key))
@@ -92,10 +92,10 @@ public partial class YungchingScraper(HttpFetcher fetcher, ILogger<YungchingScra
         {
             var encodedCity = Uri.EscapeDataString(city);
             var encodedDistrict = Uri.EscapeDataString(district);
-            var url = page == 1
-                ? $"{BaseUrl}/list/{encodedCity}-{encodedDistrict}_c"
-                : $"{BaseUrl}/list/{encodedCity}-{encodedDistrict}_c?pg={page}";
+            var listBase = $"{BaseUrl}/list/{encodedCity}-{encodedDistrict}_c";
+            var url = page == 1 ? listBase : $"{listBase}?pg={page}";
 
+            // Playwright 以真實 Chromium 導航，Referer 與 Sec-Fetch-* 均由瀏覽器自動附加
             var html = await fetcher.FetchAsync(url, ct);
             if (html is null)
             {

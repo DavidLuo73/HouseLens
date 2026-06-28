@@ -6,5 +6,6 @@ public enum SourceSite
     Rakuya,
     Sinyi,
     Yungching,
-    TwHouse
+    TwHouse,
+    HBHousing
 }

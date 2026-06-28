@@ -10,6 +10,7 @@ const router = createRouter({
     { path: '/big-drop', component: () => import('../pages/BigDropOverview.vue') },
     { path: '/config', component: () => import('../pages/ScoringConfig.vue') },
     { path: '/config/districts', component: () => import('../pages/DistrictPriceConfig.vue') },
+    { path: '/admin/platforms', component: () => import('../pages/PlatformDataManagement.vue') },
   ],
 })
 

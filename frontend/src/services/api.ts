@@ -124,6 +124,24 @@ export interface BigDropItem {
   url: string
 }
 
+export interface PlatformStats {
+  sourceSite: string
+  displayName: string
+  listingCount: number
+  propertyCount: number
+  priceHistoryCount: number
+  lastCrawlAt?: string
+  lastCrawlSuccess?: boolean
+  lastCrawlFetchedCount?: number
+}
+
+export interface PurgeResult {
+  listingsDeleted: number
+  propertiesDeleted: number
+  priceHistoryDeleted: number
+  sourceRunResultsDeleted: number
+}
+
 export interface AppConfig {
   tracking: { districts: string[]; maxTotalPrice: number }
   scoring: {
@@ -188,6 +206,12 @@ export const api = {
   admin: {
     triggerCrawl: () =>
       request<{ message: string }>('/admin/trigger-crawl', { method: 'POST' }),
+    platformStats: () =>
+      request<PlatformStats[]>('/admin/platform-stats'),
+    purgePlatform: (site: string) =>
+      request<PurgeResult>(`/admin/platform/${site}`, { method: 'DELETE' }),
+    recrawlPlatform: (site: string) =>
+      request<{ message: string }>(`/admin/platform/${site}/recrawl`, { method: 'POST' }),
   },
 
   config: {

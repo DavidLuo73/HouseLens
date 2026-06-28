@@ -63,7 +63,9 @@ public class CrawlRepository(AppDbContext db) : ICrawlRepository
     {
         // 同一物件可能出現在多個行政區查詢（邊界物件），僅記錄第一次
         var exists = await db.PriceHistoryEntries
-            .AnyAsync(h => h.PropertyId == entry.PropertyId && h.CrawlRunId == entry.CrawlRunId, ct);
+            .AnyAsync(h => h.PropertyId == entry.PropertyId
+                        && h.CrawlRunId == entry.CrawlRunId
+                        && h.SourceSite == entry.SourceSite, ct);
         if (exists) return;
 
         db.PriceHistoryEntries.Add(entry);

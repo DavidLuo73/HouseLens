@@ -183,18 +183,11 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useFiltersStore } from '@/stores/filters'
+import { SOURCE_SITES } from '@/constants/sources'
 
 defineProps<{ availableDistricts: string[] }>()
 
 const filters = useFiltersStore()
-
-const SOURCE_SITES = [
-  { value: 'F591', label: '591' },
-  { value: 'Sinyi', label: '信義' },
-  { value: 'Yungching', label: '永慶' },
-  { value: 'Rakuya', label: '樂屋' },
-  { value: 'TwHouse', label: '台灣好屋' },
-]
 
 const SORT_OPTIONS = [
   { value: 'score', label: '評分（預設）' },

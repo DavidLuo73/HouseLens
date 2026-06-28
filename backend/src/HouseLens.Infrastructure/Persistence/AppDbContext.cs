@@ -56,7 +56,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(p => p.TotalPrice).HasPrecision(12, 2);
             e.Property(p => p.UnitPrice).HasPrecision(12, 2);
             e.Property(p => p.ChangePercent).HasPrecision(8, 4);
-            e.HasIndex(p => new { p.PropertyId, p.CrawlRunId }).IsUnique();
+            e.HasIndex(p => new { p.PropertyId, p.CrawlRunId, p.SourceSite }).IsUnique();
             e.HasOne(p => p.Property)
                 .WithMany(pr => pr.PriceHistory)
                 .HasForeignKey(p => p.PropertyId)

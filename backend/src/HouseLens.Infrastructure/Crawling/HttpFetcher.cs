@@ -17,18 +17,31 @@ public class HttpFetcher(ILogger<HttpFetcher> logger) : IDisposable
     {
         var handler = new SocketsHttpHandler
         {
-            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate,
+            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli,
             ConnectTimeout = TimeSpan.FromSeconds(15),   // TCP 握手上限
         };
         var client = new HttpClient(handler);
         client.DefaultRequestHeaders.Add("User-Agent",
-            "Mozilla/5.0 HouseLens-PersonalResearch/1.0 (Personal home-buying research)");
-        client.DefaultRequestHeaders.AcceptLanguage.Add(new StringWithQualityHeaderValue("zh-TW"));
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
+        client.DefaultRequestHeaders.Add("Accept",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8");
+        client.DefaultRequestHeaders.Add("Accept-Language", "zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7");
+        client.DefaultRequestHeaders.Add("sec-ch-ua",
+            "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"");
+        client.DefaultRequestHeaders.Add("sec-ch-ua-mobile", "?0");
+        client.DefaultRequestHeaders.Add("sec-ch-ua-platform", "\"Windows\"");
+        client.DefaultRequestHeaders.Add("Sec-Fetch-Dest", "document");
+        client.DefaultRequestHeaders.Add("Sec-Fetch-Mode", "navigate");
+        client.DefaultRequestHeaders.Add("Sec-Fetch-Site", "none");
+        client.DefaultRequestHeaders.Add("Sec-Fetch-User", "?1");
+        client.DefaultRequestHeaders.Add("Cache-Control", "max-age=0");
+        client.DefaultRequestHeaders.Add("Upgrade-Insecure-Requests", "1");
         client.Timeout = Timeout.InfiniteTimeSpan;       // 由 per-request CTS 控制，避免與內部 timer 衝突
         return client;
     }
 
-    public async Task<string?> FetchAsync(string url, CancellationToken ct = default)
+    public async Task<string?> FetchAsync(string url, CancellationToken ct = default,
+        IReadOnlyDictionary<string, string>? extraHeaders = null)
     {
         var uri = new Uri(url);
 
@@ -46,7 +59,12 @@ public class HttpFetcher(ILogger<HttpFetcher> logger) : IDisposable
             reqCts.CancelAfter(TimeSpan.FromSeconds(30));
             try
             {
-                var response = await _client.GetAsync(url, reqCts.Token);
+                using var req = new HttpRequestMessage(HttpMethod.Get, url);
+                if (extraHeaders is not null)
+                    foreach (var kv in extraHeaders)
+                        req.Headers.TryAddWithoutValidation(kv.Key, kv.Value);
+
+                var response = await _client.SendAsync(req, reqCts.Token);
                 response.EnsureSuccessStatusCode();
                 return await response.Content.ReadAsStringAsync(reqCts.Token);
             }

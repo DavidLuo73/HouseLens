@@ -34,13 +34,14 @@ public class CrawlOrchestrator(
     {
         SourceSite.F591      => "591 房屋",
         SourceSite.Sinyi     => "信義房屋",
-        SourceSite.Rakuya    => "樂居",
+        SourceSite.Rakuya    => "樂屋",
         SourceSite.Yungching => "永慶不動產",
         SourceSite.TwHouse   => "台灣房屋",
+        SourceSite.HBHousing => "住商不動產",
         _                    => site.ToString()
     };
 
-    public async Task<Guid> RunAsync(CancellationToken ct = default)
+    public async Task<Guid> RunAsync(SourceSite? onlySource = null, CancellationToken ct = default)
     {
         var districtConfigs = await repository.GetEnabledDistrictConfigsAsync(ct);
         IReadOnlyDictionary<string, decimal> districtMaxPrices;
@@ -59,7 +60,9 @@ public class CrawlOrchestrator(
 
         var config = await repository.GetScoringConfigAsync(ct);
 
-        var scraperList = scrapers.ToList();
+        var scraperList = onlySource.HasValue
+            ? scrapers.Where(s => s.SourceSite == onlySource.Value).ToList()
+            : scrapers.ToList();
         progressState.StartRun(scraperList.Count);
 
         var run = await repository.CreateCrawlRunAsync(ct);
@@ -78,7 +81,10 @@ public class CrawlOrchestrator(
             await RunScraperAsync(scraperList[i], i, run, districtMaxPrices, config, seenPropertyIds, knownProperties, ct);
         }
 
-        await MarkMissingPropertiesAsync(run, seenPropertyIds, ct);
+        // 單平台模式跳過 missing 標記：其他平台的物件本次未被掃到，不應誤判為下架
+        if (!onlySource.HasValue)
+            await MarkMissingPropertiesAsync(run, seenPropertyIds, ct);
+
         await ScoreActivePropertiesAsync(config, ct);
 
         run.FinishedAt = DateTime.UtcNow;
@@ -301,6 +307,7 @@ public class CrawlOrchestrator(
             {
                 PropertyId = property.Id,
                 CrawlRunId = run.Id,
+                SourceSite = dto.SourceSite,
                 TotalPrice = dto.TotalPrice,
                 UnitPrice = dto.UnitPrice,
                 ChangeFlag = priceResult.Flag,

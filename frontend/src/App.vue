@@ -20,6 +20,7 @@
           <router-link to="/big-drop">大降價</router-link>
           <router-link to="/config">評分設定</router-link>
           <router-link to="/config/districts">地區設定</router-link>
+          <router-link to="/admin/platforms">平台管理</router-link>
         </nav>
 
         <!-- 右側操作區 -->
@@ -84,6 +85,10 @@
         <router-link to="/config/districts" @click="closeMenu">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
           地區設定
+        </router-link>
+        <router-link to="/admin/platforms" @click="closeMenu">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          平台管理
         </router-link>
       </nav>
     </transition>
@@ -250,11 +255,22 @@ async function triggerCrawl() {
   }
 }
 
+function onCrawlTriggered() {
+  if (!isCrawling.value) {
+    isCrawling.value = true
+    startProgressStream()
+  }
+}
+
 onMounted(async () => {
   await checkCrawlStatus()
+  window.addEventListener('houselens:crawl-triggered', onCrawlTriggered)
 })
 
-onUnmounted(stopProgressStream)
+onUnmounted(() => {
+  stopProgressStream()
+  window.removeEventListener('houselens:crawl-triggered', onCrawlTriggered)
+})
 </script>
 
 <style scoped>

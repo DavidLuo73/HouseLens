@@ -11,10 +11,13 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 // Register crawl infrastructure
 builder.Services.AddSingleton<HttpFetcher>();
+builder.Services.AddSingleton<PlaywrightFetcher>();
 builder.Services.AddScoped<ICrawlRepository, CrawlRepository>();
 builder.Services.AddScoped<ISourceScraper, F591Scraper>();
 builder.Services.AddScoped<ISourceScraper, SinyiScraper>();
 builder.Services.AddScoped<ISourceScraper, YungchingScraper>();
+builder.Services.AddScoped<ISourceScraper, HBHousingScraper>();
+builder.Services.AddScoped<ISourceScraper, RakuyaScraper>();
 builder.Services.AddScoped<CrawlOrchestrator>();
 
 // Quartz scheduler
