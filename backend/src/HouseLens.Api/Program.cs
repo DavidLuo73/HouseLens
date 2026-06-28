@@ -47,6 +47,13 @@ builder.Services.AddHttpClient("ImageProxy", client =>
     AllowAutoRedirect = false,  // 防止 SSRF via redirect 繞過 host 白名單
 });
 
+// 所有 DateTime 欄位序列化時帶 Z（UTC），前端才能正確解析並轉換時區
+builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(opts =>
+{
+    opts.SerializerOptions.Converters.Add(new HouseLens.Api.UtcDateTimeConverter());
+    opts.SerializerOptions.Converters.Add(new HouseLens.Api.UtcNullableDateTimeConverter());
+});
+
 builder.Services.AddProblemDetails();
 
 var app = builder.Build();

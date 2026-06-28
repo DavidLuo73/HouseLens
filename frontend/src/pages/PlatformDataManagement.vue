@@ -90,6 +90,7 @@
 import { ref, onMounted } from 'vue'
 import { api, type PlatformStats } from '@/services/api'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import { formatDateTime } from '@/utils/date'
 
 const platforms = ref<PlatformStats[]>([])
 const loading = ref(false)
@@ -106,8 +107,7 @@ function isBusy() {
 }
 
 function formatDate(iso: string) {
-  const d = new Date(iso)
-  return d.toLocaleString('zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+  return formatDateTime(iso)
 }
 
 async function loadStats() {

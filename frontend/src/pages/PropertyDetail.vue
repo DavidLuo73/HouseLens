@@ -106,6 +106,7 @@ import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { api, type PropertyDetail } from '@/services/api'
 import PriceHistoryPanel from '@/components/PriceHistoryPanel.vue'
+import { formatDate } from '@/utils/date'
 
 const route = useRoute()
 const property = ref<PropertyDetail | null>(null)
@@ -122,10 +123,6 @@ onMounted(async () => {
   }
 })
 
-function formatDate(iso?: string): string {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' })
-}
 </script>
 
 <style scoped>

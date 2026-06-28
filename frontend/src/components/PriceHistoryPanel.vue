@@ -60,6 +60,7 @@ import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, MarkPointComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { PriceHistoryEntry } from '@/services/api'
+import { formatDate } from '@/utils/date'
 
 use([LineChart, GridComponent, TooltipComponent, MarkPointComponent, CanvasRenderer])
 
@@ -141,10 +142,6 @@ const chartOption = computed(() => {
   }
 })
 
-function formatDate(iso?: string): string {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' })
-}
 
 function formatPercent(val?: number): string {
   if (val == null) return ''
