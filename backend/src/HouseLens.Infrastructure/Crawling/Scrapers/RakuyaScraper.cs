@@ -60,6 +60,13 @@ public partial class RakuyaScraper(PlaywrightFetcher fetcher, ILogger<RakuyaScra
             var (district, maxPrice) = validDistricts[i];
             var (zipcode, city) = DistrictMap[district];
 
+            // 每 3 個行政區重新暖機，模擬自然瀏覽行為，避免 CF 行為分析觸發 re-challenge。
+            if (i > 0 && i % 3 == 0)
+            {
+                logger.LogInformation("Rakuya: re-warming up before district {District}", district);
+                await fetcher.FetchAsync(BaseUrl, cancellationToken);
+            }
+
             progress?.Report(new(district, i, total, IsStarting: true, FetchedCount: 0));
 
             var districtResults = await FetchDistrictAsync(district, city, zipcode, maxPrice, cancellationToken);
@@ -89,7 +96,17 @@ public partial class RakuyaScraper(PlaywrightFetcher fetcher, ILogger<RakuyaScra
                 ? $"{BaseUrl}/sell/result?zipcode={zipcode}&agetype=O"
                 : $"{BaseUrl}/sell/result?zipcode={zipcode}&agetype=O&page={page}";
 
-            var html = await fetcher.FetchAsync(url, ct);
+            // 每次都從首頁導覽過來，讓 CF 看到自然的導覽歷史（Homepage → Search Result）。
+            var html = await fetcher.FetchAsync(url, ct, navigateFromUrl: BaseUrl);
+
+            // 第一頁若取得 null 或 0 筆（可能是未偵測到的 CF 挑戰），重新暖機後重試一次。
+            if (page == 1 && (html is null || ParseListings(html, city, district, maxWan, null).Count == 0))
+            {
+                logger.LogWarning("Rakuya: page 1 no results for {District}, re-warming and retrying...", district);
+                await fetcher.FetchAsync(BaseUrl, ct);
+                html = await fetcher.FetchAsync(url, ct, navigateFromUrl: BaseUrl);
+            }
+
             if (html is null)
             {
                 logger.LogWarning("Rakuya: failed to fetch {Url}", url);

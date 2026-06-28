@@ -52,7 +52,9 @@ public sealed class PlaywrightFetcher : IAsyncDisposable
             // 載入先前儲存的 StorageState（若存在），內含 cf_clearance 等 Cloudflare session cookie，
             // 讓跨應用重啟的爬取無需再次通過 Cloudflare 挑戰。
             var cookieStatePath = GetCookieStatePath();
-            var hasSavedState = File.Exists(cookieStatePath);
+            // 超過 23 小時的 saved state 視為過期（cf_clearance 有效期通常 ≤24h），不載入以免重用失效 token 觸發新挑戰。
+            var hasSavedState = File.Exists(cookieStatePath) &&
+                (DateTime.Now - File.GetLastWriteTime(cookieStatePath)).TotalHours < 23;
 
             _context = await _browser.NewContextAsync(new()
             {
@@ -67,12 +69,36 @@ public sealed class PlaywrightFetcher : IAsyncDisposable
                 ["Accept-Language"] = "zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7",
             });
 
-            // 移除 navigator.webdriver 及其他自動化指紋
+            // 移除 navigator.webdriver 及修補其他可被 WAF 辨識的自動化指紋。
+            // navigator.plugins 原本錯誤地回傳 [1,2,3,4,5]（純數字陣列），CF 呼叫 plugins[0].name 會得到
+            // undefined，立即暴露自動化。改為回傳空陣列並補上 item/namedItem/refresh 方法（符合 PluginArray 規格）。
+            // window.chrome 補完常見屬性，避免 CF 比對 chrome.runtime.PlatformOs 等列舉值時失敗。
             await _context.AddInitScriptAsync("""
                 Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-                Object.defineProperty(navigator, 'plugins', {get: () => [1,2,3,4,5]});
+                (function () {
+                    const arr = [];
+                    arr.item = () => null;
+                    arr.namedItem = () => null;
+                    arr.refresh = () => {};
+                    Object.defineProperty(navigator, 'plugins', {get: () => arr});
+                    const mt = [];
+                    mt.item = () => null;
+                    mt.namedItem = () => null;
+                    Object.defineProperty(navigator, 'mimeTypes', {get: () => mt});
+                })();
                 Object.defineProperty(navigator, 'languages', {get: () => ['zh-TW','zh','en-US','en']});
-                window.chrome = { runtime: {} };
+                window.chrome = {
+                    app: { isInstalled: false },
+                    runtime: {
+                        PlatformOs:   { MAC:'mac', WIN:'win', ANDROID:'android', CROS:'cros', LINUX:'linux', OPENBSD:'openbsd' },
+                        PlatformArch: { ARM:'arm', ARM64:'arm64', X86_32:'x86-32', X86_64:'x86-64' },
+                        RequestUpdateCheckStatus: { THROTTLED:'throttled', NO_UPDATE:'no_update', UPDATE_AVAILABLE:'update_available' },
+                        OnInstalledReason:        { INSTALL:'install', UPDATE:'update', CHROME_UPDATE:'chrome_update', SHARED_MODULE_UPDATE:'shared_module_update' },
+                        OnRestartRequiredReason:  { APP_UPDATE:'app_update', OS_UPDATE:'os_update', PERIODIC:'periodic' },
+                        connect:     () => {},
+                        sendMessage: () => {},
+                    },
+                };
                 const origQuery = window.navigator.permissions.query;
                 window.navigator.permissions.query = (params) =>
                     params.name === 'notifications'
@@ -116,7 +142,11 @@ public sealed class PlaywrightFetcher : IAsyncDisposable
         }
     }
 
-    public async Task<string?> FetchAsync(string url, CancellationToken ct = default)
+    /// <param name="navigateFromUrl">
+    /// 若指定，會先在同一分頁導覽至此 URL（通常是首頁），建立自然的導覽歷史與 Referer header，
+    /// 再導覽至目標 URL。可有效降低 Cloudflare Bot Management 對「直接開分頁跳搜尋頁」的封鎖率。
+    /// </param>
+    public async Task<string?> FetchAsync(string url, CancellationToken ct = default, string? navigateFromUrl = null)
     {
         await EnsureInitializedAsync(ct);
 
@@ -126,6 +156,25 @@ public sealed class PlaywrightFetcher : IAsyncDisposable
         var page = await _context!.NewPageAsync();
         try
         {
+            // 先導覽至中間頁（通常是首頁），模擬使用者從首頁點進搜尋結果的自然行為，
+            // 讓瀏覽器帶上 Referer 與導覽歷史，避免被 CF 視為直接機器人存取。
+            if (navigateFromUrl is not null)
+            {
+                try
+                {
+                    await page.GotoAsync(navigateFromUrl, new()
+                    {
+                        WaitUntil = WaitUntilState.DOMContentLoaded,
+                        Timeout = 15_000,
+                    });
+                    await Task.Delay(1_000 + Random.Shared.Next(0, 1_000), ct);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "PlaywrightFetcher: navigateFromUrl {From} failed (non-fatal)", navigateFromUrl);
+                }
+            }
+
             // DOMContentLoaded：Cloudflare 挑戰頁永遠不會到達 NetworkIdle（持續發 request），
             // 改用 DOMContentLoaded 確保在 30 秒內拿到頁面，再自行處理後續等待。
             var response = await page.GotoAsync(url, new()
@@ -134,8 +183,8 @@ public sealed class PlaywrightFetcher : IAsyncDisposable
                 Timeout = 30_000,
             });
 
-            // 給 Cloudflare JS Challenge 約 3 秒自動解除（真實 Chrome 通常在此期間自動通過）
-            await Task.Delay(3_000, ct);
+            // 給 Cloudflare JS Challenge 約 5 秒自動解除（真實 Chrome 通常在此期間自動通過）
+            await Task.Delay(5_000, ct);
             var content = await page.ContentAsync();
 
             // 偵測 Cloudflare Turnstile / Bot Management 挑戰頁面。
@@ -148,11 +197,16 @@ public sealed class PlaywrightFetcher : IAsyncDisposable
                 // 嘗試自動點擊 Turnstile checkbox（對 managed/checkbox 模式有效）
                 await TryClickTurnstileAsync(page);
 
-                // 等待最多 30 秒讓挑戰自動解除
-                var deadline = Environment.TickCount64 + 30_000;
+                // 等待最多 90 秒讓挑戰解除。
+                // Rakuya 的 CF Managed Challenge 無法自動通過時，使用者可在 Playwright 視窗中
+                // 手動點擊「我不是機器人」驗證，解決後 cf_clearance 會存入 BrowserContext，
+                // 同一 session 的後續請求將自動放行，不需再次手動驗證。
+                _logger.LogWarning(
+                    "PlaywrightFetcher: 若 Playwright 視窗顯示驗證，請手動點擊「我不是機器人」（90 秒內）");
+                var deadline = Environment.TickCount64 + 90_000;
                 while (Environment.TickCount64 < deadline && !ct.IsCancellationRequested)
                 {
-                    await Task.Delay(2_000, ct);
+                    await Task.Delay(1_000, ct);
                     content = await page.ContentAsync();
                     if (!IsCloudflareChallenge(content))
                     {
@@ -173,7 +227,7 @@ public sealed class PlaywrightFetcher : IAsyncDisposable
                 if (IsCloudflareChallenge(content))
                 {
                     _logger.LogError(
-                        "PlaywrightFetcher: Cloudflare challenge not resolved within 30s for {Url}", url);
+                        "PlaywrightFetcher: Cloudflare challenge not resolved within 90s for {Url}", url);
                     return null;
                 }
             }
@@ -299,6 +353,8 @@ public sealed class PlaywrightFetcher : IAsyncDisposable
         // Cloudflare 封鎖頁標準 title（多語言版本）
         html.Contains(">Just a moment<", StringComparison.Ordinal) ||
         html.Contains(">請稍候<", StringComparison.Ordinal) ||
+        // Cloudflare Bot Management 標準英文短語
+        html.Contains("Checking your browser before accessing", StringComparison.Ordinal) ||
         // 強信號：challenge iframe + 中文驗證提示 同時存在（純 widget 頁不含後者）
         (html.Contains("challenges.cloudflare.com", StringComparison.Ordinal) &&
          (html.Contains("驗證您是人類", StringComparison.Ordinal) ||
