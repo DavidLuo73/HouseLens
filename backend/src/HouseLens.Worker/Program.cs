@@ -18,6 +18,7 @@ builder.Services.AddScoped<ISourceScraper, SinyiScraper>();
 builder.Services.AddScoped<ISourceScraper, YungchingScraper>();
 builder.Services.AddScoped<ISourceScraper, HBHousingScraper>();
 builder.Services.AddScoped<ISourceScraper, RakuyaScraper>();
+builder.Services.AddScoped<ISourceScraper, CtHouseScraper>();
 builder.Services.AddScoped<CrawlOrchestrator>();
 
 // Quartz scheduler

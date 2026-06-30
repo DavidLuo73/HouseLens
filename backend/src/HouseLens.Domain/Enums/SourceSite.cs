@@ -7,5 +7,6 @@ public enum SourceSite
     Sinyi,
     Yungching,
     TwHouse,
-    HBHousing
+    HBHousing,
+    CtHouse
 }

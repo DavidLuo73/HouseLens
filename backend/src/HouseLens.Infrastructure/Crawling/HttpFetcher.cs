@@ -97,6 +97,63 @@ public class HttpFetcher(ILogger<HttpFetcher> logger) : IDisposable
         return null;
     }
 
+    public async Task<string?> PostJsonAsync(string url, string jsonBody, CancellationToken ct = default,
+        IReadOnlyDictionary<string, string>? extraHeaders = null)
+    {
+        var uri = new Uri(url);
+
+        if (!await IsAllowedByRobotsAsync(uri, ct))
+        {
+            logger.LogInformation("robots.txt disallows {Url}", url);
+            return null;
+        }
+
+        await ApplyRateLimitAsync(ct);
+
+        for (var attempt = 1; attempt <= MaxRetries; attempt++)
+        {
+            using var reqCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            reqCts.CancelAfter(TimeSpan.FromSeconds(30));
+            try
+            {
+                using var req = new HttpRequestMessage(HttpMethod.Post, url);
+                req.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
+                if (extraHeaders is not null)
+                    foreach (var kv in extraHeaders)
+                        req.Headers.TryAddWithoutValidation(kv.Key, kv.Value);
+
+                var response = await _client.SendAsync(req, reqCts.Token);
+                response.EnsureSuccessStatusCode();
+                return await response.Content.ReadAsStringAsync(reqCts.Token);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (OperationCanceledException) when (attempt < MaxRetries)
+            {
+                var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt));
+                logger.LogWarning("Attempt {Attempt} timed out for {Url}. Retry in {Delay}s",
+                    attempt, url, delay.TotalSeconds);
+                await Task.Delay(delay, ct);
+            }
+            catch (HttpRequestException ex) when (attempt < MaxRetries)
+            {
+                var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt));
+                logger.LogWarning("Attempt {Attempt} failed for {Url}: {Msg}. Retry in {Delay}s",
+                    attempt, url, ex.Message, delay.TotalSeconds);
+                await Task.Delay(delay, ct);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to POST {Url} after {MaxRetries} attempts", url, MaxRetries);
+                return null;
+            }
+        }
+
+        return null;
+    }
+
     public Task<bool> CheckRobotsAsync(string url, CancellationToken ct = default)
         => IsAllowedByRobotsAsync(new Uri(url), ct);
 

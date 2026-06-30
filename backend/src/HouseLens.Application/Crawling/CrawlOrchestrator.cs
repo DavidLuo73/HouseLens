@@ -38,6 +38,7 @@ public class CrawlOrchestrator(
         SourceSite.Yungching => "永慶不動產",
         SourceSite.TwHouse   => "台灣房屋",
         SourceSite.HBHousing => "住商不動產",
+        SourceSite.CtHouse   => "中信房屋",
         _                    => site.ToString()
     };
 

@@ -29,6 +29,7 @@ public class PlatformDataService(AppDbContext db)
         (SourceSite.Yungching, "永慶不動產"),
         (SourceSite.HBHousing, "住商不動產"),
         (SourceSite.Rakuya, "樂屋"),
+        (SourceSite.CtHouse, "中信房屋"),
     ];
 
     public async Task<IReadOnlyList<PlatformStats>> GetStatsAsync(CancellationToken ct = default)
