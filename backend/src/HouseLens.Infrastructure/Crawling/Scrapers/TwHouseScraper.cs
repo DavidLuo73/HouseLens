@@ -43,7 +43,6 @@ public partial class TwHouseScraper(HttpFetcher fetcher, ILogger<TwHouseScraper>
         CancellationToken cancellationToken = default)
     {
         var results = new List<PropertyDto>();
-        var seen = new HashSet<string>();
 
         var knownDistricts = districtMaxPrices.Keys
             .Where(d => DistrictMap.ContainsKey(d))
@@ -64,7 +63,7 @@ public partial class TwHouseScraper(HttpFetcher fetcher, ILogger<TwHouseScraper>
             logger.LogInformation("TwHouse: scraping {District} (max={Max}萬)", district, maxWan);
 
             var districtResults = await FetchDistrictAsync(
-                info.City, district, info.CitySlug, info.Zip, maxWan, seen, cancellationToken);
+                info.City, district, info.CitySlug, info.Zip, maxWan, cancellationToken);
             results.AddRange(districtResults);
 
             progress?.Report(new(district, i, total, IsStarting: false, FetchedCount: districtResults.Count));
@@ -80,12 +79,11 @@ public partial class TwHouseScraper(HttpFetcher fetcher, ILogger<TwHouseScraper>
         string citySlug,
         string zip,
         decimal maxWan,
-        HashSet<string> seen,
         CancellationToken ct)
     {
-        // ── 第一階段：列表頁分頁抓取 ──────────────────────────────────────────
-        var drafts = new List<PropertyDto>();
-
+        // seen 限定此 district 的分頁去重；跨 district 重複由 DB upsert 處理
+        var seen = new HashSet<string>();
+        var results = new List<PropertyDto>();
         var priceSegment = maxWan > 0 ? $"/{(int)maxWan}down-price" : "";
 
         for (var page = 1; page <= MaxPagesPerDistrict; page++)
@@ -102,42 +100,11 @@ public partial class TwHouseScraper(HttpFetcher fetcher, ILogger<TwHouseScraper>
             logger.LogInformation("TwHouse: {District} list page {Page}: {Count} listings",
                 district, page, pageResults.Count);
 
-            drafts.AddRange(pageResults);
-            if (pageResults.Count == 0) break; // 空頁 = 最後一頁
+            results.AddRange(pageResults);
+            if (pageResults.Count == 0) break;
         }
 
-        // ── 第二階段：詳情頁補齊（Address / Floor / HasParking / 型態驗證）──
-        var completed = new List<PropertyDto>();
-
-        foreach (var draft in drafts)
-        {
-            var detailHtml = await fetcher.FetchAsync(draft.Url, ct);
-            if (detailHtml is null)
-            {
-                logger.LogWarning("TwHouse: failed to fetch detail {Url}", draft.Url);
-                completed.Add(draft); // 退回列表階段資料（HasParking=false, Floor=null）
-                continue;
-            }
-
-            var (address, floor, hasParking, propertyType) = ParseDetail(detailHtml);
-
-            // 詳情頁型態確認：若非住宅型態則丟棄（列表頁關鍵字過濾無法捕捉全部）
-            if (propertyType is not null && !ResidentialTypes.Contains(propertyType))
-            {
-                logger.LogDebug("TwHouse: filtered non-residential type '{Type}' for {Key}",
-                    propertyType, draft.SourceListingKey);
-                continue;
-            }
-
-            completed.Add(draft with
-            {
-                Address = address ?? draft.Address,
-                Floor = floor ?? draft.Floor,
-                HasParking = hasParking,
-            });
-        }
-
-        return completed;
+        return results;
     }
 
     /// <summary>
