@@ -3,7 +3,7 @@ export const SOURCE_LABELS: Record<string, string> = {
   Sinyi: '信義',
   Yungching: '永慶',
   Rakuya: '樂屋',
-  TwHouse: '台灣好屋',
+  TwHouse: '台灣房屋',
   HBHousing: '住商',
   CtHouse: '中信',
 }
