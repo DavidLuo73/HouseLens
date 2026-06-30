@@ -50,6 +50,20 @@ public class TwHouseScraperTests
         </li>
         """;
 
+    // ── 含折扣（原價 1,800萬 + 現售 1,480萬），應取後者
+    private const string DiscountedCard = """
+        <li>
+          <a href="https://www.twhg.com.tw/buy/TF02157997">
+            <h3>永和降價美廈TF02157997</h3>
+            <p>新北市永和區中山路一段</p>
+            <p>大樓 3房2廳 15.2年</p>
+            <p>建坪 32.00 坪</p>
+            <span>1,800萬</span>
+            <span>1,480萬</span>
+          </a>
+        </li>
+        """;
+
     // ── 含千位逗號的價格（「1,180萬」格式）
     private const string CommaPrice = """
         <li>
@@ -115,6 +129,18 @@ public class TwHouseScraperTests
         var results = _scraper.ParseListings(html, "新北市", "中和區", 800m);
 
         results.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ParseListings_DiscountedCard_TakesLastPrice()
+    {
+        var html = WrapInPage(DiscountedCard);
+
+        var results = _scraper.ParseListings(html, "新北市", "永和區", 1500m);
+
+        results.Should().HaveCount(1);
+        results[0].TotalPrice.Should().Be(1480m); // 現售價，非原價 1800
+        results[0].SourceListingKey.Should().Be("TF02157997");
     }
 
     [Fact]

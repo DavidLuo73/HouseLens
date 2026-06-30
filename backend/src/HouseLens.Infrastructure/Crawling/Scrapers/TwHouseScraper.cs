@@ -27,12 +27,12 @@ public partial class TwHouseScraper(HttpFetcher fetcher, ILogger<TwHouseScraper>
 
     private static readonly Dictionary<string, DistrictInfo> DistrictMap = new()
     {
-        ["中和區"] = new("新北市", "newtaipei-city", "235"),
-        ["永和區"] = new("新北市", "newtaipei-city", "234"),
-        ["新店區"] = new("新北市", "newtaipei-city", "231"),
-        ["板橋區"] = new("新北市", "newtaipei-city", "220"),
-        ["樹林區"] = new("新北市", "newtaipei-city", "238"),
-        ["新莊區"] = new("新北市", "newtaipei-city", "242"),
+        ["中和區"] = new("新北市", "newTaipei-city", "235"),
+        ["永和區"] = new("新北市", "newTaipei-city", "234"),
+        ["新店區"] = new("新北市", "newTaipei-city", "231"),
+        ["板橋區"] = new("新北市", "newTaipei-city", "220"),
+        ["樹林區"] = new("新北市", "newTaipei-city", "238"),
+        ["新莊區"] = new("新北市", "newTaipei-city", "242"),
         ["中壢區"] = new("桃園市", "taoyuan-city", "320"),
         ["桃園區"] = new("桃園市", "taoyuan-city", "330"),
     };
@@ -221,8 +221,10 @@ public partial class TwHouseScraper(HttpFetcher fetcher, ILogger<TwHouseScraper>
         if (NonResidentialKeywords.Any(kw => text.Contains(kw, StringComparison.Ordinal)))
             return null;
 
-        var priceMatch = PriceRegex().Match(text);
-        if (!priceMatch.Success) return null;
+        // 清單頁同時顯示原價與折扣價，取最後一個（現售價）
+        var priceMatches = PriceRegex().Matches(text);
+        if (priceMatches.Count == 0) return null;
+        var priceMatch = priceMatches[priceMatches.Count - 1];
         if (!decimal.TryParse(priceMatch.Groups[1].Value.Replace(",", ""), out var totalPrice)
             || totalPrice <= 0)
             return null;
