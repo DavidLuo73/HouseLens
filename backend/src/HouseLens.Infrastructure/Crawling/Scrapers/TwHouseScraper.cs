@@ -86,9 +86,11 @@ public partial class TwHouseScraper(HttpFetcher fetcher, ILogger<TwHouseScraper>
         // ── 第一階段：列表頁分頁抓取 ──────────────────────────────────────────
         var drafts = new List<PropertyDto>();
 
+        var priceSegment = maxWan > 0 ? $"/{(int)maxWan}down-price" : "";
+
         for (var page = 1; page <= MaxPagesPerDistrict; page++)
         {
-            var url = $"{BaseUrl}/buy/list/{citySlug}/{zip}-zip/recomended-desc?page={page}";
+            var url = $"{BaseUrl}/buy/list/{citySlug}/{zip}-zip{priceSegment}/recomended-desc?page={page}";
             var html = await fetcher.FetchAsync(url, ct);
             if (html is null)
             {
