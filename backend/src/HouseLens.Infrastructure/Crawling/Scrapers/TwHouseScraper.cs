@@ -20,7 +20,7 @@ public partial class TwHouseScraper(HttpFetcher fetcher, ILogger<TwHouseScraper>
 
     private static readonly HashSet<string> NonResidentialKeywords = new(StringComparer.Ordinal)
     {
-        "辦公室", "店面", "廠房", "廠辦", "倉庫", "工廠",
+        "辦公室", "店面", "廠房", "廠辦", "倉庫", "工廠", "土地", "建地", "農地",
     };
 
     private sealed record DistrictInfo(string City, string CitySlug, string Zip);
@@ -88,7 +88,7 @@ public partial class TwHouseScraper(HttpFetcher fetcher, ILogger<TwHouseScraper>
 
         for (var page = 1; page <= MaxPagesPerDistrict; page++)
         {
-            var url = $"{BaseUrl}/buy/list/{citySlug}/{zip}-zip{priceSegment}/recomended-desc?page={page}";
+            var url = $"{BaseUrl}/buy/list/{citySlug}/{zip}-zips/apartment-midrise-condo-kinds{priceSegment}/recomended-desc?page={page}";
             var html = await fetcher.FetchAsync(url, ct);
             if (html is null)
             {
@@ -216,17 +216,28 @@ public partial class TwHouseScraper(HttpFetcher fetcher, ILogger<TwHouseScraper>
             district = addrMatch.Groups[2].Value;
         }
 
-        var titleNode = anchor.SelectSingleNode(".//h3") ?? anchor;
+        var titleNode = anchor.SelectSingleNode(".//h2") ?? anchor.SelectSingleNode(".//h3") ?? anchor;
         var rawTitle = HtmlEntity.DeEntitize(titleNode.InnerText).Trim();
         var title = CodeSuffixRegex().Replace(rawTitle, "").Trim();
         if (string.IsNullOrWhiteSpace(title)) title = district;
 
+        // 列表頁圖片以 CSS background-image 呈現，非 <img src>
         string? imageUrl = null;
-        var img = anchor.SelectSingleNode(".//img[@src]");
-        if (img is not null)
+        var photoNode = anchor.SelectSingleNode(".//div[contains(@style,'background-image')]");
+        if (photoNode is not null)
         {
-            var src = img.GetAttributeValue("src", "");
-            if (!string.IsNullOrEmpty(src)) imageUrl = src;
+            var style = HtmlEntity.DeEntitize(photoNode.GetAttributeValue("style", ""));
+            var bgMatch = BackgroundImageRegex().Match(style);
+            if (bgMatch.Success) imageUrl = bgMatch.Groups[1].Value;
+        }
+        if (imageUrl is null)
+        {
+            var img = anchor.SelectSingleNode(".//img[@src]");
+            if (img is not null)
+            {
+                var src = img.GetAttributeValue("src", "");
+                if (!string.IsNullOrEmpty(src)) imageUrl = src;
+            }
         }
 
         decimal? unitPrice = areaPing > 0 ? Math.Round(totalPrice / areaPing, 2) : null;
@@ -266,4 +277,7 @@ public partial class TwHouseScraper(HttpFetcher fetcher, ILogger<TwHouseScraper>
 
     [GeneratedRegex(@"[A-Z][A-Z0-9]{5,}$")]
     private static partial Regex CodeSuffixRegex();
+
+    [GeneratedRegex(@"url\('([^']+)'\)")]
+    private static partial Regex BackgroundImageRegex();
 }

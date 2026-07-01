@@ -9,19 +9,21 @@ public class TwHouseScraperTests
 {
     private readonly TwHouseScraper _scraper = new(null!, NullLogger<TwHouseScraper>.Instance);
 
-    // ── 住宅大樓卡片（新北市中和區，760 萬，屋齡 25.3 年 → 25）
-    // TODO: 替換為瀏覽器 DevTools 複製的真實 <li> outerHTML
+    // ── 住宅大樓卡片（實際擷取自 twhg.com.tw 中和區列表頁真實 HTML 結構）
     private const string ResidentialCard = """
-        <li>
-          <a href="/buy/A123456789">
-            <img src="https://www.twhg.com.tw/photo/A123456789_1.jpg" alt="中和三房美廈A123456789">
-            <h3>中和三房美廈A123456789</h3>
-            <p>新北市中和區中山路二段</p>
-            <p>大樓 3房2廳2衛 25.3年</p>
-            <p>建坪 34.56 坪</p>
-            <p>760萬</p>
-          </a>
-        </li>
+        <li><div class="h-full"><a href="/buy/A123456789" rel="noopener noreferrer" target="_blank" class="h-full flex flex-col group rounded-2xl">
+          <div class="relative h-56 overflow-hidden rounded-2xl">
+            <div class="absolute inset-0 bg-cover bg-center" style="background-image:url(&#39;https://img.twhg.com.tw/admin/images/OB01/AAAA/A123456789.jpg&#39;);"></div>
+          </div>
+          <div class="p-3 gap-y-2 grow flex flex-col">
+            <div><h2 class="font-bold">中和三房美廈</h2><p class="text-xs text-grayscale-500">A123456789</p></div>
+            <p class="text-sm">新北市中和區中山路二段</p>
+            <div class="flex text-sm leading-none flex-wrap gap-y-1">
+              <div>建坪 34.56 坪</div><span class="px-1">|</span><div>25.3年</div><span class="px-1">|</span><div>3房2廳2衛</div>
+            </div>
+            <div class="mt-auto flex justify-end items-baseline"><span class="font-bold text-lg text-red-500">760萬</span></div>
+          </div>
+        </a></div></li>
         """;
 
     // ── 超出總價上限（1,200 萬 > 800 萬，應被過濾）
@@ -77,6 +79,18 @@ public class TwHouseScraperTests
         </li>
         """;
 
+    // ── 土地物件（實際擷取自 twhg.com.tw，標題含「土地」、以「地坪」取代「建坪」，應被剔除）
+    private const string LandParcelCard = """
+        <li><div class="h-full"><a href="/buy/TF11613507" rel="noopener noreferrer" target="_blank" class="h-full flex flex-col group rounded-2xl">
+          <div class="p-3 gap-y-2 grow flex flex-col">
+            <div><h2 class="font-bold">中和橫路段持分土地2</h2><p class="text-xs text-grayscale-500">TF11613507</p></div>
+            <p class="text-sm">新北市中和區橫路段</p>
+            <div class="flex text-sm leading-none flex-wrap gap-y-1"><div>地坪 22.52 坪</div></div>
+            <div class="mt-auto flex justify-end items-baseline"><span class="font-bold text-lg text-red-500">68萬</span></div>
+          </div>
+        </a></div></li>
+        """;
+
     private static string WrapInPage(params string[] cards) =>
         $"<html><body><ul>{string.Join("", cards)}</ul></body></html>";
 
@@ -101,7 +115,7 @@ public class TwHouseScraperTests
         dto.Url.Should().Be("https://www.twhg.com.tw/buy/A123456789");
         dto.City.Should().Be("新北市");
         dto.District.Should().Be("中和區");
-        dto.Title.Should().NotContain("A123456789"); // 代碼後綴已被移除
+        dto.Title.Should().Be("中和三房美廈");
         dto.TotalPrice.Should().Be(760m);
         dto.AreaPing.Should().Be(34.56m);
         dto.AgeYears.Should().Be(25); // Math.Round(25.3) = 25
@@ -109,12 +123,23 @@ public class TwHouseScraperTests
         dto.HasParking.Should().BeFalse(); // 列表頁無法確定車位
         dto.Floor.Should().BeNull();       // 列表頁無樓層，由詳情頁補齊
         dto.Address.Should().BeNull();     // 列表頁無完整地址，由詳情頁補齊
+        dto.ImageUrl.Should().Be("https://img.twhg.com.tw/admin/images/OB01/AAAA/A123456789.jpg"); // 圖片為 CSS background-image，非 <img src>
     }
 
     [Fact]
     public void ParseListings_OverPriceCard_IsFiltered()
     {
         var html = WrapInPage(OverPriceCard);
+
+        var results = _scraper.ParseListings(html, "新北市", "中和區", 800m);
+
+        results.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ParseListings_LandParcelCard_IsFiltered()
+    {
+        var html = WrapInPage(LandParcelCard);
 
         var results = _scraper.ParseListings(html, "新北市", "中和區", 800m);
 
