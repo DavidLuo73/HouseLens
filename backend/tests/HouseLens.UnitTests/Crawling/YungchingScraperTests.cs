@@ -171,6 +171,7 @@ public class YungchingScraperTests
         dto.ImageUrl.Should().StartWith("https://yccdn.yungching.com.tw/");
         dto.ImageUrl.Should().Contain("width=1200");
         dto.ImageUrl.Should().NotContain("width=480");
+        dto.ImageUrl.Should().NotContain("&amp;"); // 屬性值須解碼 HTML 實體，否則 width 參數會被 CDN 忽略而退回小圖
         dto.UnitPrice.Should().BeApproximately(750m / 28.50m, 0.01m);
     }
 
@@ -263,5 +264,6 @@ public class YungchingScraperTests
         results[0].ImageUrl.Should().StartWith("https://yccdn.yungching.com.tw/");
         results[0].ImageUrl.Should().Contain("width=1200");
         results[0].ImageUrl.Should().NotContain("width=480");
+        results[0].ImageUrl.Should().NotContain("&amp;"); // 屬性值須解碼 HTML 實體，否則 width 參數會被 CDN 忽略而退回小圖
     }
 }
