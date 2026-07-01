@@ -183,13 +183,6 @@ public class HBHousingScraperTests
         </section>
         """;
 
-    private static readonly IReadOnlyDictionary<string, decimal> DefaultPrices = new Dictionary<string, decimal>
-    {
-        ["大安區"] = 800m,
-        ["信義區"] = 1500m,
-        ["中正區"] = 3000m,
-    };
-
     private static string WrapInPage(params string[] cards) =>
         $"<html><body>{string.Join("", cards)}</body></html>";
 
@@ -198,7 +191,7 @@ public class HBHousingScraperTests
     {
         var html = WrapInPage(ApartmentCard);
 
-        var results = _scraper.ParseListings(html, DefaultPrices);
+        var results = _scraper.ParseListings(html, "台北市", "大安區", 800m);
 
         results.Should().HaveCount(1);
         var dto = results[0];
@@ -223,7 +216,7 @@ public class HBHousingScraperTests
     {
         var html = WrapInPage(BuildingWithParkingCard);
 
-        var results = _scraper.ParseListings(html, DefaultPrices);
+        var results = _scraper.ParseListings(html, "台北市", "信義區", 1500m);
 
         results.Should().HaveCount(1);
         var dto = results[0];
@@ -242,7 +235,7 @@ public class HBHousingScraperTests
     {
         var html = WrapInPage(OfficeCard);
 
-        var results = _scraper.ParseListings(html, DefaultPrices);
+        var results = _scraper.ParseListings(html, "台北市", "中正區", 3000m);
 
         results.Should().BeEmpty();
     }
@@ -250,15 +243,15 @@ public class HBHousingScraperTests
     [Fact]
     public void ParseListings_OverPriceCard_IsFiltered()
     {
-        var prices = new Dictionary<string, decimal> { ["大安區"] = 800m };
         var html = WrapInPage(OverPriceCard);
 
-        var results = _scraper.ParseListings(html, prices);
+        var results = _scraper.ParseListings(html, "台北市", "大安區", 800m);
 
         results.Should().BeEmpty();
     }
 
-    // ── 不在設定行政區的卡片（北投區未設定，應被過濾）
+    // ── 地址行政區與查詢行政區不同（住商未提供行政區層級 URL 前的推薦清單殘留情境），
+    // 應以地址解析出的真實行政區為準，而非查詢參數
     private const string NorthDistrictCard = """
         <section class="@container" data-v-ca0a70d6="">
           <div class="wrapper" data-v-ca0a70d6="">
@@ -297,14 +290,15 @@ public class HBHousingScraperTests
         """;
 
     [Fact]
-    public void ParseListings_DistrictNotConfigured_IsFiltered()
+    public void ParseListings_AddressDistrictDiffersFromQuery_UsesParsedAddress()
     {
-        // 北投區不在 DefaultPrices，應被過濾
+        // 查詢參數為大安區，但卡片實際地址是北投區 → 應以解析出的地址為準
         var html = WrapInPage(NorthDistrictCard);
 
-        var results = _scraper.ParseListings(html, DefaultPrices);
+        var results = _scraper.ParseListings(html, "台北市", "大安區", 800m);
 
-        results.Should().BeEmpty();
+        results.Should().HaveCount(1);
+        results[0].District.Should().Be("北投區");
     }
 
     [Fact]
@@ -312,10 +306,10 @@ public class HBHousingScraperTests
     {
         var html = WrapInPage(ApartmentCard, OfficeCard, OverPriceCard, BuildingWithParkingCard);
 
-        var results = _scraper.ParseListings(html, DefaultPrices);
+        var results = _scraper.ParseListings(html, "台北市", "大安區", 800m);
 
-        results.Should().HaveCount(2);
-        results.Select(r => r.SourceListingKey).Should().BeEquivalentTo(["YS202291", "ZS203105"]);
+        results.Should().HaveCount(1);
+        results.Select(r => r.SourceListingKey).Should().BeEquivalentTo(["YS202291"]);
     }
 
     [Fact]
@@ -324,7 +318,7 @@ public class HBHousingScraperTests
         var html = WrapInPage(ApartmentCard, ApartmentCard);
         var seen = new HashSet<string>();
 
-        var results = _scraper.ParseListings(html, DefaultPrices, seen);
+        var results = _scraper.ParseListings(html, "台北市", "大安區", 800m, seen);
 
         results.Should().HaveCount(1);
         seen.Should().Contain("YS202291");
@@ -336,7 +330,7 @@ public class HBHousingScraperTests
         // BuildingWithParkingCard 的價格是 "1,280 萬"
         var html = WrapInPage(BuildingWithParkingCard);
 
-        var results = _scraper.ParseListings(html, DefaultPrices);
+        var results = _scraper.ParseListings(html, "台北市", "信義區", 1500m);
 
         results.Should().HaveCount(1);
         results[0].TotalPrice.Should().Be(1280m);
@@ -345,7 +339,7 @@ public class HBHousingScraperTests
     [Fact]
     public void ParseListings_EmptyHtml_ReturnsEmpty()
     {
-        var results = _scraper.ParseListings("<html><body></body></html>", DefaultPrices);
+        var results = _scraper.ParseListings("<html><body></body></html>", "台北市", "大安區", 800m);
 
         results.Should().BeEmpty();
     }
@@ -355,7 +349,7 @@ public class HBHousingScraperTests
     {
         var html = WrapInPage(ApartmentCard);
 
-        var results = _scraper.ParseListings(html, DefaultPrices);
+        var results = _scraper.ParseListings(html, "台北市", "大安區", 800m);
 
         results[0].ImageUrl.Should().NotContain("?");
         results[0].ImageUrl.Should().StartWith("https://img.hbhousing.com.tw/");

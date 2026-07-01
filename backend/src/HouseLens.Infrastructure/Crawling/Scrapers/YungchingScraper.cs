@@ -44,6 +44,7 @@ public partial class YungchingScraper(PlaywrightFetcher fetcher, ILogger<Yungchi
     public async Task<IReadOnlyList<PropertyDto>> FetchAsync(
         IReadOnlyDictionary<string, decimal> districtMaxPrices,
         IProgress<ScraperDistrictProgress>? progress,
+        Func<IReadOnlyList<PropertyDto>, Task>? onDistrictCompleted = null,
         CancellationToken cancellationToken = default)
     {
         var results = new List<PropertyDto>();
@@ -72,6 +73,8 @@ public partial class YungchingScraper(PlaywrightFetcher fetcher, ILogger<Yungchi
             progress?.Report(new(district, i, total, IsStarting: false, FetchedCount: districtResults.Count));
             logger.LogInformation("Yungching district {District} (max={Max}萬): {Count} listings",
                 district, (int)maxPrice, districtResults.Count);
+
+            if (onDistrictCompleted is not null) await onDistrictCompleted(districtResults);
         }
 
         var unknownDistricts = districtMaxPrices.Keys.Where(d => !DistrictMap.ContainsKey(d));

@@ -9,16 +9,21 @@ namespace HouseLens.Infrastructure.Crawling.Scrapers;
 /// <summary>
 /// 住商不動產買屋網（www.hbhousing.com.tw）爬蟲。
 /// 網站為 Nuxt.js SSR，物件卡片直接內嵌於 HTML，使用 PlaywrightFetcher 確保完整渲染。
-/// 列表頁按城市：/buyhouse/{城市}，分頁：/buyhouse/{城市}/{N}-page（N≥2）。
-/// 無行政區層級 URL，以地址文字中的「XX區」做 client-side 過濾。
+/// 列表頁需以行政區郵遞區號＋型態＋總價區間縮小範圍，否則會退化成城市層級的
+/// 「熱門推薦」清單，在有限分頁內幾乎抓不到目標行政區的物件：
+/// /buyhouse/{城市}/{zip}/noelevator-elevator-mansion-style/{總價}-down-price，
+/// 分頁：.../{N}-page（N≥2）。
 /// </summary>
 public partial class HBHousingScraper(PlaywrightFetcher fetcher, ILogger<HBHousingScraper> logger) : ISourceScraper
 {
     public SourceSite SourceSite => SourceSite.HBHousing;
 
     private const string BaseUrl = "https://www.hbhousing.com.tw";
-    private const int PageSize = 10;           // 住商每頁 10 筆
-    private const int MaxPagesPerCity = 8;     // 禮貌性上限，避免過量請求
+    private const int PageSize = 10;               // 住商每頁 10 筆
+    private const int MaxPagesPerDistrict = 100;   // 禮貌性上限，避免過量請求（大量體行政區可達 60~70 頁）
+
+    // 建物型態 URL 區段：無電梯公寓、大樓(11樓以上)、華廈(10樓以下)
+    private const string TypeSlug = "noelevator-elevator-mansion-style";
 
     // 住宅型態白名單；不在此清單的型態（辦公室、店面、廠房）一律過濾。
     private static readonly HashSet<string> ResidentialTypes = new(StringComparer.Ordinal)
@@ -26,28 +31,31 @@ public partial class HBHousingScraper(PlaywrightFetcher fetcher, ILogger<HBHousi
         "公寓", "大樓", "華廈", "透天/別墅", "別墅", "透天厝", "農舍",
     };
 
-    // 行政區 → 城市名（決定要抓哪些城市頁）
-    private static readonly Dictionary<string, string> DistrictToCity = new()
+    private sealed record DistrictInfo(string City, string Zip);
+
+    // 行政區 → 城市 / 郵遞區號（皆為標準台灣郵遞區號，已對照 hbhousing.com.tw 實際頁面驗證）
+    private static readonly Dictionary<string, DistrictInfo> DistrictZipMap = new()
     {
         // 台北市
-        ["中正區"] = "台北市", ["大同區"] = "台北市", ["中山區"] = "台北市",
-        ["松山區"] = "台北市", ["大安區"] = "台北市", ["萬華區"] = "台北市",
-        ["信義區"] = "台北市", ["士林區"] = "台北市", ["北投區"] = "台北市",
-        ["內湖區"] = "台北市", ["南港區"] = "台北市", ["文山區"] = "台北市",
+        ["中正區"] = new("台北市", "100"), ["大同區"] = new("台北市", "103"), ["中山區"] = new("台北市", "104"),
+        ["松山區"] = new("台北市", "105"), ["大安區"] = new("台北市", "106"), ["萬華區"] = new("台北市", "108"),
+        ["信義區"] = new("台北市", "110"), ["士林區"] = new("台北市", "111"), ["北投區"] = new("台北市", "112"),
+        ["內湖區"] = new("台北市", "114"), ["南港區"] = new("台北市", "115"), ["文山區"] = new("台北市", "116"),
         // 新北市
-        ["板橋區"] = "新北市", ["新莊區"] = "新北市", ["中和區"] = "新北市",
-        ["永和區"] = "新北市", ["新店區"] = "新北市", ["土城區"] = "新北市",
-        ["樹林區"] = "新北市", ["三峽區"] = "新北市", ["鶯歌區"] = "新北市",
-        ["三重區"] = "新北市", ["蘆洲區"] = "新北市", ["五股區"] = "新北市",
-        ["泰山區"] = "新北市", ["林口區"] = "新北市",
+        ["板橋區"] = new("新北市", "220"), ["新莊區"] = new("新北市", "242"), ["中和區"] = new("新北市", "235"),
+        ["永和區"] = new("新北市", "234"), ["新店區"] = new("新北市", "231"), ["土城區"] = new("新北市", "236"),
+        ["樹林區"] = new("新北市", "238"), ["三峽區"] = new("新北市", "237"), ["鶯歌區"] = new("新北市", "239"),
+        ["三重區"] = new("新北市", "241"), ["蘆洲區"] = new("新北市", "247"), ["五股區"] = new("新北市", "248"),
+        ["泰山區"] = new("新北市", "243"), ["林口區"] = new("新北市", "244"),
         // 桃園市
-        ["桃園區"] = "桃園市", ["中壢區"] = "桃園市", ["平鎮區"] = "桃園市",
-        ["龜山區"] = "桃園市", ["八德區"] = "桃園市",
+        ["桃園區"] = new("桃園市", "330"), ["中壢區"] = new("桃園市", "320"), ["平鎮區"] = new("桃園市", "324"),
+        ["龜山區"] = new("桃園市", "333"), ["八德區"] = new("桃園市", "334"),
     };
 
     public async Task<IReadOnlyList<PropertyDto>> FetchAsync(
         IReadOnlyDictionary<string, decimal> districtMaxPrices,
         IProgress<ScraperDistrictProgress>? progress,
+        Func<IReadOnlyList<PropertyDto>, Task>? onDistrictCompleted = null,
         CancellationToken cancellationToken = default)
     {
         var results = new List<PropertyDto>();
@@ -56,44 +64,54 @@ public partial class HBHousingScraper(PlaywrightFetcher fetcher, ILogger<HBHousi
         logger.LogInformation("HBHousing: warming up via {BaseUrl}", BaseUrl);
         await fetcher.FetchAsync(BaseUrl, cancellationToken);
 
-        // 找出需要爬取的城市（多個行政區可對應同一城市，dedupe）
-        var cities = districtMaxPrices.Keys
-            .Where(d => DistrictToCity.ContainsKey(d))
-            .Select(d => DistrictToCity[d])
-            .Distinct()
+        var knownDistricts = districtMaxPrices.Keys
+            .Where(d => DistrictZipMap.ContainsKey(d))
             .ToList();
 
-        var unknownDistricts = districtMaxPrices.Keys.Where(d => !DistrictToCity.ContainsKey(d));
-        foreach (var d in unknownDistricts)
-            logger.LogWarning("HBHousing: unknown district (not in DistrictToCity): {District}", d);
+        foreach (var d in districtMaxPrices.Keys.Except(knownDistricts))
+            logger.LogWarning("HBHousing: unknown district (not in DistrictZipMap): {District}", d);
 
-        var seen = new HashSet<string>();
+        var total = knownDistricts.Count;
 
-        foreach (var city in cities)
+        for (var i = 0; i < knownDistricts.Count; i++)
         {
-            logger.LogInformation("HBHousing: scraping city {City}", city);
-            var cityResults = await FetchCityAsync(city, districtMaxPrices, seen, progress, cancellationToken);
-            results.AddRange(cityResults);
+            var district = knownDistricts[i];
+            var maxWan = districtMaxPrices[district];
+            var info = DistrictZipMap[district];
+
+            progress?.Report(new(district, i, total, IsStarting: true, FetchedCount: 0));
+            logger.LogInformation("HBHousing: scraping {District} (max={Max}萬)", district, maxWan);
+
+            var districtResults = await FetchDistrictAsync(info.City, district, info.Zip, maxWan, cancellationToken);
+            results.AddRange(districtResults);
+
+            progress?.Report(new(district, i, total, IsStarting: false, FetchedCount: districtResults.Count));
+            logger.LogInformation("HBHousing: {District} done, {Count} listings", district, districtResults.Count);
+
+            if (onDistrictCompleted is not null) await onDistrictCompleted(districtResults);
         }
 
         return results;
     }
 
-    private async Task<List<PropertyDto>> FetchCityAsync(
+    private async Task<List<PropertyDto>> FetchDistrictAsync(
         string city,
-        IReadOnlyDictionary<string, decimal> districtMaxPrices,
-        HashSet<string> seen,
-        IProgress<ScraperDistrictProgress>? progress,
+        string district,
+        string zip,
+        decimal maxWan,
         CancellationToken ct)
     {
+        // seen 限定此 district 的分頁去重；跨 district 重複由 DB upsert 處理
+        var seen = new HashSet<string>();
         var all = new List<PropertyDto>();
         var encodedCity = Uri.EscapeDataString(city);
+        var priceSegment = maxWan > 0 ? $"/{(int)maxWan}-down-price" : "";
 
-        for (var page = 1; page <= MaxPagesPerCity; page++)
+        for (var page = 1; page <= MaxPagesPerDistrict; page++)
         {
             var url = page == 1
-                ? $"{BaseUrl}/buyhouse/{encodedCity}"
-                : $"{BaseUrl}/buyhouse/{encodedCity}/{page}-page";
+                ? $"{BaseUrl}/buyhouse/{encodedCity}/{zip}/{TypeSlug}{priceSegment}"
+                : $"{BaseUrl}/buyhouse/{encodedCity}/{zip}/{TypeSlug}{priceSegment}/{page}-page";
 
             var html = await fetcher.FetchAsync(url, ct);
             if (html is null)
@@ -102,8 +120,9 @@ public partial class HBHousingScraper(PlaywrightFetcher fetcher, ILogger<HBHousi
                 break;
             }
 
-            var pageResults = ParseListings(html, districtMaxPrices, seen);
-            logger.LogInformation("HBHousing {City} page {Page}: {Count} listings", city, page, pageResults.Count);
+            var pageResults = ParseListings(html, city, district, maxWan, seen);
+            logger.LogInformation("HBHousing: {District} list page {Page}: {Count} listings",
+                district, page, pageResults.Count);
 
             all.AddRange(pageResults);
 
@@ -119,7 +138,9 @@ public partial class HBHousingScraper(PlaywrightFetcher fetcher, ILogger<HBHousi
     /// </summary>
     public List<PropertyDto> ParseListings(
         string html,
-        IReadOnlyDictionary<string, decimal> districtMaxPrices,
+        string queryCity,
+        string queryDistrict,
+        decimal maxWan,
         HashSet<string>? seen = null)
     {
         var results = new List<PropertyDto>();
@@ -129,7 +150,8 @@ public partial class HBHousingScraper(PlaywrightFetcher fetcher, ILogger<HBHousi
         var cards = doc.DocumentNode.SelectNodes("//section[contains(@class,'@container')]");
         if (cards is null)
         {
-            logger.LogWarning("HBHousing: no @container section cards found (html len={Len})", html.Length);
+            logger.LogWarning("HBHousing: no @container section cards found (html len={Len}) for {District}",
+                html.Length, queryDistrict);
             return results;
         }
 
@@ -137,7 +159,7 @@ public partial class HBHousingScraper(PlaywrightFetcher fetcher, ILogger<HBHousi
         {
             try
             {
-                var dto = ParseCard(card, districtMaxPrices);
+                var dto = ParseCard(card, queryCity, queryDistrict, maxWan);
                 if (dto is null) continue;
 
                 if (seen is not null && !seen.Add(dto.SourceListingKey)) continue;
@@ -153,7 +175,7 @@ public partial class HBHousingScraper(PlaywrightFetcher fetcher, ILogger<HBHousi
         return results;
     }
 
-    private PropertyDto? ParseCard(HtmlNode card, IReadOnlyDictionary<string, decimal> districtMaxPrices)
+    private PropertyDto? ParseCard(HtmlNode card, string queryCity, string queryDistrict, decimal maxWan)
     {
         // 物件 SN 與標題從 h3 > a[href*="/detail?sn="] 取得
         var titleLink = card.SelectSingleNode(".//h3//a[contains(@href,'/detail?sn=') and not(contains(@href,'#'))]");
@@ -171,9 +193,9 @@ public partial class HBHousingScraper(PlaywrightFetcher fetcher, ILogger<HBHousi
         var addrSpan = mapLink?.SelectSingleNode("preceding-sibling::span[1]");
         var address = CleanText(addrSpan?.InnerText);
 
-        // 從地址提取城市與行政區（格式：台北市大安區仁愛路）
-        string? city = null;
-        string? district = null;
+        // 從地址提取城市與行政區（格式：台北市大安區仁愛路），解析失敗則回退查詢參數
+        string city = queryCity;
+        string district = queryDistrict;
         if (address is not null)
         {
             var addrMatch = AddressRegex().Match(address);
@@ -183,10 +205,6 @@ public partial class HBHousingScraper(PlaywrightFetcher fetcher, ILogger<HBHousi
                 district = addrMatch.Groups[2].Value;
             }
         }
-
-        // 行政區需在設定清單中，否則略過
-        if (district is null || !districtMaxPrices.TryGetValue(district, out var maxPrice))
-            return null;
 
         // 物件細節：看格局圖按鈕的 preceding-sibling span
         // 格式："公寓 | 3房(室)2廳1衛 | 30.7年 | 5樓/5樓 | 建坪 | 29.05坪"
@@ -230,8 +248,8 @@ public partial class HBHousingScraper(PlaywrightFetcher fetcher, ILogger<HBHousi
         var priceText = priceNode.InnerText.Replace(",", "").Replace("萬", "").Trim();
         if (!decimal.TryParse(priceText, out var totalPrice) || totalPrice <= 0) return null;
 
-        // Client-side 總價上限過濾
-        if (maxPrice > 0 && totalPrice > maxPrice) return null;
+        // Client-side 總價上限過濾（URL 已依總價區間篩選，此為精確二次確認）
+        if (maxWan > 0 && totalPrice > maxWan) return null;
 
         // 圖片（去除 timestamp query string）
         string? imageUrl = null;
@@ -246,7 +264,7 @@ public partial class HBHousingScraper(PlaywrightFetcher fetcher, ILogger<HBHousi
         var unitPrice = areaPing > 0 ? Math.Round(totalPrice / areaPing, 2) : (decimal?)null;
 
         return new PropertyDto(
-            City: city ?? "",
+            City: city,
             District: district,
             Address: address,
             AreaPing: areaPing,

@@ -157,28 +157,36 @@ public class CrawlOrchestrator(
         try
         {
             using var scraperCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            scraperCts.CancelAfter(TimeSpan.FromMinutes(15)); // 單一爬蟲最多 15 分鐘，防止卡住整個排程
+            scraperCts.CancelAfter(TimeSpan.FromMinutes(45)); // 單一爬蟲最多 45 分鐘，防止卡住整個排程
 
             var progress = new Progress<ScraperDistrictProgress>(p => progressState.UpdateDistrict(p));
-            var dtos = await scraper.FetchAsync(districtMaxPrices, progress, scraperCts.Token);
-            var validDtos = dtos.Where(d => PropertyNormalizer.MeetsTrackingCriteria(d, districtMaxPrices)).ToList();
 
-            foreach (var dto in validDtos)
+            // 逐行政區抓完就立即處理/存檔，即使後面整體逾時被取消，
+            // 已完成行政區的資料也不會隨例外一起遺失。
+            async Task ProcessDistrictBatchAsync(IReadOnlyList<PropertyDto> districtDtos)
             {
-                var propertyId = await ProcessPropertyAsync(dto, run, config, knownProperties, ct);
-                if (propertyId.HasValue)
-                    seenPropertyIds.Add(propertyId.Value);
+                var validDtos = districtDtos.Where(d => PropertyNormalizer.MeetsTrackingCriteria(d, districtMaxPrices)).ToList();
+                foreach (var dto in validDtos)
+                {
+                    var propertyId = await ProcessPropertyAsync(dto, run, config, knownProperties, ct);
+                    if (propertyId.HasValue)
+                        seenPropertyIds.Add(propertyId.Value);
+                }
+                sourceResult.FetchedCount += validDtos.Count;
             }
 
+            await scraper.FetchAsync(districtMaxPrices, progress, ProcessDistrictBatchAsync, scraperCts.Token);
+
             sourceResult.Success = true;
-            sourceResult.FetchedCount = validDtos.Count;
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            // scraperCts 超時，不是外部取消
-            logger.LogError("Scraper {Source} exceeded 15-minute time limit and was cancelled", scraper.SourceSite);
+            // scraperCts 超時，不是外部取消；已完成行政區的資料已透過 ProcessDistrictBatchAsync 存檔，
+            // 僅卡住當下的那個行政區未完成。
+            logger.LogError("Scraper {Source} exceeded 45-minute time limit and was cancelled ({Count} listings already saved)",
+                scraper.SourceSite, sourceResult.FetchedCount);
             sourceResult.Success = false;
-            sourceResult.ErrorMessage = "執行超時（15 分鐘）";
+            sourceResult.ErrorMessage = "執行超時（45 分鐘）";
         }
         catch (Exception ex)
         {

@@ -43,6 +43,7 @@ public partial class CtHouseScraper(HttpFetcher fetcher, ILogger<CtHouseScraper>
     public async Task<IReadOnlyList<PropertyDto>> FetchAsync(
         IReadOnlyDictionary<string, decimal> districtMaxPrices,
         IProgress<ScraperDistrictProgress>? progress,
+        Func<IReadOnlyList<PropertyDto>, Task>? onDistrictCompleted = null,
         CancellationToken cancellationToken = default)
     {
         var results = new List<PropertyDto>();
@@ -69,6 +70,8 @@ public partial class CtHouseScraper(HttpFetcher fetcher, ILogger<CtHouseScraper>
 
             progress?.Report(new(district, i, total, IsStarting: false, FetchedCount: districtResults.Count));
             logger.LogInformation("CtHouse: {District} done, {Count} listings", district, districtResults.Count);
+
+            if (onDistrictCompleted is not null) await onDistrictCompleted(districtResults);
         }
 
         return results;

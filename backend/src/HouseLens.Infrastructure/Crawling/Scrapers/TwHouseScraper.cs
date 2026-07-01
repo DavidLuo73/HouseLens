@@ -40,6 +40,7 @@ public partial class TwHouseScraper(HttpFetcher fetcher, ILogger<TwHouseScraper>
     public async Task<IReadOnlyList<PropertyDto>> FetchAsync(
         IReadOnlyDictionary<string, decimal> districtMaxPrices,
         IProgress<ScraperDistrictProgress>? progress,
+        Func<IReadOnlyList<PropertyDto>, Task>? onDistrictCompleted = null,
         CancellationToken cancellationToken = default)
     {
         var results = new List<PropertyDto>();
@@ -68,6 +69,8 @@ public partial class TwHouseScraper(HttpFetcher fetcher, ILogger<TwHouseScraper>
 
             progress?.Report(new(district, i, total, IsStarting: false, FetchedCount: districtResults.Count));
             logger.LogInformation("TwHouse: {District} done, {Count} listings", district, districtResults.Count);
+
+            if (onDistrictCompleted is not null) await onDistrictCompleted(districtResults);
         }
 
         return results;
