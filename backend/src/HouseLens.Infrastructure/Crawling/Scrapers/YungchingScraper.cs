@@ -10,20 +10,26 @@ namespace HouseLens.Infrastructure.Crawling.Scrapers;
 /// 永慶房屋買屋網（buy.yungching.com.tw）爬蟲。
 /// 含永慶直營與有巢氏加盟物件，使用 Angular SSR，物件卡片直接內嵌於 HTML。
 /// 網站具有 TLS 指紋辨識等強力反爬機制，以 PlaywrightFetcher（真實 Chromium）繞過。
-/// 分頁：?pg=N（N≥2）；URL 格式：/list/{城市}-{行政區}_c。
+/// 列表頁需以總價區間縮小範圍，否則會退化成預設排序的「熱門」清單，在有限分頁內
+/// 幾乎抓不到目標行政區符合價格的物件：/list/{城市}-{行政區}_c/-{總價}_price，
+/// 分頁：?pg=N（N≥2）。
+/// 注意：網站 URL 上的「{型態}_type」區段實測對結果無任何篩選效果（不論帶入合法
+/// 型態、亂數字串、或省略，回傳結果與筆數皆相同），型態純粹由前端「已選條件」
+/// 麵包屑顯示，並未真正套用；因此型態過濾完全依賴本檔 ResidentialTypes 白名單於
+/// client-side 執行。
 /// </summary>
 public partial class YungchingScraper(PlaywrightFetcher fetcher, ILogger<YungchingScraper> logger) : ISourceScraper
 {
     public SourceSite SourceSite => SourceSite.Yungching;
 
     private const string BaseUrl = "https://buy.yungching.com.tw";
-    private const int PageSize = 30;           // 永慶每頁約 30 筆（實測；用於判斷最後一頁）
-    private const int MaxPagesPerDistrict = 5; // 禮貌性上限，避免過量請求
+    private const int MaxPagesPerDistrict = 30; // 禮貌性上限，避免過量請求
 
-    // 住宅型態白名單；不在此清單的型態（辦公商業大樓、廠辦、店面、土地）一律過濾。
+    // 住宅型態白名單（電梯大廈=住宅大樓、無電梯公寓=公寓、華廈）；
+    // 不在此清單的型態（辦公商業大樓、廠辦、店面、套房、土地、其他）一律過濾。
     private static readonly HashSet<string> ResidentialTypes = new(StringComparer.Ordinal)
     {
-        "公寓", "住宅大樓", "華廈", "透天厝", "別墅", "透天別墅",
+        "公寓", "住宅大樓", "華廈",
     };
 
     // 行政區 → 城市名。永慶 URL 直接使用中文「城市-行政區_c」，不需 zip/slug 對照。
@@ -91,11 +97,13 @@ public partial class YungchingScraper(PlaywrightFetcher fetcher, ILogger<Yungchi
         // 跨頁去重：置頂廣告同一物件可能出現在每頁首位
         var seen = new HashSet<string>();
 
+        var encodedCity = Uri.EscapeDataString(city);
+        var encodedDistrict = Uri.EscapeDataString(district);
+        var priceSegment = maxWan > 0 ? $"/-{maxWan}_price" : "";
+        var listBase = $"{BaseUrl}/list/{encodedCity}-{encodedDistrict}_c{priceSegment}";
+
         for (var page = 1; page <= MaxPagesPerDistrict; page++)
         {
-            var encodedCity = Uri.EscapeDataString(city);
-            var encodedDistrict = Uri.EscapeDataString(district);
-            var listBase = $"{BaseUrl}/list/{encodedCity}-{encodedDistrict}_c";
             var url = page == 1 ? listBase : $"{listBase}?pg={page}";
 
             // Playwright 以真實 Chromium 導航，Referer 與 Sec-Fetch-* 均由瀏覽器自動附加
@@ -109,10 +117,10 @@ public partial class YungchingScraper(PlaywrightFetcher fetcher, ILogger<Yungchi
             var pageResults = ParseListings(html, city, district, maxWan, seen);
             logger.LogInformation("Yungching {District} page {Page}: {Count} listings", district, page, pageResults.Count);
 
+            // 每頁實際筆數不固定（置頂廣告、型態/價格篩選皆會影響計數），不可用固定 PageSize 判斷最後一頁；
+            // 超過最後一頁時網站會回傳與前一頁相同內容，seen 去重後這裡自然變成 0，才是可靠的結束訊號。
             if (pageResults.Count == 0) break;
             all.AddRange(pageResults);
-
-            if (pageResults.Count < PageSize) break;
         }
 
         return all;
@@ -216,7 +224,7 @@ public partial class YungchingScraper(PlaywrightFetcher fetcher, ILogger<Yungchi
         var priceText = priceNode.InnerText.Replace(",", "").Trim();
         if (!decimal.TryParse(priceText, out var totalPrice) || totalPrice <= 0) return null;
 
-        // Client-side 價格上限過濾（永慶 URL 無可靠的價格篩選參數）
+        // Client-side 總價上限過濾（URL 已依總價區間篩選，此為精確二次確認）
         if (maxWan > 0 && totalPrice > maxWan) return null;
 
         // 圖片（img-wrapper 內第一張 img 的 src）
