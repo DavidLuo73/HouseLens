@@ -35,6 +35,19 @@ public static class SeedData
             }
         }
 
+        // 平台篩選設定：目前僅樂屋網支援額外篩選（型態/用途/坪數/房數）
+        if (!await db.PlatformFilterConfigs.AnyAsync())
+        {
+            db.PlatformFilterConfigs.Add(new PlatformFilterConfig
+            {
+                SourceSite = Domain.Enums.SourceSite.Rakuya,
+                MinSizePing = 0m,
+                Rooms = "",
+                TypeCodes = "R1,R2",
+                UseCode = "1",
+            });
+        }
+
         if (!await db.TrackingCriteria.AnyAsync())
         {
             db.TrackingCriteria.Add(new TrackingCriteria

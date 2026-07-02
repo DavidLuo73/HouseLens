@@ -18,10 +18,11 @@ public static class PropertyNormalizer
 
     public static bool MeetsTrackingCriteria(
         PropertyDto dto,
-        IReadOnlyDictionary<string, decimal> districtMaxPrices)
+        IReadOnlyDictionary<string, DistrictCriteria> districtCriteria)
     {
-        if (!districtMaxPrices.TryGetValue(dto.District, out var maxPrice)) return false;
-        if (dto.TotalPrice > maxPrice) return false;
+        if (!districtCriteria.TryGetValue(dto.District, out var criteria)) return false;
+        if (dto.TotalPrice > criteria.MaxTotalPrice) return false;
+        // 坪數下限不在此過濾：各平台坪數定義不一（主建/總建），由各爬蟲的伺服器端參數處理
         return true;
     }
 

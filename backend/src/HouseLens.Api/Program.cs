@@ -19,8 +19,7 @@ builder.Services.AddScoped<ISourceScraper, F591Scraper>();
 builder.Services.AddScoped<ISourceScraper, SinyiScraper>();
 builder.Services.AddScoped<ISourceScraper, YungchingScraper>();
 builder.Services.AddScoped<ISourceScraper, HBHousingScraper>();
-// RakuyaScraper 暫時停用（樂屋抓取問題待修）
-// builder.Services.AddScoped<ISourceScraper, RakuyaScraper>();
+builder.Services.AddScoped<ISourceScraper, RakuyaScraper>();
 builder.Services.AddScoped<ISourceScraper, CtHouseScraper>();
 builder.Services.AddScoped<ISourceScraper, TwHouseScraper>();
 builder.Services.AddScoped<CrawlOrchestrator>();

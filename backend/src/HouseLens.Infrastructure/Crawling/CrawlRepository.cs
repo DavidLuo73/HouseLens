@@ -27,6 +27,11 @@ public class CrawlRepository(AppDbContext db) : ICrawlRepository
             .ToListAsync(ct);
     }
 
+    public async Task<IReadOnlyList<PlatformFilterConfig>> GetPlatformFilterConfigsAsync(CancellationToken ct = default)
+    {
+        return await db.PlatformFilterConfigs.ToListAsync(ct);
+    }
+
     public async Task<Property?> FindExistingPropertyAsync(
         string sourceListingKey, SourceSite sourceSite, CancellationToken ct = default)
     {

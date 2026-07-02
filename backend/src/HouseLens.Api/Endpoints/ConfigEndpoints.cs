@@ -18,6 +18,10 @@ public static class ConfigEndpoints
         app.MapDelete("/api/config/districts/{id:int}", DeleteDistrict);
         app.MapPatch("/api/config/districts/{id:int}/toggle", ToggleDistrict);
 
+        // Platform-specific search filters（目前僅樂屋網使用）
+        app.MapGet("/api/config/platform-filters", GetPlatformFilters);
+        app.MapPut("/api/config/platform-filters/{sourceSite}", UpsertPlatformFilter);
+
         return app;
     }
 
@@ -144,6 +148,49 @@ public static class ConfigEndpoints
         return Results.NoContent();
     }
 
+    private static async Task<IResult> GetPlatformFilters(AppDbContext db)
+    {
+        var items = await db.PlatformFilterConfigs
+            .OrderBy(p => p.SourceSite)
+            .Select(p => new
+            {
+                sourceSite = p.SourceSite.ToString(),
+                p.MinSizePing,
+                p.Rooms,
+                p.TypeCodes,
+                p.UseCode,
+            })
+            .ToListAsync();
+        return Results.Ok(items);
+    }
+
+    private static async Task<IResult> UpsertPlatformFilter(string sourceSite, AppDbContext db, PlatformFilterRequest req)
+    {
+        if (!Enum.TryParse<Domain.Enums.SourceSite>(sourceSite, ignoreCase: true, out var site))
+            return Results.BadRequest(new { error = new { code = "INVALID_SOURCE", message = $"未知平台：{sourceSite}" } });
+
+        if (req.MinSizePing < 0)
+            return Results.BadRequest(new { error = new { code = "INVALID_SIZE", message = "最小坪數不可為負數" } });
+
+        var entity = await db.PlatformFilterConfigs.FirstOrDefaultAsync(p => p.SourceSite == site)
+            ?? db.PlatformFilterConfigs.Add(new PlatformFilterConfig { SourceSite = site }).Entity;
+
+        entity.MinSizePing = req.MinSizePing;
+        entity.Rooms = req.Rooms ?? "";
+        entity.TypeCodes = string.IsNullOrWhiteSpace(req.TypeCodes) ? "R1,R2" : req.TypeCodes;
+        entity.UseCode = string.IsNullOrWhiteSpace(req.UseCode) ? "1" : req.UseCode;
+        await db.SaveChangesAsync();
+
+        return Results.Ok(new
+        {
+            sourceSite = entity.SourceSite.ToString(),
+            entity.MinSizePing,
+            entity.Rooms,
+            entity.TypeCodes,
+            entity.UseCode,
+        });
+    }
+
     private static async Task<IResult> ToggleDistrict(int id, AppDbContext db)
     {
         var entity = await db.DistrictConfigs.FindAsync(id);
@@ -168,3 +215,9 @@ public record ScoringRequest(
 );
 
 public record DistrictConfigRequest(string City, string District, decimal MaxTotalPrice, bool IsEnabled = true);
+
+public record PlatformFilterRequest(
+    decimal MinSizePing = 0m,
+    string? Rooms = "",
+    string? TypeCodes = "R1,R2",
+    string? UseCode = "1");

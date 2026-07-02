@@ -41,7 +41,7 @@ public partial class CtHouseScraper(HttpFetcher fetcher, ILogger<CtHouseScraper>
     };
 
     public async Task<IReadOnlyList<PropertyDto>> FetchAsync(
-        IReadOnlyDictionary<string, decimal> districtMaxPrices,
+        IReadOnlyDictionary<string, DistrictCriteria> districtCriteria,
         IProgress<ScraperDistrictProgress>? progress,
         Func<IReadOnlyList<PropertyDto>, Task>? onDistrictCompleted = null,
         CancellationToken cancellationToken = default)
@@ -49,8 +49,8 @@ public partial class CtHouseScraper(HttpFetcher fetcher, ILogger<CtHouseScraper>
         var results = new List<PropertyDto>();
         var seen = new HashSet<string>();
 
-        var knownDistricts = districtMaxPrices.Keys.Where(d => DistrictToCity.ContainsKey(d)).ToList();
-        var unknownDistricts = districtMaxPrices.Keys.Except(knownDistricts).ToList();
+        var knownDistricts = districtCriteria.Keys.Where(d => DistrictToCity.ContainsKey(d)).ToList();
+        var unknownDistricts = districtCriteria.Keys.Except(knownDistricts).ToList();
         foreach (var d in unknownDistricts)
             logger.LogWarning("CtHouse: unknown district (not in DistrictToCity): {District}", d);
 
@@ -59,7 +59,7 @@ public partial class CtHouseScraper(HttpFetcher fetcher, ILogger<CtHouseScraper>
         for (var i = 0; i < knownDistricts.Count; i++)
         {
             var district = knownDistricts[i];
-            var maxWan = districtMaxPrices[district];
+            var maxWan = districtCriteria[district].MaxTotalPrice;
             var city = DistrictToCity[district];
 
             progress?.Report(new(district, i, total, IsStarting: true, FetchedCount: 0));

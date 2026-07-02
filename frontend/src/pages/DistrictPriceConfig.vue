@@ -102,6 +102,73 @@
             </table>
           </div>
         </div>
+
+        <!-- 平台篩選設定：上方地區＋價格為全平台共用，這裡是各平台自己的額外條件 -->
+        <div class="add-card platform-card">
+          <h2 class="card-title">平台篩選設定</h2>
+          <p class="card-subtitle">地區與最高總價為所有平台共用；以下為各平台專屬的額外篩選條件</p>
+
+          <div class="platform-tabs">
+            <button
+              v-for="s in SOURCE_SITES"
+              :key="s.value"
+              class="platform-tab"
+              :class="{ 'platform-tab--active': activePlatform === s.value }"
+              @click="activePlatform = s.value"
+            >
+              {{ s.label }}
+              <span v-if="s.value === 'Rakuya'" class="tab-dot" title="支援額外篩選" />
+            </button>
+          </div>
+
+          <!-- 樂屋網：完整篩選選項 -->
+          <div v-if="activePlatform === 'Rakuya'" class="platform-panel">
+            <div class="add-row">
+              <div class="field">
+                <label class="field-label">最小坪數（0 = 不限）</label>
+                <input v-model.number="rakuyaForm.minSizePing" type="number" min="0" step="1" class="field-input field-input--price" />
+              </div>
+              <div class="field">
+                <label class="field-label">用途</label>
+                <select v-model="rakuyaForm.useCode" class="field-input">
+                  <option v-for="u in USE_OPTIONS" :key="u.code" :value="u.code">{{ u.label }}</option>
+                </select>
+              </div>
+            </div>
+            <div class="add-row">
+              <div class="field">
+                <label class="field-label">建物型態</label>
+                <div class="check-group">
+                  <label v-for="t in TYPE_OPTIONS" :key="t.code" class="check-item">
+                    <input type="checkbox" :value="t.code" v-model="rakuyaForm.typeCodes" />
+                    {{ t.label }}
+                  </label>
+                </div>
+              </div>
+              <div class="field">
+                <label class="field-label">房數（不勾 = 不限）</label>
+                <div class="check-group">
+                  <label v-for="r in ROOM_OPTIONS" :key="r.code" class="check-item">
+                    <input type="checkbox" :value="r.code" v-model="rakuyaForm.rooms" />
+                    {{ r.label }}
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div class="platform-actions">
+              <button class="btn-add" :disabled="filterSaving" @click="savePlatformFilter">
+                {{ filterSaving ? '儲存中…' : '儲存樂屋網篩選' }}
+              </button>
+              <span v-if="filterSavedAt" class="save-hint">已儲存 ✓</span>
+            </div>
+            <p v-if="filterError" class="field-error">{{ filterError }}</p>
+          </div>
+
+          <!-- 其他平台：目前無額外篩選 -->
+          <div v-else class="platform-panel platform-panel--empty">
+            {{ SOURCE_LABELS[activePlatform] }} 目前不支援額外篩選，使用上方共用的地區與最高總價設定。
+          </div>
+        </div>
       </template>
     </div>
   </div>
@@ -110,6 +177,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { api, type DistrictConfig } from '@/services/api'
+import { SOURCE_LABELS, SOURCE_SITES } from '@/constants/sources'
 
 const districts = ref<DistrictConfig[]>([])
 const loading = ref(false)
@@ -121,15 +189,81 @@ const editingId = ref<number | null>(null)
 const form = ref({ city: '新北市', district: '', maxTotalPrice: 800 })
 const editForm = ref({ city: '', district: '', maxTotalPrice: 800 })
 
+// ===== 平台篩選（樂屋網 URL 參數代碼，取自其搜尋頁篩選器）=====
+const TYPE_OPTIONS = [
+  { code: 'R1', label: '公寓' },
+  { code: 'R2', label: '大樓/華廈' },
+  { code: 'R3', label: '套房' },
+  { code: 'R4', label: '別墅' },
+  { code: 'R5', label: '透天厝' },
+  { code: 'R6', label: '樓中樓' },
+]
+const USE_OPTIONS = [
+  { code: '1', label: '住宅' },
+  { code: '2', label: '商用' },
+  { code: '6', label: '住辦' },
+  { code: '3', label: '車位' },
+]
+const ROOM_OPTIONS = [
+  { code: '1', label: '1房' },
+  { code: '2', label: '2房' },
+  { code: '3', label: '3房' },
+  { code: '4', label: '4房' },
+  { code: '5~', label: '5房以上' },
+]
+
+const activePlatform = ref('Rakuya')
+const filterSaving = ref(false)
+const filterError = ref<string | null>(null)
+const filterSavedAt = ref(false)
+
+const rakuyaForm = ref({
+  minSizePing: 0,
+  useCode: '1',
+  typeCodes: ['R1', 'R2'] as string[],
+  rooms: [] as string[],
+})
+
+const splitCodes = (s: string) => (s ? s.split(',').map((x) => x.trim()).filter(Boolean) : [])
+
 async function load() {
   loading.value = true
   error.value = null
   try {
-    districts.value = await api.districts.list()
+    const [ds, filters] = await Promise.all([api.districts.list(), api.platformFilters.list()])
+    districts.value = ds
+    const rakuya = filters.find((f) => f.sourceSite === 'Rakuya')
+    if (rakuya) {
+      rakuyaForm.value = {
+        minSizePing: rakuya.minSizePing ?? 0,
+        useCode: rakuya.useCode || '1',
+        typeCodes: splitCodes(rakuya.typeCodes || 'R1,R2'),
+        rooms: splitCodes(rakuya.rooms || ''),
+      }
+    }
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : '載入失敗'
   } finally {
     loading.value = false
+  }
+}
+
+async function savePlatformFilter() {
+  filterError.value = null
+  filterSavedAt.value = false
+  filterSaving.value = true
+  try {
+    await api.platformFilters.update('Rakuya', {
+      minSizePing: rakuyaForm.value.minSizePing,
+      rooms: rakuyaForm.value.rooms.join(','),
+      typeCodes: rakuyaForm.value.typeCodes.join(','),
+      useCode: rakuyaForm.value.useCode,
+    })
+    filterSavedAt.value = true
+  } catch (e: unknown) {
+    filterError.value = e instanceof Error ? e.message : '儲存失敗'
+  } finally {
+    filterSaving.value = false
   }
 }
 
@@ -263,6 +397,12 @@ h1 {
   margin: 0 0 16px;
 }
 
+.card-subtitle {
+  font-size: 0.82rem;
+  color: var(--color-fg-2);
+  margin: -10px 0 16px;
+}
+
 .add-row {
   display: flex;
   gap: 12px;
@@ -323,12 +463,93 @@ h1 {
 .btn-add:hover:not(:disabled) { background: #444; }
 .btn-add:disabled { background: var(--color-border); color: var(--color-fg-3); cursor: not-allowed; }
 
+/* ===== 平台篩選 ===== */
+.platform-card { margin-top: 4px; }
+
+.platform-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.platform-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: #fff;
+  color: var(--color-fg);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.platform-tab:hover { background: var(--color-bg-soft); }
+
+.platform-tab--active {
+  background: var(--color-fg);
+  color: #fff;
+  border-color: var(--color-fg);
+}
+
+.tab-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-rausch, #FF5A5F);
+  display: inline-block;
+}
+
+.platform-panel { display: flex; flex-direction: column; gap: 12px; }
+
+.platform-panel--empty {
+  font-size: 0.86rem;
+  color: var(--color-fg-2);
+  padding: 20px 0 8px;
+}
+
+.platform-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.save-hint {
+  font-size: 0.82rem;
+  color: var(--color-badge-parking-text, #1a7f4b);
+  font-weight: 600;
+}
+
+.check-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  padding: 6px 0;
+}
+
+.check-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.85rem;
+  color: var(--color-fg);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.check-item input { accent-color: var(--color-rausch, #FF5A5F); cursor: pointer; }
+
 /* ===== 表格卡片 ===== */
 .table-card {
   background: #fff;
   border-radius: var(--radius-card);
   border: 1px solid var(--color-border-soft);
   overflow: hidden;
+  margin-bottom: 20px;
 }
 
 .table-scroll { overflow-x: auto; }

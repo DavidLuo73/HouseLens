@@ -6,11 +6,11 @@ namespace HouseLens.UnitTests.Crawling;
 
 public class PropertyNormalizerTests
 {
-    private static readonly Dictionary<string, decimal> TrackedDistricts = new()
+    private static readonly Dictionary<string, DistrictCriteria> TrackedDistricts = new()
     {
-        ["中和區"] = 800m,
-        ["永和區"] = 800m,
-        ["板橋區"] = 800m,
+        ["中和區"] = new(800m),
+        ["永和區"] = new(800m),
+        ["板橋區"] = new(800m),
     };
     private const decimal MaxPrice = 800m;
 

@@ -48,7 +48,7 @@ public partial class YungchingScraper(PlaywrightFetcher fetcher, ILogger<Yungchi
     };
 
     public async Task<IReadOnlyList<PropertyDto>> FetchAsync(
-        IReadOnlyDictionary<string, decimal> districtMaxPrices,
+        IReadOnlyDictionary<string, DistrictCriteria> districtCriteria,
         IProgress<ScraperDistrictProgress>? progress,
         Func<IReadOnlyList<PropertyDto>, Task>? onDistrictCompleted = null,
         CancellationToken cancellationToken = default)
@@ -61,14 +61,15 @@ public partial class YungchingScraper(PlaywrightFetcher fetcher, ILogger<Yungchi
         logger.LogInformation("Yungching: warming up via homepage {BaseUrl}", BaseUrl);
         await fetcher.FetchAsync(BaseUrl, cancellationToken);
 
-        var validDistricts = districtMaxPrices
+        var validDistricts = districtCriteria
             .Where(kv => DistrictMap.ContainsKey(kv.Key))
             .ToList();
         var total = validDistricts.Count;
 
         for (var i = 0; i < validDistricts.Count; i++)
         {
-            var (district, maxPrice) = validDistricts[i];
+            var (district, criteria) = validDistricts[i];
+            var maxPrice = criteria.MaxTotalPrice;
             var city = DistrictMap[district];
 
             progress?.Report(new(district, i, total, IsStarting: true, FetchedCount: 0));
@@ -83,7 +84,7 @@ public partial class YungchingScraper(PlaywrightFetcher fetcher, ILogger<Yungchi
             if (onDistrictCompleted is not null) await onDistrictCompleted(districtResults);
         }
 
-        var unknownDistricts = districtMaxPrices.Keys.Where(d => !DistrictMap.ContainsKey(d));
+        var unknownDistricts = districtCriteria.Keys.Where(d => !DistrictMap.ContainsKey(d));
         foreach (var d in unknownDistricts)
             logger.LogWarning("Yungching: unknown district (not in DistrictMap): {District}", d);
 

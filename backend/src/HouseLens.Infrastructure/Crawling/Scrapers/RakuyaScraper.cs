@@ -9,7 +9,8 @@ namespace HouseLens.Infrastructure.Crawling.Scrapers;
 /// <summary>
 /// 樂屋網（www.rakuya.com.tw）中古屋買賣爬蟲。
 /// 網站具有 TLS 指紋辨識等反爬機制，以 PlaywrightFetcher（真實 Chromium）繞過。
-/// 分頁：&amp;page=N；URL 格式：/sell/result?zipcode={郵遞區號}&amp;agetype=O。
+/// 分頁：&amp;page=N；URL 由 BuildSearchUrl 依 DistrictCriteria 組成：
+/// /sell/result?zipcode={郵遞區號}&amp;usecode={用途}&amp;typecode={型態}&amp;price=~{上限萬}&amp;size={坪數}~&amp;room={房數}。
 /// 物件識別碼（ehid）取自 section[data-ehid] 屬性；詳情頁：/sell_item/info?ehid={ehid}。
 /// </summary>
 public partial class RakuyaScraper(PlaywrightFetcher fetcher, ILogger<RakuyaScraper> logger) : ISourceScraper
@@ -17,13 +18,12 @@ public partial class RakuyaScraper(PlaywrightFetcher fetcher, ILogger<RakuyaScra
     public SourceSite SourceSite => SourceSite.Rakuya;
 
     private const string BaseUrl = "https://www.rakuya.com.tw";
-    private const int PageSize = 21;            // 樂屋網每頁 21 筆（實測）
-    private const int MaxPagesPerDistrict = 5;  // 禮貌性上限
+    private const int MaxPagesPerDistrict = 30; // 防護上限（正常依「共 N 筆」總數與無新物件判斷提早停止）
 
     // 住宅型態白名單；商辦/店面/廠辦/土地等一律過濾。
     private static readonly HashSet<string> ResidentialTypes = new(StringComparer.Ordinal)
     {
-        "公寓", "電梯大廈", "住宅大樓", "華廈", "透天厝", "別墅", "透天別墅", "住宅", "樓中樓",
+        "公寓", "電梯大廈", "住宅大樓", "華廈", "透天厝", "別墅", "透天別墅", "住宅", "樓中樓", "套房",
     };
 
     // 行政區名 → 郵遞區號（樂屋網以 zipcode 參數指定行政區）
@@ -40,7 +40,7 @@ public partial class RakuyaScraper(PlaywrightFetcher fetcher, ILogger<RakuyaScra
     };
 
     public async Task<IReadOnlyList<PropertyDto>> FetchAsync(
-        IReadOnlyDictionary<string, decimal> districtMaxPrices,
+        IReadOnlyDictionary<string, DistrictCriteria> districtCriteria,
         IProgress<ScraperDistrictProgress>? progress,
         Func<IReadOnlyList<PropertyDto>, Task>? onDistrictCompleted = null,
         CancellationToken cancellationToken = default)
@@ -51,14 +51,14 @@ public partial class RakuyaScraper(PlaywrightFetcher fetcher, ILogger<RakuyaScra
         logger.LogInformation("Rakuya: warming up via homepage {BaseUrl}", BaseUrl);
         await fetcher.FetchAsync(BaseUrl, cancellationToken);
 
-        var validDistricts = districtMaxPrices
+        var validDistricts = districtCriteria
             .Where(kv => DistrictMap.ContainsKey(kv.Key))
             .ToList();
         var total = validDistricts.Count;
 
         for (var i = 0; i < validDistricts.Count; i++)
         {
-            var (district, maxPrice) = validDistricts[i];
+            var (district, criteria) = validDistricts[i];
             var (zipcode, city) = DistrictMap[district];
 
             // 每 3 個行政區重新暖機，模擬自然瀏覽行為，避免 CF 行為分析觸發 re-challenge。
@@ -70,34 +70,50 @@ public partial class RakuyaScraper(PlaywrightFetcher fetcher, ILogger<RakuyaScra
 
             progress?.Report(new(district, i, total, IsStarting: true, FetchedCount: 0));
 
-            var districtResults = await FetchDistrictAsync(district, city, zipcode, maxPrice, cancellationToken);
+            var districtResults = await FetchDistrictAsync(district, city, zipcode, criteria, cancellationToken);
             results.AddRange(districtResults);
 
             progress?.Report(new(district, i, total, IsStarting: false, FetchedCount: districtResults.Count));
             logger.LogInformation("Rakuya district {District} (max={Max}萬): {Count} listings",
-                district, maxPrice, districtResults.Count);
+                district, criteria.MaxTotalPrice, districtResults.Count);
 
             if (onDistrictCompleted is not null) await onDistrictCompleted(districtResults);
         }
 
-        var unknownDistricts = districtMaxPrices.Keys.Where(d => !DistrictMap.ContainsKey(d));
+        var unknownDistricts = districtCriteria.Keys.Where(d => !DistrictMap.ContainsKey(d));
         foreach (var d in unknownDistricts)
             logger.LogWarning("Rakuya: unknown district (not in DistrictMap): {District}", d);
 
         return results;
     }
 
+    /// <summary>
+    /// 依 DistrictCriteria 組出樂屋網搜尋 URL（不含 page 參數）。
+    /// usecode（1住宅/2商用/6住辦/3車位）、typecode（R1公寓/R2大樓華廈/R3套房/R4別墅/R5透天厝/R6樓中樓）、
+    /// price=~N（0~N 萬）、size=N~（N 坪以上）、room=2,3,4,5~（房數）皆為伺服器端篩選。
+    /// </summary>
+    public static string BuildSearchUrl(string zipcode, DistrictCriteria criteria)
+    {
+        var useCode = string.IsNullOrWhiteSpace(criteria.UseCode) ? "1" : criteria.UseCode.Trim();
+        var typeCodes = string.IsNullOrWhiteSpace(criteria.TypeCodes) ? "R1,R2" : criteria.TypeCodes.Trim();
+        var priceParam = criteria.MaxTotalPrice > 0 ? $"&price=~{criteria.MaxTotalPrice:0}" : "";
+        var sizeParam = criteria.MinSizePing > 0 ? $"&size={criteria.MinSizePing:0.##}~" : "";
+        var roomParam = string.IsNullOrWhiteSpace(criteria.Rooms) ? "" : $"&room={criteria.Rooms.Trim()}";
+        return $"{BaseUrl}/sell/result?zipcode={zipcode}&usecode={useCode}&typecode={typeCodes}{priceParam}{sizeParam}{roomParam}";
+    }
+
     private async Task<List<PropertyDto>> FetchDistrictAsync(
-        string district, string city, string zipcode, decimal maxWan, CancellationToken ct)
+        string district, string city, string zipcode, DistrictCriteria criteria, CancellationToken ct)
     {
         var all = new List<PropertyDto>();
         var seen = new HashSet<string>();
+        var maxWan = criteria.MaxTotalPrice;
+        var baseSearchUrl = BuildSearchUrl(zipcode, criteria);
 
         for (var page = 1; page <= MaxPagesPerDistrict; page++)
         {
-            var url = page == 1
-                ? $"{BaseUrl}/sell/result?zipcode={zipcode}&agetype=O"
-                : $"{BaseUrl}/sell/result?zipcode={zipcode}&agetype=O&page={page}";
+            // 伺服器端篩選減少無效物件下載量；client-side 的型態/價格過濾仍保留作為防線。
+            var url = $"{baseSearchUrl}&page={page}";
 
             // 每次都從首頁導覽過來，讓 CF 看到自然的導覽歷史（Homepage → Search Result）。
             var html = await fetcher.FetchAsync(url, ct, navigateFromUrl: BaseUrl);
@@ -119,10 +135,21 @@ public partial class RakuyaScraper(PlaywrightFetcher fetcher, ILogger<RakuyaScra
             var pageResults = ParseListings(html, city, district, maxWan, seen);
             logger.LogInformation("Rakuya {District} page {Page}: {Count} listings", district, page, pageResults.Count);
 
+            // 本頁無任何「新」物件（去重後）即視為抓完：樂屋網對超出範圍的 page 會重複回傳最後一頁內容。
+            // 注意：不可用「過濾後筆數 < 每頁容量」判斷最後一頁 —— 型態/價格過濾與去重會使
+            // 每頁有效筆數低於頁面卡片數，曾導致第一頁就誤判提早終止。
             if (pageResults.Count == 0) break;
             all.AddRange(pageResults);
 
-            if (pageResults.Count < PageSize) break;
+            // 從「共 N 筆」計算總頁數，抓完即停，避免多打一次無效請求。
+            var totalMatch = TotalCountRegex().Match(html);
+            if (totalMatch.Success && int.TryParse(totalMatch.Groups[1].Value, out var totalCount))
+            {
+                var cardsPerPage = Math.Max(pageResults.Count, 1);
+                if (page == 1 && totalCount <= cardsPerPage) break;
+                // 用頁面原始卡片數較準，但保守處理：只有當已確定超過總數所需頁數才停
+                if (all.Count >= totalCount) break;
+            }
         }
 
         return all;
@@ -288,4 +315,7 @@ public partial class RakuyaScraper(PlaywrightFetcher fetcher, ILogger<RakuyaScra
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex WhitespaceRegex();
+
+    [GeneratedRegex(@"共\s*(\d+)\s*筆")]
+    private static partial Regex TotalCountRegex();
 }

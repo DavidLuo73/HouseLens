@@ -38,18 +38,18 @@ public partial class TwHouseScraper(HttpFetcher fetcher, ILogger<TwHouseScraper>
     };
 
     public async Task<IReadOnlyList<PropertyDto>> FetchAsync(
-        IReadOnlyDictionary<string, decimal> districtMaxPrices,
+        IReadOnlyDictionary<string, DistrictCriteria> districtCriteria,
         IProgress<ScraperDistrictProgress>? progress,
         Func<IReadOnlyList<PropertyDto>, Task>? onDistrictCompleted = null,
         CancellationToken cancellationToken = default)
     {
         var results = new List<PropertyDto>();
 
-        var knownDistricts = districtMaxPrices.Keys
+        var knownDistricts = districtCriteria.Keys
             .Where(d => DistrictMap.ContainsKey(d))
             .ToList();
 
-        foreach (var d in districtMaxPrices.Keys.Except(knownDistricts))
+        foreach (var d in districtCriteria.Keys.Except(knownDistricts))
             logger.LogWarning("TwHouse: unknown district (not in DistrictMap): {District}", d);
 
         var total = knownDistricts.Count;
@@ -57,7 +57,7 @@ public partial class TwHouseScraper(HttpFetcher fetcher, ILogger<TwHouseScraper>
         for (var i = 0; i < knownDistricts.Count; i++)
         {
             var district = knownDistricts[i];
-            var maxWan = districtMaxPrices[district];
+            var maxWan = districtCriteria[district].MaxTotalPrice;
             var info = DistrictMap[district];
 
             progress?.Report(new(district, i, total, IsStarting: true, FetchedCount: 0));

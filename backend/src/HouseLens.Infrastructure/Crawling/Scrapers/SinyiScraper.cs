@@ -39,7 +39,7 @@ public partial class SinyiScraper(HttpFetcher fetcher, ILogger<SinyiScraper> log
     };
 
     public async Task<IReadOnlyList<PropertyDto>> FetchAsync(
-        IReadOnlyDictionary<string, decimal> districtMaxPrices,
+        IReadOnlyDictionary<string, DistrictCriteria> districtCriteria,
         IProgress<ScraperDistrictProgress>? progress,
         Func<IReadOnlyList<PropertyDto>, Task>? onDistrictCompleted = null,
         CancellationToken cancellationToken = default)
@@ -52,14 +52,15 @@ public partial class SinyiScraper(HttpFetcher fetcher, ILogger<SinyiScraper> log
             return results;
         }
 
-        var validDistricts = districtMaxPrices
+        var validDistricts = districtCriteria
             .Where(kv => DistrictMap.ContainsKey(kv.Key))
             .ToList();
         var total = validDistricts.Count;
 
         for (var i = 0; i < validDistricts.Count; i++)
         {
-            var (district, maxPrice) = validDistricts[i];
+            var (district, criteria) = validDistricts[i];
+            var maxPrice = criteria.MaxTotalPrice;
             var map = DistrictMap[district];
 
             progress?.Report(new(district, i, total, IsStarting: true, FetchedCount: 0));
@@ -75,7 +76,7 @@ public partial class SinyiScraper(HttpFetcher fetcher, ILogger<SinyiScraper> log
             if (onDistrictCompleted is not null) await onDistrictCompleted(districtResults);
         }
 
-        var unknownDistricts = districtMaxPrices.Keys.Where(d => !DistrictMap.ContainsKey(d));
+        var unknownDistricts = districtCriteria.Keys.Where(d => !DistrictMap.ContainsKey(d));
         foreach (var d in unknownDistricts)
             logger.LogWarning("Sinyi: unknown district (not in DistrictMap): {District}", d);
 

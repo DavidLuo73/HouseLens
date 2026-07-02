@@ -15,6 +15,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<PropertyScore> PropertyScores => Set<PropertyScore>();
     public DbSet<NotificationLog> NotificationLogs => Set<NotificationLog>();
     public DbSet<DistrictConfig> DistrictConfigs => Set<DistrictConfig>();
+    public DbSet<PlatformFilterConfig> PlatformFilterConfigs => Set<PlatformFilterConfig>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -128,6 +129,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(d => d.District).IsRequired().HasMaxLength(20);
             e.Property(d => d.MaxTotalPrice).HasPrecision(12, 2);
             e.HasIndex(d => new { d.City, d.District }).IsUnique();
+        });
+
+        modelBuilder.Entity<PlatformFilterConfig>(e =>
+        {
+            e.HasKey(p => p.Id);
+            e.Property(p => p.MinSizePing).HasPrecision(10, 2);
+            e.Property(p => p.Rooms).IsRequired().HasMaxLength(50);
+            e.Property(p => p.TypeCodes).IsRequired().HasMaxLength(100);
+            e.Property(p => p.UseCode).IsRequired().HasMaxLength(10);
+            e.HasIndex(p => p.SourceSite).IsUnique();
         });
     }
 }

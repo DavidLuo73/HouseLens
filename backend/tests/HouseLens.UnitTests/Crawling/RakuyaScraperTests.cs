@@ -1,4 +1,5 @@
 using FluentAssertions;
+using HouseLens.Application.Crawling;
 using HouseLens.Domain.Enums;
 using HouseLens.Infrastructure.Crawling.Scrapers;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -290,5 +291,35 @@ public class RakuyaScraperTests
         var results = _scraper.ParseListings(html, "新北市", "新店區", maxWan: 900m);
 
         results.Should().BeEmpty();
+    }
+
+    // ── BuildSearchUrl ──
+
+    [Fact]
+    public void BuildSearchUrl_FullCriteria_IncludesAllParams()
+    {
+        var criteria = new DistrictCriteria(1000m, MinSizePing: 20m, Rooms: "2,3,4,5~", TypeCodes: "R1,R2", UseCode: "1");
+
+        var url = RakuyaScraper.BuildSearchUrl("235", criteria);
+
+        url.Should().Be("https://www.rakuya.com.tw/sell/result?zipcode=235&usecode=1&typecode=R1,R2&price=~1000&size=20~&room=2,3,4,5~");
+    }
+
+    [Fact]
+    public void BuildSearchUrl_DefaultCriteria_OmitsSizeAndRoom()
+    {
+        var url = RakuyaScraper.BuildSearchUrl("234", new DistrictCriteria(800m));
+
+        url.Should().Be("https://www.rakuya.com.tw/sell/result?zipcode=234&usecode=1&typecode=R1,R2&price=~800");
+    }
+
+    [Fact]
+    public void BuildSearchUrl_BlankTypeAndUseCode_FallsBackToDefaults()
+    {
+        var criteria = new DistrictCriteria(0m, TypeCodes: " ", UseCode: "");
+
+        var url = RakuyaScraper.BuildSearchUrl("231", criteria);
+
+        url.Should().Be("https://www.rakuya.com.tw/sell/result?zipcode=231&usecode=1&typecode=R1,R2");
     }
 }

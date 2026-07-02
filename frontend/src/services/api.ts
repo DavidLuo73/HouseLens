@@ -30,6 +30,19 @@ export interface DistrictConfig {
   isEnabled: boolean
 }
 
+/** 平台專屬搜尋篩選（每平台一筆，套用到該平台的所有地區；目前僅樂屋網使用） */
+export interface PlatformFilterConfig {
+  sourceSite: string
+  /** 最小坪數，0 = 不限（樂屋網 size={N}~） */
+  minSizePing: number
+  /** 房數，逗號分隔如 "2,3,4,5~"，空 = 不限（樂屋網 room=） */
+  rooms: string
+  /** 建物型態代碼，逗號分隔（樂屋網 typecode：R1公寓/R2大樓華廈/R3套房/R4別墅/R5透天厝/R6樓中樓） */
+  typeCodes: string
+  /** 用途代碼（樂屋網 usecode：1住宅/2商用/6住辦/3車位） */
+  useCode: string
+}
+
 export interface PriceHistoryEntry {
   capturedAt: string
   totalPrice: number
@@ -230,5 +243,14 @@ export const api = {
       request<void>(`/config/districts/${id}`, { method: 'DELETE' }),
     toggle: (id: number) =>
       request<{ id: number; isEnabled: boolean }>(`/config/districts/${id}/toggle`, { method: 'PATCH' }),
+  },
+
+  platformFilters: {
+    list: () => request<PlatformFilterConfig[]>('/config/platform-filters'),
+    update: (sourceSite: string, d: Omit<PlatformFilterConfig, 'sourceSite'>) =>
+      request<PlatformFilterConfig>(`/config/platform-filters/${sourceSite}`, {
+        method: 'PUT',
+        body: JSON.stringify(d),
+      }),
   },
 }

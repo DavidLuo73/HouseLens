@@ -27,7 +27,7 @@ public class F591Scraper(HttpFetcher fetcher, ILogger<F591Scraper> logger) : ISo
     };
 
     public async Task<IReadOnlyList<PropertyDto>> FetchAsync(
-        IReadOnlyDictionary<string, decimal> districtMaxPrices,
+        IReadOnlyDictionary<string, DistrictCriteria> districtCriteria,
         IProgress<ScraperDistrictProgress>? progress,
         Func<IReadOnlyList<PropertyDto>, Task>? onDistrictCompleted = null,
         CancellationToken cancellationToken = default)
@@ -65,8 +65,8 @@ public class F591Scraper(HttpFetcher fetcher, ILogger<F591Scraper> logger) : ISo
             "Object.defineProperty(navigator, 'webdriver', { get: () => undefined });");
 
         // 按城市分組，每個城市只抓一次（避免重複請求）
-        var knownDistricts = districtMaxPrices.Keys.Where(d => DistrictMap.ContainsKey(d)).ToList();
-        var unknownDistricts = districtMaxPrices.Keys.Except(knownDistricts).ToList();
+        var knownDistricts = districtCriteria.Keys.Where(d => DistrictMap.ContainsKey(d)).ToList();
+        var unknownDistricts = districtCriteria.Keys.Except(knownDistricts).ToList();
         foreach (var d in unknownDistricts)
             logger.LogWarning("Unknown district (not in DistrictMap): {District}", d);
 
@@ -81,9 +81,9 @@ public class F591Scraper(HttpFetcher fetcher, ILogger<F591Scraper> logger) : ISo
 
             var (regionId, city) = DistrictMap[district];
             // 用該縣市所有啟用地區的最高上限來抓城市資料（城市層級一次抓最廣範圍）
-            var cityMaxPrice = districtMaxPrices
+            var cityMaxPrice = districtCriteria
                 .Where(kv => DistrictMap.TryGetValue(kv.Key, out var m) && m.RegionId == regionId)
-                .Select(kv => kv.Value)
+                .Select(kv => kv.Value.MaxTotalPrice)
                 .DefaultIfEmpty(800m)
                 .Max();
 
@@ -105,7 +105,7 @@ public class F591Scraper(HttpFetcher fetcher, ILogger<F591Scraper> logger) : ISo
             }
 
             // 客戶端按行政區與該區個別上限過濾
-            var districtMaxPrice = districtMaxPrices[district];
+            var districtMaxPrice = districtCriteria[district].MaxTotalPrice;
             var districtResults = FilterByDistrict(cityListings, district, districtMaxPrice);
             results.AddRange(districtResults);
 

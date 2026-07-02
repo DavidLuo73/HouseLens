@@ -53,7 +53,7 @@ public partial class HBHousingScraper(PlaywrightFetcher fetcher, ILogger<HBHousi
     };
 
     public async Task<IReadOnlyList<PropertyDto>> FetchAsync(
-        IReadOnlyDictionary<string, decimal> districtMaxPrices,
+        IReadOnlyDictionary<string, DistrictCriteria> districtCriteria,
         IProgress<ScraperDistrictProgress>? progress,
         Func<IReadOnlyList<PropertyDto>, Task>? onDistrictCompleted = null,
         CancellationToken cancellationToken = default)
@@ -64,11 +64,11 @@ public partial class HBHousingScraper(PlaywrightFetcher fetcher, ILogger<HBHousi
         logger.LogInformation("HBHousing: warming up via {BaseUrl}", BaseUrl);
         await fetcher.FetchAsync(BaseUrl, cancellationToken);
 
-        var knownDistricts = districtMaxPrices.Keys
+        var knownDistricts = districtCriteria.Keys
             .Where(d => DistrictZipMap.ContainsKey(d))
             .ToList();
 
-        foreach (var d in districtMaxPrices.Keys.Except(knownDistricts))
+        foreach (var d in districtCriteria.Keys.Except(knownDistricts))
             logger.LogWarning("HBHousing: unknown district (not in DistrictZipMap): {District}", d);
 
         var total = knownDistricts.Count;
@@ -76,7 +76,7 @@ public partial class HBHousingScraper(PlaywrightFetcher fetcher, ILogger<HBHousi
         for (var i = 0; i < knownDistricts.Count; i++)
         {
             var district = knownDistricts[i];
-            var maxWan = districtMaxPrices[district];
+            var maxWan = districtCriteria[district].MaxTotalPrice;
             var info = DistrictZipMap[district];
 
             progress?.Report(new(district, i, total, IsStarting: true, FetchedCount: 0));

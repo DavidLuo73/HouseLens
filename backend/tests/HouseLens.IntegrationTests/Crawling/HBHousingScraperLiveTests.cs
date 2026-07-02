@@ -1,3 +1,4 @@
+using HouseLens.Application.Crawling;
 using HouseLens.Domain.Enums;
 using HouseLens.Infrastructure.Crawling;
 using HouseLens.Infrastructure.Crawling.Scrapers;
@@ -20,7 +21,7 @@ public class HBHousingScraperLiveTests
         await using var fetcher = new PlaywrightFetcher(NullLogger<PlaywrightFetcher>.Instance);
         var scraper = new HBHousingScraper(fetcher, NullLogger<HBHousingScraper>.Instance);
 
-        var districtMaxPrices = new Dictionary<string, decimal> { ["永和區"] = 1000m };
+        var districtMaxPrices = new Dictionary<string, DistrictCriteria> { ["永和區"] = new(1000m) };
 
         var results = await scraper.FetchAsync(districtMaxPrices, progress: null);
 

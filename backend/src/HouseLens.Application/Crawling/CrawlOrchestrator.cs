@@ -11,6 +11,7 @@ public interface ICrawlRepository
 {
     Task<TrackingCriteria> GetTrackingCriteriaAsync(CancellationToken ct = default);
     Task<IReadOnlyList<DistrictConfig>> GetEnabledDistrictConfigsAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<PlatformFilterConfig>> GetPlatformFilterConfigsAsync(CancellationToken ct = default);
     Task<Property?> FindExistingPropertyAsync(string sourceListingKey, SourceSite sourceSite, CancellationToken ct = default);
     Task<CrawlRun> CreateCrawlRunAsync(CancellationToken ct = default);
     Task SavePropertyAsync(Property property, CancellationToken ct = default);
@@ -59,6 +60,10 @@ public class CrawlOrchestrator(
             districtMaxPrices = legacyDistricts.ToDictionary(d => d, _ => criteria.MaxTotalPrice);
         }
 
+        // 平台專屬篩選（目前僅樂屋網）：跑到該平台時合併進每個地區的 DistrictCriteria
+        var platformFilters = (await repository.GetPlatformFilterConfigsAsync(ct))
+            .ToDictionary(f => f.SourceSite);
+
         var config = await repository.GetScoringConfigAsync(ct);
 
         var scraperList = onlySource.HasValue
@@ -79,7 +84,9 @@ public class CrawlOrchestrator(
 
         for (var i = 0; i < scraperList.Count; i++)
         {
-            await RunScraperAsync(scraperList[i], i, run, districtMaxPrices, config, seenPropertyIds, knownProperties, ct);
+            // 每個平台用「共用地區＋該平台篩選」組出自己的 DistrictCriteria
+            var scraperCriteria = BuildCriteriaForScraper(scraperList[i].SourceSite, districtMaxPrices, platformFilters);
+            await RunScraperAsync(scraperList[i], i, run, scraperCriteria, config, seenPropertyIds, knownProperties, ct);
         }
 
         // 單平台模式跳過 missing 標記：其他平台的物件本次未被掃到，不應誤判為下架
@@ -97,6 +104,19 @@ public class CrawlOrchestrator(
             run.Id, run.NewCount, run.DelistedCount, run.BigDropCount);
 
         return run.Id;
+    }
+
+    private static IReadOnlyDictionary<string, DistrictCriteria> BuildCriteriaForScraper(
+        SourceSite site,
+        IReadOnlyDictionary<string, decimal> districtMaxPrices,
+        IReadOnlyDictionary<SourceSite, PlatformFilterConfig> platformFilters)
+    {
+        platformFilters.TryGetValue(site, out var filter);
+        return districtMaxPrices.ToDictionary(
+            kv => kv.Key,
+            kv => filter is null
+                ? new DistrictCriteria(kv.Value)
+                : new DistrictCriteria(kv.Value, filter.MinSizePing, filter.Rooms, filter.TypeCodes, filter.UseCode));
     }
 
     private async Task ScoreActivePropertiesAsync(ScoringConfig config, CancellationToken ct)
@@ -140,7 +160,7 @@ public class CrawlOrchestrator(
         ISourceScraper scraper,
         int platformIndex,
         CrawlRun run,
-        IReadOnlyDictionary<string, decimal> districtMaxPrices,
+        IReadOnlyDictionary<string, DistrictCriteria> districtCriteria,
         ScoringConfig config,
         HashSet<Guid> seenPropertyIds,
         List<Property> knownProperties,
@@ -165,7 +185,7 @@ public class CrawlOrchestrator(
             // 已完成行政區的資料也不會隨例外一起遺失。
             async Task ProcessDistrictBatchAsync(IReadOnlyList<PropertyDto> districtDtos)
             {
-                var validDtos = districtDtos.Where(d => PropertyNormalizer.MeetsTrackingCriteria(d, districtMaxPrices)).ToList();
+                var validDtos = districtDtos.Where(d => PropertyNormalizer.MeetsTrackingCriteria(d, districtCriteria)).ToList();
                 foreach (var dto in validDtos)
                 {
                     var propertyId = await ProcessPropertyAsync(dto, run, config, knownProperties, ct);
@@ -175,7 +195,7 @@ public class CrawlOrchestrator(
                 sourceResult.FetchedCount += validDtos.Count;
             }
 
-            await scraper.FetchAsync(districtMaxPrices, progress, ProcessDistrictBatchAsync, scraperCts.Token);
+            await scraper.FetchAsync(districtCriteria, progress, ProcessDistrictBatchAsync, scraperCts.Token);
 
             sourceResult.Success = true;
         }
