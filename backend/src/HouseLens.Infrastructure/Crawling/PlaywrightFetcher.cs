@@ -56,11 +56,13 @@ public sealed class PlaywrightFetcher : IAsyncDisposable
             var hasSavedState = File.Exists(cookieStatePath) &&
                 (DateTime.Now - File.GetLastWriteTime(cookieStatePath)).TotalHours < 23;
 
+            // 不硬寫 UserAgent：使用真實 Chrome（Channel="chrome"）時，讓瀏覽器帶自己的 UA，
+            // 才能與 TLS/Client-Hints 指紋、實際 Chrome 版本完全一致。硬寫舊版號（如 Chrome/125）
+            // 會與真實瀏覽器版本脫節，是 Cloudflare Bot Management 可辨識的指紋矛盾。
             _context = await _browser.NewContextAsync(new()
             {
                 ViewportSize = new() { Width = 1920, Height = 1080 },
                 Locale = "zh-TW",
-                UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
                 StorageStatePath = hasSavedState ? cookieStatePath : null,
             });
 
@@ -69,42 +71,13 @@ public sealed class PlaywrightFetcher : IAsyncDisposable
                 ["Accept-Language"] = "zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7",
             });
 
-            // 移除 navigator.webdriver 及修補其他可被 WAF 辨識的自動化指紋。
-            // navigator.plugins 原本錯誤地回傳 [1,2,3,4,5]（純數字陣列），CF 呼叫 plugins[0].name 會得到
-            // undefined，立即暴露自動化。改為回傳空陣列並補上 item/namedItem/refresh 方法（符合 PluginArray 規格）。
-            // window.chrome 補完常見屬性，避免 CF 比對 chrome.runtime.PlatformOs 等列舉值時失敗。
-            await _context.AddInitScriptAsync("""
-                Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-                (function () {
-                    const arr = [];
-                    arr.item = () => null;
-                    arr.namedItem = () => null;
-                    arr.refresh = () => {};
-                    Object.defineProperty(navigator, 'plugins', {get: () => arr});
-                    const mt = [];
-                    mt.item = () => null;
-                    mt.namedItem = () => null;
-                    Object.defineProperty(navigator, 'mimeTypes', {get: () => mt});
-                })();
-                Object.defineProperty(navigator, 'languages', {get: () => ['zh-TW','zh','en-US','en']});
-                window.chrome = {
-                    app: { isInstalled: false },
-                    runtime: {
-                        PlatformOs:   { MAC:'mac', WIN:'win', ANDROID:'android', CROS:'cros', LINUX:'linux', OPENBSD:'openbsd' },
-                        PlatformArch: { ARM:'arm', ARM64:'arm64', X86_32:'x86-32', X86_64:'x86-64' },
-                        RequestUpdateCheckStatus: { THROTTLED:'throttled', NO_UPDATE:'no_update', UPDATE_AVAILABLE:'update_available' },
-                        OnInstalledReason:        { INSTALL:'install', UPDATE:'update', CHROME_UPDATE:'chrome_update', SHARED_MODULE_UPDATE:'shared_module_update' },
-                        OnRestartRequiredReason:  { APP_UPDATE:'app_update', OS_UPDATE:'os_update', PERIODIC:'periodic' },
-                        connect:     () => {},
-                        sendMessage: () => {},
-                    },
-                };
-                const origQuery = window.navigator.permissions.query;
-                window.navigator.permissions.query = (params) =>
-                    params.name === 'notifications'
-                        ? Promise.resolve({ state: Notification.permission })
-                        : origQuery(params);
-                """);
+            // 僅覆寫 navigator.webdriver（唯一真實 Chrome 沒有、而自動化會露餡的屬性）。
+            // 注意：切勿偽造 navigator.plugins / window.chrome / permissions.query —— 使用真實 Chrome
+            // （Channel="chrome" 且有頭）時這些屬性本已合法存在，覆寫反而製造與真實指紋的矛盾。
+            // 實測中將 plugins 改為空陣列會讓 Cloudflare Turnstile Managed Challenge 永久無法通過
+            // （真實 Chrome 必定內建 PDF viewer 等 plugins，空陣列是明確的機器人特徵）。
+            await _context.AddInitScriptAsync(
+                "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});");
 
             _initialized = true;
             _logger.LogInformation(
