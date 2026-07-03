@@ -30,7 +30,11 @@
             </div>
             <div class="field">
               <label class="field-label">地區</label>
-              <input v-model="form.district" placeholder="例：永和區" class="field-input" />
+              <select v-if="districtOptions(form.city).length" v-model="form.district" class="field-input">
+                <option value="" disabled>請選擇地區</option>
+                <option v-for="d in districtOptions(form.city)" :key="d" :value="d">{{ d }}</option>
+              </select>
+              <input v-else v-model="form.district" placeholder="例：永和區" class="field-input" />
             </div>
             <div class="field">
               <label class="field-label">最高總價（萬）</label>
@@ -90,6 +94,9 @@
                     </td>
                     <td>
                       <span v-if="editingId !== d.id">{{ d.district }}</span>
+                      <select v-else-if="districtOptions(editForm.city).length" v-model="editForm.district" class="inline-input">
+                        <option v-for="opt in districtOptions(editForm.city)" :key="opt" :value="opt">{{ opt }}</option>
+                      </select>
                       <input v-else v-model="editForm.district" class="inline-input" />
                     </td>
                     <td>
@@ -145,7 +152,7 @@
               @click="activePlatform = s.value"
             >
               {{ s.label }}
-              <span v-if="s.value === 'Rakuya'" class="tab-dot" title="支援額外篩選" />
+              <span v-if="s.value === 'Rakuya' || s.value === 'Sinyi'" class="tab-dot" title="支援額外篩選" />
             </button>
           </div>
 
@@ -192,6 +199,42 @@
             <p v-if="filterError" class="field-error">{{ filterError }}</p>
           </div>
 
+          <!-- 信義房屋：型態 / 車位 / 坪數 / 房數（連動搜尋 URL 路徑段） -->
+          <div v-else-if="activePlatform === 'Sinyi'" class="platform-panel">
+            <div class="add-row">
+              <div class="field">
+                <label class="field-label">最小坪數（0 = 不限）</label>
+                <input v-model.number="sinyiForm.minSizePing" type="number" min="0" step="1" class="field-input field-input--price" />
+              </div>
+              <div class="field">
+                <label class="field-label">房數</label>
+                <select v-model="sinyiForm.minRooms" class="field-input">
+                  <option value="">不限</option>
+                  <option v-for="n in [1, 2, 3, 4, 5]" :key="n" :value="String(n)">{{ n }} 房以上</option>
+                </select>
+              </div>
+            </div>
+            <div class="add-row">
+              <div class="field">
+                <label class="field-label">建物型態（不勾 = 全部住宅型態）</label>
+                <div class="check-group">
+                  <label v-for="t in SINYI_TYPE_OPTIONS" :key="t.code" class="check-item">
+                    <input type="checkbox" :value="t.code" v-model="sinyiForm.typeCodes" />
+                    {{ t.label }}
+                  </label>
+                </div>
+              </div>
+            </div>
+            <p class="card-subtitle">停車位條件由上方地區列表的通用設定決定：不勾＝不限（有無車位都抓）；勾選後自動轉為信義的車位型式並要求必須有車位。</p>
+            <div class="platform-actions">
+              <button class="btn-add" :disabled="filterSaving" @click="saveSinyiFilter">
+                {{ filterSaving ? '儲存中…' : '儲存信義房屋篩選' }}
+              </button>
+              <span v-if="filterSavedAt" class="save-hint">已儲存 ✓</span>
+            </div>
+            <p v-if="filterError" class="field-error">{{ filterError }}</p>
+          </div>
+
           <!-- 其他平台：目前無額外篩選 -->
           <div v-else class="platform-panel platform-panel--empty">
             {{ SOURCE_LABELS[activePlatform] }} 目前不支援額外篩選，使用上方共用的地區與最高總價設定。
@@ -222,6 +265,19 @@ const PARKING_OPTIONS = [
   { code: 'PF', label: '平面車位' },
   { code: 'PM', label: '機械車位' },
 ]
+
+// 各縣市可選地區（與爬蟲 DistrictMap 支援的行政區一致；其餘縣市維持自由輸入）
+const CITY_DISTRICTS: Record<string, string[]> = {
+  新北市: [
+    '板橋區', '汐止區', '深坑區', '瑞芳區', '新店區', '永和區', '中和區', '土城區', '三峽區', '樹林區',
+    '鶯歌區', '三重區', '新莊區', '泰山區', '林口區', '蘆洲區', '五股區', '八里區', '淡水區',
+  ],
+  桃園市: [
+    '中壢區', '平鎮區', '龍潭區', '楊梅區', '新屋區', '觀音區', '桃園區', '龜山區', '八德區', '大溪區',
+    '大園區', '蘆竹區',
+  ],
+}
+const districtOptions = (city: string) => CITY_DISTRICTS[city] ?? []
 
 function parkingLabel(codes: string): string {
   const list = splitCodes(codes || '')
@@ -254,6 +310,14 @@ const ROOM_OPTIONS = [
   { code: '5~', label: '5房以上' },
 ]
 
+// ===== 信義房屋（搜尋 URL 路徑段代碼，實站驗證）=====
+const SINYI_TYPE_OPTIONS = [
+  { code: 'apartment', label: '公寓' },
+  { code: 'dalou', label: '大廈' },
+  { code: 'huaxia', label: '華廈' },
+  { code: 'townhouse', label: '透天' },
+  { code: 'villa', label: '別墅' },
+]
 const activePlatform = ref('Rakuya')
 const filterSaving = ref(false)
 const filterError = ref<string | null>(null)
@@ -264,6 +328,12 @@ const rakuyaForm = ref({
   useCode: '1',
   typeCodes: ['R1', 'R2'] as string[],
   rooms: [] as string[],
+})
+
+const sinyiForm = ref({
+  minSizePing: 0,
+  minRooms: '' as string,
+  typeCodes: [] as string[],
 })
 
 const splitCodes = (s: string) => (s ? s.split(',').map((x) => x.trim()).filter(Boolean) : [])
@@ -283,6 +353,16 @@ async function load() {
         rooms: splitCodes(rakuya.rooms || ''),
       }
     }
+    const sinyi = filters.find((f) => f.sourceSite === 'Sinyi')
+    if (sinyi) {
+      const sinyiTypeSlugs = SINYI_TYPE_OPTIONS.map((t) => t.code)
+      sinyiForm.value = {
+        minSizePing: sinyi.minSizePing ?? 0,
+        minRooms: splitCodes(sinyi.rooms || '')[0] ?? '',
+        // 舊資料可能存 Rakuya 代碼（R1,R2），非信義 slug 一律視為未勾（爬蟲端自行對映）
+        typeCodes: splitCodes(sinyi.typeCodes || '').filter((c) => sinyiTypeSlugs.includes(c)),
+      }
+    }
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : '載入失敗'
   } finally {
@@ -300,6 +380,25 @@ async function savePlatformFilter() {
       rooms: rakuyaForm.value.rooms.join(','),
       typeCodes: rakuyaForm.value.typeCodes.join(','),
       useCode: rakuyaForm.value.useCode,
+    })
+    filterSavedAt.value = true
+  } catch (e: unknown) {
+    filterError.value = e instanceof Error ? e.message : '儲存失敗'
+  } finally {
+    filterSaving.value = false
+  }
+}
+
+async function saveSinyiFilter() {
+  filterError.value = null
+  filterSavedAt.value = false
+  filterSaving.value = true
+  try {
+    await api.platformFilters.update('Sinyi', {
+      minSizePing: sinyiForm.value.minSizePing,
+      rooms: sinyiForm.value.minRooms,
+      typeCodes: sinyiForm.value.typeCodes.join(','),
+      useCode: '1',
     })
     filterSavedAt.value = true
   } catch (e: unknown) {

@@ -187,7 +187,8 @@ public static class ConfigEndpoints
 
         entity.MinSizePing = req.MinSizePing;
         entity.Rooms = req.Rooms ?? "";
-        entity.TypeCodes = string.IsNullOrWhiteSpace(req.TypeCodes) ? "R1,R2" : req.TypeCodes;
+        // 允許空字串（各爬蟲自帶預設：樂屋 R1,R2；信義全部住宅型態）
+        entity.TypeCodes = req.TypeCodes?.Trim() ?? "";
         entity.UseCode = string.IsNullOrWhiteSpace(req.UseCode) ? "1" : req.UseCode;
         await db.SaveChangesAsync();
 

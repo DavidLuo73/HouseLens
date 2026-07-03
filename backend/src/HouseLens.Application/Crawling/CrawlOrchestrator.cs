@@ -118,6 +118,7 @@ public class CrawlOrchestrator(
             d => d.District,
             d => filter is null
                 ? new DistrictCriteria(d.MaxTotalPrice, MaxAgeYears: d.MaxAgeYears, ParkingCodes: d.ParkingCodes)
+                // 停車位一律採地區共用設定（不勾＝不限，各平台 URL 不得帶車位條件）
                 : new DistrictCriteria(d.MaxTotalPrice, filter.MinSizePing, filter.Rooms, filter.TypeCodes, filter.UseCode,
                     d.MaxAgeYears, d.ParkingCodes));
     }

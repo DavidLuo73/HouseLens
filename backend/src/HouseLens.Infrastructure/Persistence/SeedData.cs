@@ -35,8 +35,8 @@ public static class SeedData
             }
         }
 
-        // 平台篩選設定：目前僅樂屋網支援額外篩選（型態/用途/坪數/房數）
-        if (!await db.PlatformFilterConfigs.AnyAsync())
+        // 平台篩選設定：樂屋網與信義房屋支援額外篩選（型態/坪數/房數/車位）
+        if (!await db.PlatformFilterConfigs.AnyAsync(p => p.SourceSite == Domain.Enums.SourceSite.Rakuya))
         {
             db.PlatformFilterConfigs.Add(new PlatformFilterConfig
             {
@@ -45,6 +45,18 @@ public static class SeedData
                 Rooms = "",
                 TypeCodes = "R1,R2",
                 UseCode = "1",
+            });
+        }
+
+        if (!await db.PlatformFilterConfigs.AnyAsync(p => p.SourceSite == Domain.Enums.SourceSite.Sinyi))
+        {
+            db.PlatformFilterConfigs.Add(new PlatformFilterConfig
+            {
+                SourceSite = Domain.Enums.SourceSite.Sinyi,
+                MinSizePing = 0m,
+                Rooms = "",
+                TypeCodes = "apartment,dalou,huaxia",
+                UseCode = "1", // 信義不使用用途代碼，保留欄位預設
             });
         }
 

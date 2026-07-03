@@ -23,19 +23,65 @@ public partial class SinyiScraper(HttpFetcher fetcher, ILogger<SinyiScraper> log
     // 排除「單售車位」「土地」「店面」「廠辦」等非住宅，避免污染房屋追蹤清單。
     private const string ResidentialTypeSlug = "apartment-townhouse-villa-dalou-huaxia-type";
 
+    // 信義建物型態 slug 白名單（URL 第 2 段 {…}-type）
+    private static readonly string[] SinyiTypeSlugs = ["apartment", "dalou", "huaxia", "townhouse", "villa"];
+
+    // 樂屋網 typecode → 信義型態 slug 對映（平台未設定信義專屬 TypeCodes 時的回退）
+    private static readonly Dictionary<string, string[]> RakuyaTypeToSinyi = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["R1"] = ["apartment"],           // 公寓
+        ["R2"] = ["dalou", "huaxia"],     // 大樓/華廈
+        ["R4"] = ["villa"],               // 別墅
+        ["R5"] = ["townhouse"],           // 透天厝
+    };
+
+    // 信義停車位 slug 白名單（URL 車位段），依官方順序排列
+    private static readonly string[] SinyiParkingSlugs =
+        ["plane", "auto", "mix", "mechanical", "firstfloor", "tower", "other", "yesparking"];
+
+    // 樂屋網停車位代碼 → 信義車位 slug 對映（回退用）：PF 平面類 / PM 機械類
+    private static readonly Dictionary<string, string[]> RakuyaParkingToSinyi = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["PF"] = ["plane", "auto", "firstfloor"],
+        ["PM"] = ["mix", "mechanical", "tower"],
+    };
+
     // 行政區 → (城市英文 slug, 城市中文名, 信義 zip)。zip 與 slug 皆由 __NEXT_DATA__ zipCodeTW 驗證。
     private static readonly Dictionary<string, (string CitySlug, string City, string Zip)> DistrictMap = new()
     {
-        ["中和區"] = ("NewTaipei-city", "新北市", "235"),
-        ["永和區"] = ("NewTaipei-city", "新北市", "234"),
-        ["新店區"] = ("NewTaipei-city", "新北市", "231"),
+        // 新北市
         ["板橋區"] = ("NewTaipei-city", "新北市", "220"),
+        ["汐止區"] = ("NewTaipei-city", "新北市", "221"),
+        ["深坑區"] = ("NewTaipei-city", "新北市", "222"),
+        ["瑞芳區"] = ("NewTaipei-city", "新北市", "224"),
+        ["新店區"] = ("NewTaipei-city", "新北市", "231"),
+        ["永和區"] = ("NewTaipei-city", "新北市", "234"),
+        ["中和區"] = ("NewTaipei-city", "新北市", "235"),
         ["土城區"] = ("NewTaipei-city", "新北市", "236"),
-        ["樹林區"] = ("NewTaipei-city", "新北市", "238"),
         ["三峽區"] = ("NewTaipei-city", "新北市", "237"),
+        ["樹林區"] = ("NewTaipei-city", "新北市", "238"),
+        ["鶯歌區"] = ("NewTaipei-city", "新北市", "239"),
+        ["三重區"] = ("NewTaipei-city", "新北市", "241"),
         ["新莊區"] = ("NewTaipei-city", "新北市", "242"),
+        ["泰山區"] = ("NewTaipei-city", "新北市", "243"),
+        ["林口區"] = ("NewTaipei-city", "新北市", "244"),
+        ["蘆洲區"] = ("NewTaipei-city", "新北市", "247"),
+        ["五股區"] = ("NewTaipei-city", "新北市", "248"),
+        ["八里區"] = ("NewTaipei-city", "新北市", "249"),
+        ["淡水區"] = ("NewTaipei-city", "新北市", "251"),
+        // 桃園市
         ["中壢區"] = ("Taoyuan-city", "桃園市", "320"),
+        ["平鎮區"] = ("Taoyuan-city", "桃園市", "324"),
+        ["龍潭區"] = ("Taoyuan-city", "桃園市", "325"),
+        ["楊梅區"] = ("Taoyuan-city", "桃園市", "326"),
+        ["新屋區"] = ("Taoyuan-city", "桃園市", "327"),
+        ["觀音區"] = ("Taoyuan-city", "桃園市", "328"),
         ["桃園區"] = ("Taoyuan-city", "桃園市", "330"),
+        ["龜山區"] = ("Taoyuan-city", "桃園市", "333"),
+        ["八德區"] = ("Taoyuan-city", "桃園市", "334"),
+        ["大溪區"] = ("Taoyuan-city", "桃園市", "335"),
+        ["大園區"] = ("Taoyuan-city", "桃園市", "337"),
+        ["蘆竹區"] = ("Taoyuan-city", "桃園市", "338"),
     };
 
     public async Task<IReadOnlyList<PropertyDto>> FetchAsync(
@@ -60,18 +106,17 @@ public partial class SinyiScraper(HttpFetcher fetcher, ILogger<SinyiScraper> log
         for (var i = 0; i < validDistricts.Count; i++)
         {
             var (district, criteria) = validDistricts[i];
-            var maxPrice = criteria.MaxTotalPrice;
             var map = DistrictMap[district];
 
             progress?.Report(new(district, i, total, IsStarting: true, FetchedCount: 0));
 
             var districtResults = await FetchDistrictAsync(
-                district, map.City, map.CitySlug, map.Zip, (int)maxPrice, cancellationToken);
+                district, map.City, map.CitySlug, map.Zip, criteria, cancellationToken);
             results.AddRange(districtResults);
 
             progress?.Report(new(district, i, total, IsStarting: false, FetchedCount: districtResults.Count));
             logger.LogInformation("Sinyi district {District} (max={Max}萬): {Count} listings",
-                district, (int)maxPrice, districtResults.Count);
+                district, (int)criteria.MaxTotalPrice, districtResults.Count);
 
             if (onDistrictCompleted is not null) await onDistrictCompleted(districtResults);
         }
@@ -83,15 +128,104 @@ public partial class SinyiScraper(HttpFetcher fetcher, ILogger<SinyiScraper> log
         return results;
     }
 
+    /// <summary>
+    /// 依 DistrictCriteria 組出信義搜尋列表 URL。路徑段依序為（無設定者省略）：
+    /// 價格 {0-N}-price／型態 {…}-type／車位 {…-yesparking}／坪數 {N}-up-area／
+    /// 屋齡 0-{N}-year（N 年以下）／房數 {N}-up-roomtotal／城市／{zip}-zip／排序／頁次。
+    /// 各 slug 皆經實站驗證（price、type、area、year、roomtotal、車位段）。
+    /// </summary>
+    public static string BuildSearchUrl(string citySlug, string zip, DistrictCriteria criteria, int page)
+    {
+        var segments = new List<string>();
+
+        if (criteria.MaxTotalPrice > 0)
+            segments.Add($"0-{criteria.MaxTotalPrice:0}-price");
+
+        segments.Add(BuildTypeSlug(criteria.TypeCodes));
+
+        var parking = BuildParkingSlug(criteria.ParkingCodes);
+        if (parking is not null) segments.Add(parking);
+
+        if (criteria.MinSizePing > 0)
+            segments.Add($"{criteria.MinSizePing:0}-up-area");
+
+        if (criteria.MaxAgeYears > 0)
+            segments.Add($"0-{criteria.MaxAgeYears}-year");
+
+        var minRooms = ParseMinRooms(criteria.Rooms);
+        if (minRooms > 0)
+            segments.Add($"{minRooms}-up-roomtotal");
+
+        segments.Add(citySlug);
+        segments.Add($"{zip}-zip");
+        segments.Add("default-desc");
+        segments.Add(page.ToString());
+
+        return $"{BaseUrl}/buy/list/{string.Join('/', segments)}";
+    }
+
+    /// <summary>建物型態段：優先採信義 slug；樂屋網 R 代碼則對映；無法辨識時回退全住宅型態。</summary>
+    private static string BuildTypeSlug(string typeCodes)
+    {
+        var codes = SplitCodes(typeCodes);
+        var slugs = codes.Where(c => SinyiTypeSlugs.Contains(c, StringComparer.OrdinalIgnoreCase))
+            .Select(c => c.ToLowerInvariant())
+            .Concat(codes.SelectMany(c => RakuyaTypeToSinyi.GetValueOrDefault(c, [])))
+            .Distinct()
+            .ToList();
+        if (slugs.Count == 0) return ResidentialTypeSlug;
+
+        // 依信義官方順序輸出，避免同組合產生不同 URL
+        var ordered = SinyiTypeSlugs.Where(slugs.Contains);
+        return $"{string.Join('-', ordered)}-type";
+    }
+
+    /// <summary>
+    /// 車位段：採信義 slug（含 yesparking）；樂屋網 PF/PM 代碼則對映為對應車位型式並強制 yesparking。
+    /// 空／無法辨識 → null（不加車位條件）。
+    /// </summary>
+    private static string? BuildParkingSlug(string parkingCodes)
+    {
+        var codes = SplitCodes(parkingCodes);
+        var slugs = codes.Where(c => SinyiParkingSlugs.Contains(c, StringComparer.OrdinalIgnoreCase))
+            .Select(c => c.ToLowerInvariant())
+            .Concat(codes.SelectMany(c => RakuyaParkingToSinyi.GetValueOrDefault(c, [])))
+            .Distinct()
+            .ToList();
+        if (slugs.Count == 0) return null;
+
+        // 有指定任何車位型式即代表「必須有車位」
+        if (slugs.Any(s => s != "yesparking") && !slugs.Contains("yesparking"))
+            slugs.Add("yesparking");
+
+        var ordered = SinyiParkingSlugs.Where(slugs.Contains);
+        return string.Join('-', ordered);
+    }
+
+    /// <summary>從 Rooms 條件（如 "2,3,5~"）取最小房數，信義以 {N}-up-roomtotal（N 房以上）表達。</summary>
+    private static int ParseMinRooms(string rooms)
+    {
+        var values = SplitCodes(rooms)
+            .Select(r => int.TryParse(r.TrimEnd('~'), out var n) ? n : 0)
+            .Where(n => n > 0)
+            .ToList();
+        return values.Count == 0 ? 0 : values.Min();
+    }
+
+    private static string[] SplitCodes(string s) =>
+        string.IsNullOrWhiteSpace(s)
+            ? []
+            : s.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
     private async Task<List<PropertyDto>> FetchDistrictAsync(
-        string district, string city, string citySlug, string zip, int maxWan, CancellationToken ct)
+        string district, string city, string citySlug, string zip, DistrictCriteria criteria, CancellationToken ct)
     {
         var all = new List<PropertyDto>();
 
         for (var page = 1; page <= MaxPagesPerDistrict; page++)
         {
-            // 例：/buy/list/0-800-price/apartment-townhouse-villa-dalou-huaxia-type/NewTaipei-city/235-zip/index/DESC/1
-            var url = $"{BaseUrl}/buy/list/0-{maxWan}-price/{ResidentialTypeSlug}/{citySlug}/{zip}-zip/index/DESC/{page}";
+            // 例：/buy/list/0-1000-price/apartment-dalou-huaxia-type/plane-auto-…-yesparking/20-up-area/0-30-year/2-up-roomtotal/NewTaipei-city/234-zip/default-desc/1
+            var url = BuildSearchUrl(citySlug, zip, criteria, page);
 
             // HttpFetcher 內含 robots 檢查、速率限制（3s + jitter）與重試退避
             var html = await fetcher.FetchAsync(url, ct);
