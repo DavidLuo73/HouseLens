@@ -28,6 +28,10 @@ export interface DistrictConfig {
   district: string
   maxTotalPrice: number
   isEnabled: boolean
+  /** 屋齡上限（年，0 = 不限）。樂屋網對應 age=~N */
+  maxAgeYears: number
+  /** 停車位代碼（逗號分隔如 "PF,PM"；空 = 不限）。樂屋網對應 other= */
+  parkingCodes: string
 }
 
 /** 平台專屬搜尋篩選（每平台一筆，套用到該平台的所有地區；目前僅樂屋網使用） */

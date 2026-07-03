@@ -91,7 +91,7 @@ public static class ConfigEndpoints
     {
         var items = await db.DistrictConfigs
             .OrderBy(d => d.City).ThenBy(d => d.District)
-            .Select(d => new { d.Id, d.City, d.District, d.MaxTotalPrice, d.IsEnabled })
+            .Select(d => new { d.Id, d.City, d.District, d.MaxTotalPrice, d.IsEnabled, d.MaxAgeYears, d.ParkingCodes })
             .ToListAsync();
         return Results.Ok(items);
     }
@@ -104,6 +104,9 @@ public static class ConfigEndpoints
         if (req.MaxTotalPrice <= 0)
             return Results.BadRequest(new { error = new { code = "INVALID_PRICE", message = "總價上限必須大於 0" } });
 
+        if (req.MaxAgeYears < 0)
+            return Results.BadRequest(new { error = new { code = "INVALID_AGE", message = "屋齡上限不可為負數" } });
+
         if (await db.DistrictConfigs.AnyAsync(d => d.City == req.City && d.District == req.District))
             return Results.Conflict(new { error = new { code = "DUPLICATE", message = $"{req.City}{req.District} 已存在" } });
 
@@ -113,11 +116,13 @@ public static class ConfigEndpoints
             District = req.District,
             MaxTotalPrice = req.MaxTotalPrice,
             IsEnabled = req.IsEnabled,
+            MaxAgeYears = req.MaxAgeYears,
+            ParkingCodes = req.ParkingCodes ?? "",
         };
         db.DistrictConfigs.Add(entity);
         await db.SaveChangesAsync();
         return Results.Created($"/api/config/districts/{entity.Id}",
-            new { entity.Id, entity.City, entity.District, entity.MaxTotalPrice, entity.IsEnabled });
+            new { entity.Id, entity.City, entity.District, entity.MaxTotalPrice, entity.IsEnabled, entity.MaxAgeYears, entity.ParkingCodes });
     }
 
     private static async Task<IResult> UpdateDistrict(int id, AppDbContext db, DistrictConfigRequest req)
@@ -129,12 +134,17 @@ public static class ConfigEndpoints
         if (req.MaxTotalPrice <= 0)
             return Results.BadRequest(new { error = new { code = "INVALID_PRICE", message = "總價上限必須大於 0" } });
 
+        if (req.MaxAgeYears < 0)
+            return Results.BadRequest(new { error = new { code = "INVALID_AGE", message = "屋齡上限不可為負數" } });
+
         entity.City = req.City;
         entity.District = req.District;
         entity.MaxTotalPrice = req.MaxTotalPrice;
         entity.IsEnabled = req.IsEnabled;
+        entity.MaxAgeYears = req.MaxAgeYears;
+        entity.ParkingCodes = req.ParkingCodes ?? "";
         await db.SaveChangesAsync();
-        return Results.Ok(new { entity.Id, entity.City, entity.District, entity.MaxTotalPrice, entity.IsEnabled });
+        return Results.Ok(new { entity.Id, entity.City, entity.District, entity.MaxTotalPrice, entity.IsEnabled, entity.MaxAgeYears, entity.ParkingCodes });
     }
 
     private static async Task<IResult> DeleteDistrict(int id, AppDbContext db)
@@ -214,7 +224,13 @@ public record ScoringRequest(
     decimal BigDropAmount
 );
 
-public record DistrictConfigRequest(string City, string District, decimal MaxTotalPrice, bool IsEnabled = true);
+public record DistrictConfigRequest(
+    string City,
+    string District,
+    decimal MaxTotalPrice,
+    bool IsEnabled = true,
+    int MaxAgeYears = 0,
+    string? ParkingCodes = "");
 
 public record PlatformFilterRequest(
     decimal MinSizePing = 0m,

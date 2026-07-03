@@ -314,6 +314,27 @@ public class RakuyaScraperTests
     }
 
     [Fact]
+    public void BuildSearchUrl_WithAgeAndParking_IncludesAgeAndOtherParams()
+    {
+        var criteria = new DistrictCriteria(1000m, MinSizePing: 20m, Rooms: "2,3,4,5~",
+            MaxAgeYears: 30, ParkingCodes: "PF,PM");
+
+        var url = RakuyaScraper.BuildSearchUrl("235", criteria);
+
+        url.Should().Be("https://www.rakuya.com.tw/sell/result?zipcode=235&usecode=1&typecode=R1,R2&price=~1000&size=20~&room=2,3,4,5~&age=~30&other=PF,PM");
+    }
+
+    [Fact]
+    public void BuildSearchUrl_ZeroAgeAndEmptyParking_OmitsAgeAndOtherParams()
+    {
+        var criteria = new DistrictCriteria(800m, MaxAgeYears: 0, ParkingCodes: "");
+
+        var url = RakuyaScraper.BuildSearchUrl("234", criteria);
+
+        url.Should().Be("https://www.rakuya.com.tw/sell/result?zipcode=234&usecode=1&typecode=R1,R2&price=~800");
+    }
+
+    [Fact]
     public void BuildSearchUrl_BlankTypeAndUseCode_FallsBackToDefaults()
     {
         var criteria = new DistrictCriteria(0m, TypeCodes: " ", UseCode: "");

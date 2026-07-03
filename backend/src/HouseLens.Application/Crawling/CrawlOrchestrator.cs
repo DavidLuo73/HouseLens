@@ -46,18 +46,20 @@ public class CrawlOrchestrator(
     public async Task<Guid> RunAsync(SourceSite? onlySource = null, CancellationToken ct = default)
     {
         var districtConfigs = await repository.GetEnabledDistrictConfigsAsync(ct);
-        IReadOnlyDictionary<string, decimal> districtMaxPrices;
+        IReadOnlyList<DistrictConfig> effectiveDistricts;
 
         if (districtConfigs.Count > 0)
         {
-            districtMaxPrices = districtConfigs.ToDictionary(c => c.District, c => c.MaxTotalPrice);
+            effectiveDistricts = districtConfigs;
         }
         else
         {
-            // 沒有 DistrictConfig 時，回退到舊版 TrackingCriteria
+            // 沒有 DistrictConfig 時，回退到舊版 TrackingCriteria（屋齡/停車位使用預設值＝不限）
             var criteria = await repository.GetTrackingCriteriaAsync(ct);
             var legacyDistricts = System.Text.Json.JsonSerializer.Deserialize<string[]>(criteria.Districts) ?? [];
-            districtMaxPrices = legacyDistricts.ToDictionary(d => d, _ => criteria.MaxTotalPrice);
+            effectiveDistricts = legacyDistricts
+                .Select(d => new DistrictConfig { District = d, MaxTotalPrice = criteria.MaxTotalPrice })
+                .ToList();
         }
 
         // 平台專屬篩選（目前僅樂屋網）：跑到該平台時合併進每個地區的 DistrictCriteria
@@ -72,7 +74,7 @@ public class CrawlOrchestrator(
         progressState.StartRun(scraperList.Count);
 
         var run = await repository.CreateCrawlRunAsync(ct);
-        logger.LogInformation("CrawlRun {RunId} started for {DistrictCount} districts", run.Id, districtMaxPrices.Count);
+        logger.LogInformation("CrawlRun {RunId} started for {DistrictCount} districts", run.Id, effectiveDistricts.Count);
 
         var seenPropertyIds = new HashSet<Guid>();
         var knownProperties = (await repository.GetActivePropertiesAsync(ct)).ToList();
@@ -85,7 +87,7 @@ public class CrawlOrchestrator(
         for (var i = 0; i < scraperList.Count; i++)
         {
             // 每個平台用「共用地區＋該平台篩選」組出自己的 DistrictCriteria
-            var scraperCriteria = BuildCriteriaForScraper(scraperList[i].SourceSite, districtMaxPrices, platformFilters);
+            var scraperCriteria = BuildCriteriaForScraper(scraperList[i].SourceSite, effectiveDistricts, platformFilters);
             await RunScraperAsync(scraperList[i], i, run, scraperCriteria, config, seenPropertyIds, knownProperties, ct);
         }
 
@@ -108,15 +110,16 @@ public class CrawlOrchestrator(
 
     private static IReadOnlyDictionary<string, DistrictCriteria> BuildCriteriaForScraper(
         SourceSite site,
-        IReadOnlyDictionary<string, decimal> districtMaxPrices,
+        IReadOnlyList<DistrictConfig> districts,
         IReadOnlyDictionary<SourceSite, PlatformFilterConfig> platformFilters)
     {
         platformFilters.TryGetValue(site, out var filter);
-        return districtMaxPrices.ToDictionary(
-            kv => kv.Key,
-            kv => filter is null
-                ? new DistrictCriteria(kv.Value)
-                : new DistrictCriteria(kv.Value, filter.MinSizePing, filter.Rooms, filter.TypeCodes, filter.UseCode));
+        return districts.ToDictionary(
+            d => d.District,
+            d => filter is null
+                ? new DistrictCriteria(d.MaxTotalPrice, MaxAgeYears: d.MaxAgeYears, ParkingCodes: d.ParkingCodes)
+                : new DistrictCriteria(d.MaxTotalPrice, filter.MinSizePing, filter.Rooms, filter.TypeCodes, filter.UseCode,
+                    d.MaxAgeYears, d.ParkingCodes));
     }
 
     private async Task ScoreActivePropertiesAsync(ScoringConfig config, CancellationToken ct)

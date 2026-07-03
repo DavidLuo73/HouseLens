@@ -36,6 +36,19 @@
               <label class="field-label">最高總價（萬）</label>
               <input v-model.number="form.maxTotalPrice" type="number" min="100" step="50" class="field-input field-input--price" />
             </div>
+            <div class="field">
+              <label class="field-label">屋齡上限（年，0 = 不限）</label>
+              <input v-model.number="form.maxAgeYears" type="number" min="0" step="5" class="field-input field-input--price" />
+            </div>
+            <div class="field">
+              <label class="field-label">停車位（不勾 = 不限）</label>
+              <div class="check-group">
+                <label v-for="p in PARKING_OPTIONS" :key="p.code" class="check-item">
+                  <input type="checkbox" :value="p.code" v-model="form.parkingCodes" />
+                  {{ p.label }}
+                </label>
+              </div>
+            </div>
             <button class="btn-add" :disabled="saving" @click="addDistrict">
               {{ saving ? '儲存中…' : '+ 新增' }}
             </button>
@@ -52,13 +65,15 @@
                   <th>縣市</th>
                   <th>地區</th>
                   <th>最高總價（萬）</th>
+                  <th>屋齡上限</th>
+                  <th>停車位</th>
                   <th>追蹤狀態</th>
                   <th>操作</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-if="!districts.length">
-                  <td colspan="5" class="td-empty">尚未設定任何地區</td>
+                  <td colspan="7" class="td-empty">尚未設定任何地區</td>
                 </tr>
                 <template v-for="d in districts" :key="d.id">
                   <tr :class="{ 'row--disabled': !d.isEnabled }">
@@ -80,6 +95,19 @@
                     <td>
                       <span v-if="editingId !== d.id">{{ d.maxTotalPrice }} 萬</span>
                       <input v-else v-model.number="editForm.maxTotalPrice" type="number" min="100" step="50" class="inline-input inline-input--price" />
+                    </td>
+                    <td>
+                      <span v-if="editingId !== d.id">{{ d.maxAgeYears > 0 ? `${d.maxAgeYears} 年內` : '不限' }}</span>
+                      <input v-else v-model.number="editForm.maxAgeYears" type="number" min="0" step="5" class="inline-input inline-input--price" />
+                    </td>
+                    <td>
+                      <span v-if="editingId !== d.id">{{ parkingLabel(d.parkingCodes) }}</span>
+                      <div v-else class="check-group check-group--inline">
+                        <label v-for="p in PARKING_OPTIONS" :key="p.code" class="check-item">
+                          <input type="checkbox" :value="p.code" v-model="editForm.parkingCodes" />
+                          {{ p.label }}
+                        </label>
+                      </div>
                     </td>
                     <td>
                       <button class="toggle-btn" :class="d.isEnabled ? 'toggle--on' : 'toggle--off'" @click="toggle(d)">
@@ -186,8 +214,22 @@ const saving = ref(false)
 const addError = ref<string | null>(null)
 const editingId = ref<number | null>(null)
 
-const form = ref({ city: '新北市', district: '', maxTotalPrice: 800 })
-const editForm = ref({ city: '', district: '', maxTotalPrice: 800 })
+const form = ref({ city: '新北市', district: '', maxTotalPrice: 800, maxAgeYears: 0, parkingCodes: [] as string[] })
+const editForm = ref({ city: '', district: '', maxTotalPrice: 800, maxAgeYears: 0, parkingCodes: [] as string[] })
+
+// 停車位代碼（樂屋網 other= 參數：PF 平面 / PM 機械）
+const PARKING_OPTIONS = [
+  { code: 'PF', label: '平面車位' },
+  { code: 'PM', label: '機械車位' },
+]
+
+function parkingLabel(codes: string): string {
+  const list = splitCodes(codes || '')
+  if (!list.length) return '不限'
+  return list
+    .map((c) => PARKING_OPTIONS.find((p) => p.code === c)?.label ?? c)
+    .join('、')
+}
 
 // ===== 平台篩選（樂屋網 URL 參數代碼，取自其搜尋頁篩選器）=====
 const TYPE_OPTIONS = [
@@ -278,10 +320,14 @@ async function addDistrict() {
       district: form.value.district.trim(),
       maxTotalPrice: form.value.maxTotalPrice,
       isEnabled: true,
+      maxAgeYears: form.value.maxAgeYears,
+      parkingCodes: form.value.parkingCodes.join(','),
     })
     districts.value.push(created)
     form.value.district = ''
     form.value.maxTotalPrice = 800
+    form.value.maxAgeYears = 0
+    form.value.parkingCodes = []
   } catch (e: unknown) {
     addError.value = e instanceof Error ? e.message : '新增失敗'
   } finally {
@@ -291,7 +337,13 @@ async function addDistrict() {
 
 function startEdit(d: DistrictConfig) {
   editingId.value = d.id
-  editForm.value = { city: d.city, district: d.district, maxTotalPrice: d.maxTotalPrice }
+  editForm.value = {
+    city: d.city,
+    district: d.district,
+    maxTotalPrice: d.maxTotalPrice,
+    maxAgeYears: d.maxAgeYears ?? 0,
+    parkingCodes: splitCodes(d.parkingCodes || ''),
+  }
 }
 
 async function saveEdit(d: DistrictConfig) {
@@ -301,6 +353,8 @@ async function saveEdit(d: DistrictConfig) {
       district: editForm.value.district,
       maxTotalPrice: editForm.value.maxTotalPrice,
       isEnabled: d.isEnabled,
+      maxAgeYears: editForm.value.maxAgeYears,
+      parkingCodes: editForm.value.parkingCodes.join(','),
     })
     const idx = districts.value.findIndex((x) => x.id === d.id)
     if (idx !== -1) districts.value[idx] = updated
@@ -542,6 +596,8 @@ h1 {
 }
 
 .check-item input { accent-color: var(--color-rausch, #FF5A5F); cursor: pointer; }
+
+.check-group--inline { padding: 0; gap: 4px 10px; flex-wrap: nowrap; }
 
 /* ===== 表格卡片 ===== */
 .table-card {

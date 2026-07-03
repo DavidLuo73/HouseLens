@@ -90,7 +90,8 @@ public partial class RakuyaScraper(PlaywrightFetcher fetcher, ILogger<RakuyaScra
     /// <summary>
     /// 依 DistrictCriteria 組出樂屋網搜尋 URL（不含 page 參數）。
     /// usecode（1住宅/2商用/6住辦/3車位）、typecode（R1公寓/R2大樓華廈/R3套房/R4別墅/R5透天厝/R6樓中樓）、
-    /// price=~N（0~N 萬）、size=N~（N 坪以上）、room=2,3,4,5~（房數）皆為伺服器端篩選。
+    /// price=~N（0~N 萬）、size=N~（N 坪以上）、room=2,3,4,5~（房數）、
+    /// age=~N（屋齡 N 年以下）、other=PF,PM（停車位：PF 平面 / PM 機械）皆為伺服器端篩選。
     /// </summary>
     public static string BuildSearchUrl(string zipcode, DistrictCriteria criteria)
     {
@@ -99,7 +100,9 @@ public partial class RakuyaScraper(PlaywrightFetcher fetcher, ILogger<RakuyaScra
         var priceParam = criteria.MaxTotalPrice > 0 ? $"&price=~{criteria.MaxTotalPrice:0}" : "";
         var sizeParam = criteria.MinSizePing > 0 ? $"&size={criteria.MinSizePing:0.##}~" : "";
         var roomParam = string.IsNullOrWhiteSpace(criteria.Rooms) ? "" : $"&room={criteria.Rooms.Trim()}";
-        return $"{BaseUrl}/sell/result?zipcode={zipcode}&usecode={useCode}&typecode={typeCodes}{priceParam}{sizeParam}{roomParam}";
+        var ageParam = criteria.MaxAgeYears > 0 ? $"&age=~{criteria.MaxAgeYears}" : "";
+        var otherParam = string.IsNullOrWhiteSpace(criteria.ParkingCodes) ? "" : $"&other={criteria.ParkingCodes.Trim()}";
+        return $"{BaseUrl}/sell/result?zipcode={zipcode}&usecode={useCode}&typecode={typeCodes}{priceParam}{sizeParam}{roomParam}{ageParam}{otherParam}";
     }
 
     private async Task<List<PropertyDto>> FetchDistrictAsync(
@@ -108,6 +111,7 @@ public partial class RakuyaScraper(PlaywrightFetcher fetcher, ILogger<RakuyaScra
         var all = new List<PropertyDto>();
         var seen = new HashSet<string>();
         var maxWan = criteria.MaxTotalPrice;
+        var maxAge = criteria.MaxAgeYears;
         var baseSearchUrl = BuildSearchUrl(zipcode, criteria);
 
         for (var page = 1; page <= MaxPagesPerDistrict; page++)
@@ -119,7 +123,7 @@ public partial class RakuyaScraper(PlaywrightFetcher fetcher, ILogger<RakuyaScra
             var html = await fetcher.FetchAsync(url, ct, navigateFromUrl: BaseUrl);
 
             // 第一頁若取得 null 或 0 筆（可能是未偵測到的 CF 挑戰），重新暖機後重試一次。
-            if (page == 1 && (html is null || ParseListings(html, city, district, maxWan, null).Count == 0))
+            if (page == 1 && (html is null || ParseListings(html, city, district, maxWan, null, maxAge).Count == 0))
             {
                 logger.LogWarning("Rakuya: page 1 no results for {District}, re-warming and retrying...", district);
                 await fetcher.FetchAsync(BaseUrl, ct);
@@ -132,7 +136,7 @@ public partial class RakuyaScraper(PlaywrightFetcher fetcher, ILogger<RakuyaScra
                 break;
             }
 
-            var pageResults = ParseListings(html, city, district, maxWan, seen);
+            var pageResults = ParseListings(html, city, district, maxWan, seen, maxAge);
             logger.LogInformation("Rakuya {District} page {Page}: {Count} listings", district, page, pageResults.Count);
 
             // 本頁無任何「新」物件（去重後）即視為抓完：樂屋網對超出範圍的 page 會重複回傳最後一頁內容。
@@ -160,7 +164,7 @@ public partial class RakuyaScraper(PlaywrightFetcher fetcher, ILogger<RakuyaScra
     /// 選擇器基於 section.search-obj 結構，不依賴 data-v-* 框架屬性。
     /// </summary>
     public List<PropertyDto> ParseListings(
-        string html, string city, string district, decimal maxWan, HashSet<string>? seen = null)
+        string html, string city, string district, decimal maxWan, HashSet<string>? seen = null, int maxAgeYears = 0)
     {
         var results = new List<PropertyDto>();
         var doc = new HtmlDocument();
@@ -178,7 +182,7 @@ public partial class RakuyaScraper(PlaywrightFetcher fetcher, ILogger<RakuyaScra
         {
             try
             {
-                var dto = ParseCard(card, city, district, maxWan);
+                var dto = ParseCard(card, city, district, maxWan, maxAgeYears);
                 if (dto is null) continue;
 
                 if (seen is not null && !seen.Add(dto.SourceListingKey)) continue;
@@ -194,7 +198,7 @@ public partial class RakuyaScraper(PlaywrightFetcher fetcher, ILogger<RakuyaScra
         return results;
     }
 
-    private PropertyDto? ParseCard(HtmlNode card, string city, string district, decimal maxWan)
+    private PropertyDto? ParseCard(HtmlNode card, string city, string district, decimal maxWan, int maxAgeYears = 0)
     {
         // 物件識別碼（ehid）取自 data-ehid 屬性
         var ehid = card.GetAttributeValue("data-ehid", "").Trim();
@@ -268,6 +272,9 @@ public partial class RakuyaScraper(PlaywrightFetcher fetcher, ILogger<RakuyaScra
 
         // Client-side 價格上限過濾
         if (maxWan > 0 && totalPrice > maxWan) return null;
+
+        // Client-side 屋齡上限過濾（伺服器端 age=~N 已篩，這裡是防線；未解析出屋齡者不過濾）
+        if (maxAgeYears > 0 && ageYears.HasValue && ageYears.Value > maxAgeYears) return null;
 
         // 圖片（card__photo 內第一張 img 的 src，去除 query string）
         string? imageUrl = null;
