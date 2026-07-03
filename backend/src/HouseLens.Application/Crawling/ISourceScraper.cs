@@ -6,7 +6,7 @@ namespace HouseLens.Application.Crawling;
 /// 單一行政區的爬取條件。
 /// MaxTotalPrice=總價上限（萬）；MinSizePing=最小坪數（0=不限）；
 /// Rooms=房數（逗號分隔，如 "2,3,4,5~"，空=不限）；
-/// TypeCodes/UseCode=建物型態/用途代碼（目前僅樂屋網使用，其餘平台自行對映或忽略）；
+/// TypeCodes/UseCode=建物型態/用途代碼（樂屋網原生代碼，信義自行對映、591 忽略）；
 /// MaxAgeYears=屋齡上限（年，0=不限）；ParkingCodes=停車位代碼（逗號分隔如 "PF,PM"，空=不限）。
 /// </summary>
 public record DistrictCriteria(

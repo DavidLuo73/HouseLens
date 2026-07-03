@@ -11,19 +11,47 @@ public class F591Scraper(HttpFetcher fetcher, ILogger<F591Scraper> logger) : ISo
 {
     public SourceSite SourceSite => SourceSite.F591;
 
-    // 591.com.tw regionid (confirmed: 1=台北市, 4=基隆市; 3/2/6 需要截圖驗證)
-    private static readonly Dictionary<string, (int RegionId, string City)> DistrictMap = new()
+    private const int PageSize = 30;            // 591 列表每頁 30 筆（firstRow 以 30 遞增）
+    private const int MaxPagesPerDistrict = 40; // 防護上限（正常依 data.total 提早停止）
+
+    // 591.com.tw 行政區代碼：regionid=縣市（3=新北市、6=桃園市，實站驗證）；
+    // section=行政區（中和區=38、中壢區=67 實站驗證，其餘依 591 官方代碼表遞增序推導；
+    // 即使 section 有誤，client-side FilterByDistrict 仍會過濾掉非目標行政區的物件）。
+    private static readonly Dictionary<string, (int RegionId, int SectionId, string City)> DistrictMap = new()
     {
-        ["中和區"] = (3, "新北市"),
-        ["永和區"] = (3, "新北市"),
-        ["板橋區"] = (3, "新北市"),
-        ["新店區"] = (3, "新北市"),
-        ["土城區"] = (3, "新北市"),
-        ["樹林區"] = (3, "新北市"),
-        ["三峽區"] = (3, "新北市"),
-        ["新莊區"] = (3, "新北市"),
-        ["中壢區"] = (6, "桃園市"),
-        ["桃園區"] = (6, "桃園市"),
+        // 新北市 regionid=3
+        ["板橋區"] = (3, 26, "新北市"),
+        ["汐止區"] = (3, 27, "新北市"),
+        ["深坑區"] = (3, 28, "新北市"),
+        ["瑞芳區"] = (3, 30, "新北市"),
+        ["新店區"] = (3, 34, "新北市"),
+        ["永和區"] = (3, 37, "新北市"),
+        ["中和區"] = (3, 38, "新北市"),
+        ["土城區"] = (3, 39, "新北市"),
+        ["三峽區"] = (3, 40, "新北市"),
+        ["樹林區"] = (3, 41, "新北市"),
+        ["鶯歌區"] = (3, 42, "新北市"),
+        ["三重區"] = (3, 43, "新北市"),
+        ["新莊區"] = (3, 44, "新北市"),
+        ["泰山區"] = (3, 45, "新北市"),
+        ["林口區"] = (3, 46, "新北市"),
+        ["蘆洲區"] = (3, 47, "新北市"),
+        ["五股區"] = (3, 48, "新北市"),
+        ["八里區"] = (3, 49, "新北市"),
+        ["淡水區"] = (3, 50, "新北市"),
+        // 桃園市 regionid=6
+        ["中壢區"] = (6, 67, "桃園市"),
+        ["平鎮區"] = (6, 68, "桃園市"),
+        ["龍潭區"] = (6, 69, "桃園市"),
+        ["楊梅區"] = (6, 70, "桃園市"),
+        ["新屋區"] = (6, 71, "桃園市"),
+        ["觀音區"] = (6, 72, "桃園市"),
+        ["桃園區"] = (6, 73, "桃園市"),
+        ["龜山區"] = (6, 74, "桃園市"),
+        ["八德區"] = (6, 75, "桃園市"),
+        ["大溪區"] = (6, 76, "桃園市"),
+        ["大園區"] = (6, 78, "桃園市"),
+        ["蘆竹區"] = (6, 79, "桃園市"),
     };
 
     public async Task<IReadOnlyList<PropertyDto>> FetchAsync(
@@ -64,14 +92,21 @@ public class F591Scraper(HttpFetcher fetcher, ILogger<F591Scraper> logger) : ISo
         await context.AddInitScriptAsync(
             "Object.defineProperty(navigator, 'webdriver', { get: () => undefined });");
 
-        // 按城市分組，每個城市只抓一次（避免重複請求）
+        // 先訪問主頁讓 591 設置 session cookies（模擬正常用戶行為，整個 context 共用）
+        logger.LogInformation("Warming up 591 session...");
+        var warmupPage = await context.NewPageAsync();
+        await warmupPage.GotoAsync("https://sale.591.com.tw/", new PageGotoOptions
+        {
+            WaitUntil = WaitUntilState.NetworkIdle,
+            Timeout = 30_000,
+        });
+        await warmupPage.CloseAsync();
+
         var knownDistricts = districtCriteria.Keys.Where(d => DistrictMap.ContainsKey(d)).ToList();
         var unknownDistricts = districtCriteria.Keys.Except(knownDistricts).ToList();
         foreach (var d in unknownDistricts)
             logger.LogWarning("Unknown district (not in DistrictMap): {District}", d);
 
-        var citiesQueried = new HashSet<int>(); // regionId
-        var cityListingsCache = new Dictionary<int, List<PropertyDto>>(); // regionId → listings
         var total = knownDistricts.Count;
 
         for (var i = 0; i < knownDistricts.Count; i++)
@@ -79,39 +114,13 @@ public class F591Scraper(HttpFetcher fetcher, ILogger<F591Scraper> logger) : ISo
             var district = knownDistricts[i];
             progress?.Report(new(district, i, total, IsStarting: true, FetchedCount: 0));
 
-            var (regionId, city) = DistrictMap[district];
-            // 用該縣市所有啟用地區的最高上限來抓城市資料（城市層級一次抓最廣範圍）
-            var cityMaxPrice = districtCriteria
-                .Where(kv => DistrictMap.TryGetValue(kv.Key, out var m) && m.RegionId == regionId)
-                .Select(kv => kv.Value.MaxTotalPrice)
-                .DefaultIfEmpty(800m)
-                .Max();
-
-            if (!cityListingsCache.TryGetValue(regionId, out var cityListings))
-            {
-                if (citiesQueried.Contains(regionId))
-                {
-                    cityListings = [];
-                }
-                else
-                {
-                    citiesQueried.Add(regionId);
-                    await fetcher.WaitAsync(cancellationToken);
-                    cityListings = await FetchCityAsync(context, regionId, city, cityMaxPrice, cancellationToken);
-                    cityListingsCache[regionId] = cityListings;
-                    logger.LogInformation("City {City} (regionid={RegionId}): {Count} total listings fetched",
-                        city, regionId, cityListings.Count);
-                }
-            }
-
-            // 客戶端按行政區與該區個別上限過濾
-            var districtMaxPrice = districtCriteria[district].MaxTotalPrice;
-            var districtResults = FilterByDistrict(cityListings, district, districtMaxPrice);
+            var districtResults = await FetchDistrictAsync(
+                context, district, districtCriteria[district], cancellationToken);
             results.AddRange(districtResults);
 
             progress?.Report(new(district, i, total, IsStarting: false, FetchedCount: districtResults.Count));
-            logger.LogInformation("District {District} (max={Max}萬): {Count} listings (filtered from city cache)",
-                district, districtMaxPrice, districtResults.Count);
+            logger.LogInformation("District {District} (max={Max}萬): {Count} listings",
+                district, districtCriteria[district].MaxTotalPrice, districtResults.Count);
 
             if (onDistrictCompleted is not null) await onDistrictCompleted(districtResults);
         }
@@ -119,126 +128,218 @@ public class F591Scraper(HttpFetcher fetcher, ILogger<F591Scraper> logger) : ISo
         return results;
     }
 
-    private async Task<List<PropertyDto>> FetchCityAsync(
+    /// <summary>
+    /// 依 DistrictCriteria 組出 591 中古屋搜尋 URL。
+    /// shType=list（列表模式，另有 map 地圖模式）、type=2（中古屋）、
+    /// regionid（縣市）、section（行政區）、price=$_$N（N 萬以下）、
+    /// houseage=$_$N（屋齡 N 年以下）、parking=1,2,3（平面/機械/平面+機械）、
+    /// area=$N_$（N 坪以上）、pattern=2,3,4,5（房數，5=5 房以上）、
+    /// firstRow=N（分頁起始筆數，每頁 30 筆）。
+    /// </summary>
+    public static string BuildSearchUrl(int regionId, int sectionId, DistrictCriteria criteria, int firstRow = 0)
+    {
+        var url = $"https://sale.591.com.tw/?shType=list&type=2&regionid={regionId}&section={sectionId}";
+        if (criteria.MaxTotalPrice > 0) url += $"&price=$_${criteria.MaxTotalPrice:0}";
+        if (criteria.MaxAgeYears > 0) url += $"&houseage=$_${criteria.MaxAgeYears}";
+        var parking = BuildParkingParam(criteria.ParkingCodes);
+        if (parking is not null) url += $"&parking={parking}";
+        if (criteria.MinSizePing > 0) url += $"&area=${criteria.MinSizePing:0.##}_$";
+        var pattern = BuildPatternParam(criteria.Rooms);
+        if (pattern is not null) url += $"&pattern={pattern}";
+        if (firstRow > 0) url += $"&firstRow={firstRow}";
+        return url;
+    }
+
+    /// <summary>
+    /// 停車位參數：地區共用的樂屋網代碼 PF（平面）→1、PM（機械）→2；
+    /// 同時勾選平面與機械時補上 3（平面+機械混合車位）。591 原生數字代碼 1/2/3 直接沿用。
+    /// 空／無法辨識 → null（不限，不帶 parking 參數）。
+    /// </summary>
+    public static string? BuildParkingParam(string parkingCodes)
+    {
+        var set = new SortedSet<int>();
+        foreach (var c in SplitCodes(parkingCodes))
+        {
+            if (string.Equals(c, "PF", StringComparison.OrdinalIgnoreCase)) set.Add(1);
+            else if (string.Equals(c, "PM", StringComparison.OrdinalIgnoreCase)) set.Add(2);
+            else if (int.TryParse(c, out var n) && n is >= 1 and <= 3) set.Add(n);
+        }
+        if (set.Count == 0) return null;
+        if (set.Contains(1) && set.Contains(2)) set.Add(3);
+        return string.Join(',', set);
+    }
+
+    /// <summary>房數參數：Rooms 條件（如 "2,3,4,5~"）→ 591 pattern 代碼 1~5（5=5 房以上）。</summary>
+    public static string? BuildPatternParam(string rooms)
+    {
+        var values = SplitCodes(rooms)
+            .Select(r => int.TryParse(r.TrimEnd('~'), out var n) ? n : 0)
+            .Where(n => n >= 1)
+            .Select(n => Math.Min(n, 5))
+            .Distinct()
+            .OrderBy(n => n)
+            .ToList();
+        return values.Count == 0 ? null : string.Join(',', values);
+    }
+
+    private static string[] SplitCodes(string s) =>
+        string.IsNullOrWhiteSpace(s)
+            ? []
+            : s.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    private async Task<List<PropertyDto>> FetchDistrictAsync(
         IBrowserContext context,
-        int regionId,
-        string city,
-        decimal maxTotalPrice,
+        string district,
+        DistrictCriteria criteria,
         CancellationToken ct)
     {
+        var (regionId, sectionId, city) = DistrictMap[district];
+        var all = new List<PropertyDto>();
+        var seen = new HashSet<string>();
         var capturedResponses = new List<(string Url, byte[] Body)>();
         var page = await context.NewPageAsync();
 
+        page.Response += async (_, response) =>
+        {
+            try
+            {
+                if (Is591JsonApiResponse(response))
+                {
+                    var body = await response.BodyAsync();
+                    capturedResponses.Add((response.Url, body));
+                    logger.LogDebug("Captured API response {Url} ({Bytes}B)", response.Url, body.Length);
+                }
+            }
+            catch { }
+        };
+
         try
         {
-            page.Response += async (_, response) =>
+            int? totalCount = null;
+
+            for (var pageIndex = 0; pageIndex < MaxPagesPerDistrict; pageIndex++)
             {
-                try
+                // 每次導覽前清空，確保只解析本頁的 BFF 回應
+                capturedResponses.Clear();
+
+                var url = BuildSearchUrl(regionId, sectionId, criteria, pageIndex * PageSize);
+                logger.LogInformation("591 {District} page {Page}: {Url}", district, pageIndex + 1, url);
+
+                await fetcher.WaitAsync(ct);
+                await page.GotoAsync(url, new PageGotoOptions
                 {
-                    if (Is591JsonApiResponse(response))
+                    WaitUntil = WaitUntilState.NetworkIdle,
+                    Timeout = 30_000,
+                });
+
+                var (listings, total) = ExtractFromCaptured(capturedResponses, regionId, sectionId, city);
+                if (total.HasValue) totalCount = total;
+
+                // 591 對「無符合結果」不會回空頁，而是改顯示「為您推薦」的物件（多半超出條件），
+                // BFF 一樣回傳 house_list —— 必須以 total=0 判斷為無資料，否則會把推薦物件
+                // 誤認為搜尋結果、無止盡翻頁。
+                if (totalCount == 0)
+                {
+                    logger.LogInformation(
+                        "591 {District}: no matching listings (total=0), ignoring recommended items", district);
+                    break;
+                }
+
+                // 第一頁 API 攔截失敗（total 也未知）時的 HTML 備援
+                if (listings.Count == 0 && pageIndex == 0 && totalCount is null)
+                {
+                    var html = await page.ContentAsync();
+                    if (html.Contains("暫無相關內容"))
                     {
-                        var body = await response.BodyAsync();
-                        capturedResponses.Add((response.Url, body));
-                        logger.LogDebug("Captured API response {Url} ({Bytes}B)", response.Url, body.Length);
+                        logger.LogInformation("591 {District}: empty-state page detected, no matching listings", district);
+                        break;
                     }
+                    listings = ParseListingsFromHtml(html, city).ToList();
+                    if (listings.Count > 0)
+                        logger.LogInformation("Extracted {Count} listings via HTML for {District}", listings.Count, district);
                 }
-                catch { }
-            };
 
-            // 先訪問主頁讓 591 設置 session cookies（模擬正常用戶行為）
-            logger.LogInformation("Warming up session for {City}...", city);
-            await page.GotoAsync("https://sale.591.com.tw/", new PageGotoOptions
-            {
-                WaitUntil = WaitUntilState.NetworkIdle, // 等所有 warmup BFF 完成
-                Timeout = 30_000,
-            });
-            // 清除 warmup（台北市預設）的 BFF 回應，避免干擾目標城市
-            capturedResponses.Clear();
+                // 頁內先按行政區/價格/屋齡過濾（推薦物件通常會在此被剔除），再去重判斷是否翻頁：
+                // 超出範圍的 firstRow 591 會回傳空列表或重複資料 → 無新的有效物件即視為抓完
+                var valid = FilterByDistrict(listings, district, criteria.MaxTotalPrice, criteria.MaxAgeYears);
+                var fresh = valid.Where(l => seen.Add(l.SourceListingKey)).ToList();
+                logger.LogInformation("591 {District} page {Page}: {Fresh}/{Valid}/{Raw} new/valid/raw listings (total={Total})",
+                    district, pageIndex + 1, fresh.Count, valid.Count, listings.Count, totalCount);
 
-            // type=2 = 中古屋；price 單位為萬（BFF 同單位）
-            var maxPriceWan = (int)maxTotalPrice;
-            var url = $"https://sale.591.com.tw/?type=2&regionid={regionId}&price=0_{maxPriceWan}";
-            logger.LogInformation("Navigating to {Url}", url);
-            await page.GotoAsync(url, new PageGotoOptions
-            {
-                WaitUntil = WaitUntilState.NetworkIdle,
-                Timeout = 30_000,
-            });
+                if (fresh.Count == 0) break;
+                all.AddRange(fresh);
 
-            // 截圖：驗證 regionid 對應城市是否正確
-            var screenshotPath = Path.Combine(Path.GetTempPath(), $"591-{city}-{regionId}-{DateTime.Now:HHmmss}.png");
-            await page.ScreenshotAsync(new PageScreenshotOptions { Path = screenshotPath });
-            logger.LogInformation("Screenshot saved to {Path}", screenshotPath);
-
-            // 取得頁面顯示的城市名（多種 selector 嘗試）
-            var displayedCity = await page.EvaluateAsync<string>(
-                @"() => {
-                    const selectors = [
-                        '.city-name',
-                        '[class*=""city""] span',
-                        '.loc-city',
-                        '.header-city',
-                        '[data-key=""city""] .selected',
-                        '.search-city .current',
-                        'button[aria-label*=""市""]',
-                    ];
-                    for (const s of selectors) {
-                        const el = document.querySelector(s);
-                        if (el?.textContent?.trim()) return el.textContent.trim();
-                    }
-                    // fallback: page title
-                    return document.title ?? 'unknown';
-                }");
-            logger.LogInformation("Page displayed city for regionid={RegionId}: {DisplayedCity}", regionId, displayedCity);
-
-            // 只取目標 regionid 的 BFF house list 回應（過濾 warmup 殘留的台北市資料）
-            var regionIdStr = $"regionid={regionId}";
-            var listResponses = capturedResponses
-                .Where(r => (r.Url.Contains("house") || r.Url.Contains("sale") || r.Url.Contains("list"))
-                            && r.Url.Contains(regionIdStr))
-                .ToList();
-            logger.LogInformation("Captured {Total} JSON responses, {List} match regionid={RegionId}",
-                capturedResponses.Count, listResponses.Count, regionId);
-
-            foreach (var (responseUrl, body) in listResponses)
-            {
-                try
-                {
-                    using var doc = JsonDocument.Parse(body);
-
-                    // 完整記錄 JSON 結構幫助診斷
-                    LogJsonStructure(responseUrl, doc.RootElement);
-
-                    var parsed = TryParseJsonResponse(doc.RootElement, city);
-                    if (parsed.Count > 0)
-                    {
-                        logger.LogInformation("Extracted {Count} listings via API for {City}", parsed.Count, city);
-                        return parsed;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    logger.LogWarning("Failed to parse API response {Url}: {Msg}", responseUrl, ex.Message);
-                }
+                // 依 BFF 回傳的 data.total 判斷是否已抓完全部分頁
+                if (totalCount.HasValue && (pageIndex + 1) * PageSize >= totalCount.Value) break;
             }
-
-            // 備援：HTML 解析
-            var html = await page.ContentAsync();
-            var htmlResults = ParseListingsFromHtml(html, city);
-            if (htmlResults.Count > 0)
-            {
-                logger.LogInformation("Extracted {Count} listings via HTML for {City}", htmlResults.Count, city);
-                return htmlResults.ToList();
-            }
-
-            logger.LogWarning("No listings for {City} (regionid={RegionId}). Captured {N} JSON API responses.",
-                city, regionId, capturedResponses.Count);
-            return [];
         }
         finally
         {
             await page.CloseAsync();
         }
+
+        // 頁內已按行政區/價格/屋齡過濾並去重，這裡直接回傳
+        return all;
+    }
+
+    /// <summary>
+    /// 從攔截到的 BFF JSON 回應解析物件列表與總筆數（data.total）。
+    /// 優先採用 URL 帶目標 section 參數的回應（搜尋結果），避免「為您推薦」等
+    /// 推薦類 BFF 回應的 house_list / total 混入。
+    /// </summary>
+    private (List<PropertyDto> Listings, int? Total) ExtractFromCaptured(
+        List<(string Url, byte[] Body)> captured, int regionId, int sectionId, string city)
+    {
+        var regionIdStr = $"regionid={regionId}";
+        var sectionStr = $"section={sectionId}";
+        var listResponses = captured
+            .Where(r => (r.Url.Contains("house") || r.Url.Contains("sale") || r.Url.Contains("list"))
+                        && r.Url.Contains(regionIdStr))
+            .OrderByDescending(r => r.Url.Contains(sectionStr))
+            .ToList();
+
+        int? total = null;
+        var totalFromSection = false;
+        List<PropertyDto> best = [];
+
+        foreach (var (responseUrl, body) in listResponses)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(body);
+                LogJsonStructure(responseUrl, doc.RootElement);
+
+                var isSectionResponse = responseUrl.Contains(sectionStr);
+                var t = TryGetTotal(doc.RootElement);
+                if (t.HasValue && (total is null || (isSectionResponse && !totalFromSection)))
+                {
+                    total = t;
+                    totalFromSection = isSectionResponse;
+                }
+
+                if (best.Count == 0)
+                {
+                    var parsed = TryParseJsonResponse(doc.RootElement, city);
+                    if (parsed.Count > 0) best = parsed;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning("Failed to parse API response {Url}: {Msg}", responseUrl, ex.Message);
+            }
+        }
+
+        return (best, total);
+    }
+
+    private static int? TryGetTotal(JsonElement root)
+    {
+        var el = TryNavigateJsonPath(root, ["data", "total"], ["data", "data", "total"], ["total"]);
+        if (el is null) return null;
+        if (el.Value.ValueKind == JsonValueKind.Number && el.Value.TryGetInt32(out var n)) return n;
+        if (el.Value.ValueKind == JsonValueKind.String
+            && int.TryParse(el.Value.GetString()?.Replace(",", ""), out var s)) return s;
+        return null;
     }
 
     private void LogJsonStructure(string url, JsonElement root)
@@ -435,10 +536,12 @@ public class F591Scraper(HttpFetcher fetcher, ILogger<F591Scraper> logger) : ISo
         return match.Success ? match.Value : "";
     }
 
-    private static List<PropertyDto> FilterByDistrict(List<PropertyDto> cityListings, string district, decimal maxTotalPrice)
+    private static List<PropertyDto> FilterByDistrict(
+        List<PropertyDto> listings, string district, decimal maxTotalPrice, int maxAgeYears = 0)
     {
-        return cityListings.Where(l =>
+        return listings.Where(l =>
             l.TotalPrice <= maxTotalPrice &&
+            (maxAgeYears <= 0 || !l.AgeYears.HasValue || l.AgeYears.Value <= maxAgeYears) &&
             (l.District == district ||
              l.Address?.Contains(district) == true ||
              l.Title?.Contains(district) == true)).ToList();

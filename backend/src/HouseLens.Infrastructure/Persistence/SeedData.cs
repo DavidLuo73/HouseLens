@@ -60,6 +60,18 @@ public static class SeedData
             });
         }
 
+        if (!await db.PlatformFilterConfigs.AnyAsync(p => p.SourceSite == Domain.Enums.SourceSite.F591))
+        {
+            db.PlatformFilterConfigs.Add(new PlatformFilterConfig
+            {
+                SourceSite = Domain.Enums.SourceSite.F591,
+                MinSizePing = 0m,
+                Rooms = "",
+                TypeCodes = "", // 591 中古屋搜尋不使用建物型態代碼（以 pattern 房數為主）
+                UseCode = "1",  // 591 不使用用途代碼，保留欄位預設
+            });
+        }
+
         if (!await db.TrackingCriteria.AnyAsync())
         {
             db.TrackingCriteria.Add(new TrackingCriteria

@@ -152,7 +152,7 @@
               @click="activePlatform = s.value"
             >
               {{ s.label }}
-              <span v-if="s.value === 'Rakuya' || s.value === 'Sinyi'" class="tab-dot" title="支援額外篩選" />
+              <span v-if="s.value === 'Rakuya' || s.value === 'Sinyi' || s.value === 'F591'" class="tab-dot" title="支援額外篩選" />
             </button>
           </div>
 
@@ -229,6 +229,36 @@
             <div class="platform-actions">
               <button class="btn-add" :disabled="filterSaving" @click="saveSinyiFilter">
                 {{ filterSaving ? '儲存中…' : '儲存信義房屋篩選' }}
+              </button>
+              <span v-if="filterSavedAt" class="save-hint">已儲存 ✓</span>
+            </div>
+            <p v-if="filterError" class="field-error">{{ filterError }}</p>
+          </div>
+
+          <!-- 591 房屋：坪數 / 房數（連動搜尋 URL 的 area / pattern 參數） -->
+          <div v-else-if="activePlatform === 'F591'" class="platform-panel">
+            <div class="add-row">
+              <div class="field">
+                <label class="field-label">最小坪數（0 = 不限）</label>
+                <input v-model.number="f591Form.minSizePing" type="number" min="0" step="1" class="field-input field-input--price" />
+              </div>
+              <div class="field">
+                <label class="field-label">房數（不勾 = 不限）</label>
+                <div class="check-group">
+                  <label v-for="r in ROOM_OPTIONS" :key="r.code" class="check-item">
+                    <input type="checkbox" :value="r.code" v-model="f591Form.rooms" />
+                    {{ r.label }}
+                  </label>
+                </div>
+              </div>
+            </div>
+            <p class="card-subtitle">
+              地區（regionid / section）、最高總價（price）、屋齡上限（houseage）、停車位（parking）
+              由上方地區列表的通用設定決定，會自動轉為 591 搜尋 URL 參數；此處為 591 專屬的坪數（area）與房數（pattern）條件。
+            </p>
+            <div class="platform-actions">
+              <button class="btn-add" :disabled="filterSaving" @click="saveF591Filter">
+                {{ filterSaving ? '儲存中…' : '儲存 591 篩選' }}
               </button>
               <span v-if="filterSavedAt" class="save-hint">已儲存 ✓</span>
             </div>
@@ -336,6 +366,12 @@ const sinyiForm = ref({
   typeCodes: [] as string[],
 })
 
+// 591 專屬篩選（area / pattern URL 參數；房數代碼與樂屋網共用 ROOM_OPTIONS，爬蟲端 5~ → 5）
+const f591Form = ref({
+  minSizePing: 0,
+  rooms: [] as string[],
+})
+
 const splitCodes = (s: string) => (s ? s.split(',').map((x) => x.trim()).filter(Boolean) : [])
 
 async function load() {
@@ -363,10 +399,36 @@ async function load() {
         typeCodes: splitCodes(sinyi.typeCodes || '').filter((c) => sinyiTypeSlugs.includes(c)),
       }
     }
+    const f591 = filters.find((f) => f.sourceSite === 'F591')
+    if (f591) {
+      f591Form.value = {
+        minSizePing: f591.minSizePing ?? 0,
+        rooms: splitCodes(f591.rooms || ''),
+      }
+    }
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : '載入失敗'
   } finally {
     loading.value = false
+  }
+}
+
+async function saveF591Filter() {
+  filterError.value = null
+  filterSavedAt.value = false
+  filterSaving.value = true
+  try {
+    await api.platformFilters.update('F591', {
+      minSizePing: f591Form.value.minSizePing,
+      rooms: f591Form.value.rooms.join(','),
+      typeCodes: '',
+      useCode: '1',
+    })
+    filterSavedAt.value = true
+  } catch (e: unknown) {
+    filterError.value = e instanceof Error ? e.message : '儲存失敗'
+  } finally {
+    filterSaving.value = false
   }
 }
 
