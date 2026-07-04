@@ -253,6 +253,41 @@ public class CtHouseScraperTests
         results.Should().BeEmpty();
     }
 
+    [Fact]
+    public void ParseListings_DiscountedItem_UsesSellPriceNotOriginTrustFee()
+    {
+        // 降價物件：sell_price 是降價後現價，origin_trust_fee 是原價，必須取 sell_price
+        // （實站案例 id 2066497：原價 858 萬 → 降價後 798 萬）
+        const string discountedItem = """
+            {
+              "id": 2066497,
+              "case_name": "元智學區小家庭首選景觀三房車位",
+              "address": "桃園市中壢區榮民南路",
+              "sell_price": "798",
+              "origin_trust_fee": "858",
+              "diff": 60.0,
+              "discount": 6,
+              "unit_price": 21.49,
+              "house_area": 37.13,
+              "size_val": 37.13,
+              "age": 30,
+              "floor_val": "4樓/共7樓",
+              "parking_lot_belong": 1,
+              "house_type_usage": 1,
+              "house_type_class": 2,
+              "imgs": [],
+              "url": "/house/2066497.html"
+            }
+            """;
+        var houses = ParseHouses(discountedItem);
+
+        var results = _scraper.ParseListings(houses, "桃園市", "中壢區", 800m);
+
+        results.Should().HaveCount(1);
+        results[0].TotalPrice.Should().Be(798m);
+        results[0].UnitPrice.Should().BeApproximately(21.49m, 0.01m);
+    }
+
     // ===== BuildSearchArg：依 DistrictCriteria 組出 API arg 路徑段 =====
 
     [Fact]
