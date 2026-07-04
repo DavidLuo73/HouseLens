@@ -152,7 +152,7 @@
               @click="activePlatform = s.value"
             >
               {{ s.label }}
-              <span v-if="s.value === 'Rakuya' || s.value === 'Sinyi' || s.value === 'F591' || s.value === 'Yungching'" class="tab-dot" title="支援額外篩選" />
+              <span v-if="['Rakuya', 'Sinyi', 'F591', 'Yungching', 'HBHousing'].includes(s.value)" class="tab-dot" title="支援額外篩選" />
             </button>
           </div>
 
@@ -304,6 +304,52 @@
             <p v-if="filterError" class="field-error">{{ filterError }}</p>
           </div>
 
+          <!-- 住商不動產：型態 / 坪數 / 房數（連動搜尋 URL 路徑段） -->
+          <div v-else-if="activePlatform === 'HBHousing'" class="platform-panel">
+            <div class="add-row">
+              <div class="field">
+                <label class="field-label">最小坪數（0 = 不限）</label>
+                <input v-model.number="hbForm.minSizePing" type="number" min="0" step="1" class="field-input field-input--price" />
+              </div>
+              <div class="field">
+                <label class="field-label">房數</label>
+                <select v-model="hbForm.minRooms" class="field-input">
+                  <option value="">不限</option>
+                  <option v-for="n in [1, 2, 3, 4, 5]" :key="n" :value="String(n)">{{ n }} 房以上</option>
+                </select>
+              </div>
+              <div class="field">
+                <label class="field-label">用途</label>
+                <select v-model="hbForm.useCode" class="field-input">
+                  <option value="1">住宅</option>
+                </select>
+              </div>
+            </div>
+            <div class="add-row">
+              <div class="field">
+                <label class="field-label">建物型態（不勾 = 全部住宅型態）</label>
+                <div class="check-group">
+                  <label v-for="t in HB_TYPE_OPTIONS" :key="t.code" class="check-item">
+                    <input type="checkbox" :value="t.code" v-model="hbForm.typeCodes" />
+                    {{ t.label }}
+                  </label>
+                </div>
+              </div>
+            </div>
+            <p class="card-subtitle">
+              地區（{城市}/{郵遞區號}）、最高總價（{N}-down-price）、屋齡上限（{N}-down-age）、停車位（parking-tag）
+              由上方地區列表的通用設定決定，會自動轉為住商搜尋 URL 路徑段；
+              停車位勾選任一型式即帶入「有車位」條件（住商不分平面/機械）。
+            </p>
+            <div class="platform-actions">
+              <button class="btn-add" :disabled="filterSaving" @click="saveHBFilter">
+                {{ filterSaving ? '儲存中…' : '儲存住商篩選' }}
+              </button>
+              <span v-if="filterSavedAt" class="save-hint">已儲存 ✓</span>
+            </div>
+            <p v-if="filterError" class="field-error">{{ filterError }}</p>
+          </div>
+
           <!-- 其他平台：目前無額外篩選 -->
           <div v-else class="platform-panel platform-panel--empty">
             {{ SOURCE_LABELS[activePlatform] }} 目前不支援額外篩選，使用上方共用的地區與最高總價設定。
@@ -387,6 +433,12 @@ const SINYI_TYPE_OPTIONS = [
   { code: 'townhouse', label: '透天' },
   { code: 'villa', label: '別墅' },
 ]
+// ===== 住商不動產（搜尋 URL {…}-style 段的型態代碼，實站驗證）=====
+const HB_TYPE_OPTIONS = [
+  { code: 'noelevator', label: '無電梯公寓' },
+  { code: 'elevator', label: '大樓(11樓以上)' },
+  { code: 'mansion', label: '華廈(10樓以下)' },
+]
 // ===== 永慶房屋（搜尋 URL {…}_type 段的型態名稱，實站驗證）=====
 const YUNGCHING_TYPE_OPTIONS = [
   { code: '電梯大廈', label: '電梯大廈' },
@@ -421,6 +473,14 @@ const f591Form = ref({
 // 永慶專屬篩選（_pin 坪數／_type 型態；用途固定住宅）
 const yungchingForm = ref({
   minSizePing: 0,
+  useCode: '1',
+  typeCodes: [] as string[],
+})
+
+// 住商專屬篩選（area 坪數／room-pattern 房數／style 型態；用途固定住宅）
+const hbForm = ref({
+  minSizePing: 0,
+  minRooms: '' as string,
   useCode: '1',
   typeCodes: [] as string[],
 })
@@ -469,6 +529,17 @@ async function load() {
         typeCodes: splitCodes(yungching.typeCodes || '').filter((c) => yungchingTypes.includes(c)),
       }
     }
+    const hb = filters.find((f) => f.sourceSite === 'HBHousing')
+    if (hb) {
+      const hbTypeCodes = HB_TYPE_OPTIONS.map((t) => t.code)
+      hbForm.value = {
+        minSizePing: hb.minSizePing ?? 0,
+        minRooms: splitCodes(hb.rooms || '')[0] ?? '',
+        useCode: '1',
+        // 舊資料可能存 Rakuya 代碼（R1,R2），非住商代碼一律視為未勾（爬蟲端自行對映）
+        typeCodes: splitCodes(hb.typeCodes || '').filter((c) => hbTypeCodes.includes(c)),
+      }
+    }
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : '載入失敗'
   } finally {
@@ -504,6 +575,25 @@ async function saveYungchingFilter() {
       minSizePing: yungchingForm.value.minSizePing,
       rooms: '',
       typeCodes: yungchingForm.value.typeCodes.join(','),
+      useCode: '1',
+    })
+    filterSavedAt.value = true
+  } catch (e: unknown) {
+    filterError.value = e instanceof Error ? e.message : '儲存失敗'
+  } finally {
+    filterSaving.value = false
+  }
+}
+
+async function saveHBFilter() {
+  filterError.value = null
+  filterSavedAt.value = false
+  filterSaving.value = true
+  try {
+    await api.platformFilters.update('HBHousing', {
+      minSizePing: hbForm.value.minSizePing,
+      rooms: hbForm.value.minRooms,
+      typeCodes: hbForm.value.typeCodes.join(','),
       useCode: '1',
     })
     filterSavedAt.value = true

@@ -18,7 +18,7 @@ public static class ConfigEndpoints
         app.MapDelete("/api/config/districts/{id:int}", DeleteDistrict);
         app.MapPatch("/api/config/districts/{id:int}/toggle", ToggleDistrict);
 
-        // Platform-specific search filters（樂屋網／信義／591／永慶使用）
+        // Platform-specific search filters（樂屋網／信義／591／永慶／住商使用）
         app.MapGet("/api/config/platform-filters", GetPlatformFilters);
         app.MapPut("/api/config/platform-filters/{sourceSite}", UpsertPlatformFilter);
 

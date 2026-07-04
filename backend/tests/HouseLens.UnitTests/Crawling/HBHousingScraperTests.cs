@@ -1,4 +1,5 @@
 using FluentAssertions;
+using HouseLens.Application.Crawling;
 using HouseLens.Domain.Enums;
 using HouseLens.Infrastructure.Crawling.Scrapers;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -342,6 +343,100 @@ public class HBHousingScraperTests
         var results = _scraper.ParseListings("<html><body></body></html>", "台北市", "大安區", 800m);
 
         results.Should().BeEmpty();
+    }
+
+    // ── BuildSearchUrl：URL 段組合 ──────────────────────────────
+
+    [Fact]
+    public void BuildSearchUrl_AllCriteria_ProducesAllSegmentsInOrder()
+    {
+        var criteria = new DistrictCriteria(
+            MaxTotalPrice: 1000m,
+            MinSizePing: 20m,
+            Rooms: "2,3,5~",
+            TypeCodes: "noelevator,elevator,mansion",
+            UseCode: "1",
+            MaxAgeYears: 30,
+            ParkingCodes: "PF,PM");
+
+        var url = HBHousingScraper.BuildSearchUrl("新北市", "235", criteria, 1);
+
+        url.Should().Be(
+            "https://www.hbhousing.com.tw/buyhouse/" +
+            Uri.EscapeDataString("新北市") +
+            "/235/noelevator-elevator-mansion-style/1000-down-price/apartment-type" +
+            "/area-20-up-area/30-down-age/2_up_room-pattern/parking-tag");
+    }
+
+    [Fact]
+    public void BuildSearchUrl_Page2_AppendsPageSegment()
+    {
+        var criteria = new DistrictCriteria(1000m);
+
+        var url = HBHousingScraper.BuildSearchUrl("桃園市", "320", criteria, 2);
+
+        url.Should().EndWith("/2-page");
+        url.Should().Contain("/320/");
+    }
+
+    [Fact]
+    public void BuildSearchUrl_MinimalCriteria_OmitsOptionalSegments()
+    {
+        // 無坪數/屋齡/房數/車位 → 對應段全部省略；型態未設定 → 全部三種
+        var criteria = new DistrictCriteria(800m, TypeCodes: "", UseCode: "1");
+
+        var url = HBHousingScraper.BuildSearchUrl("新北市", "234", criteria, 1);
+
+        url.Should().Contain("/noelevator-elevator-mansion-style/");
+        url.Should().Contain("/800-down-price/apartment-type");
+        url.Should().NotContain("-up-area").And.NotContain("-down-age");
+        url.Should().NotContain("room-pattern").And.NotContain("parking-tag").And.NotContain("-page");
+    }
+
+    [Fact]
+    public void BuildSearchUrl_RakuyaTypeCodes_MappedToHBCodes()
+    {
+        // R1 → noelevator；R2 → elevator+mansion（回退對映）
+        var r1 = HBHousingScraper.BuildSearchUrl("新北市", "235", new DistrictCriteria(1000m, TypeCodes: "R1"), 1);
+        var r2 = HBHousingScraper.BuildSearchUrl("新北市", "235", new DistrictCriteria(1000m, TypeCodes: "R2"), 1);
+
+        r1.Should().Contain("/noelevator-style/");
+        r2.Should().Contain("/elevator-mansion-style/");
+    }
+
+    [Fact]
+    public void BuildAllowedCardTypes_TypeCodes_MapToCardTypeWhitelist()
+    {
+        HBHousingScraper.BuildAllowedCardTypes("noelevator")
+            .Should().BeEquivalentTo(["公寓"]);
+        HBHousingScraper.BuildAllowedCardTypes("elevator,mansion")
+            .Should().BeEquivalentTo(["大樓", "華廈"]);
+        // 未設定 → 預設住宅白名單（含透天等）
+        HBHousingScraper.BuildAllowedCardTypes("").Should().Contain(["公寓", "大樓", "華廈", "透天厝"]);
+    }
+
+    [Fact]
+    public void ParseListings_AllowedTypes_FiltersCardsOutsideWhitelist()
+    {
+        // 只允許公寓 → 大樓卡片（ZS203105）應被過濾
+        var html = WrapInPage(ApartmentCard, BuildingWithParkingCard);
+        var allowed = HBHousingScraper.BuildAllowedCardTypes("noelevator");
+
+        var results = _scraper.ParseListings(html, "台北市", "大安區", 1500m, null, allowed);
+
+        results.Select(r => r.SourceListingKey).Should().BeEquivalentTo(["YS202291"]);
+    }
+
+    [Fact]
+    public void ParseListings_OutRawCardCount_CountsAllCardsBeforeFiltering()
+    {
+        // 4 張卡片：辦公室與超價會被過濾，但 rawCardCount 仍應為 4（分頁判斷用）
+        var html = WrapInPage(ApartmentCard, OfficeCard, OverPriceCard, BuildingWithParkingCard);
+
+        var results = _scraper.ParseListings(html, "台北市", "大安區", 800m, null, null, out var rawCount);
+
+        rawCount.Should().Be(4);
+        results.Should().HaveCount(1);
     }
 
     [Fact]

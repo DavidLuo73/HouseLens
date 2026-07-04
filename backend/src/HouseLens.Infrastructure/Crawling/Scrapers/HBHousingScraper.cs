@@ -10,8 +10,10 @@ namespace HouseLens.Infrastructure.Crawling.Scrapers;
 /// 住商不動產買屋網（www.hbhousing.com.tw）爬蟲。
 /// 網站為 Nuxt.js SSR，物件卡片直接內嵌於 HTML，使用 PlaywrightFetcher 確保完整渲染。
 /// 列表頁需以行政區郵遞區號＋型態＋總價區間縮小範圍，否則會退化成城市層級的
-/// 「熱門推薦」清單，在有限分頁內幾乎抓不到目標行政區的物件：
-/// /buyhouse/{城市}/{zip}/noelevator-elevator-mansion-style/{總價}-down-price，
+/// 「熱門推薦」清單，在有限分頁內幾乎抓不到目標行政區的物件。
+/// URL 由 BuildSearchUrl 依 DistrictCriteria 組成，路徑段依序（實站驗證）：
+/// /buyhouse/{城市}/{zip}/{型態,…}-style/{總價}-down-price/apartment-type/
+/// area-{坪}-up-area/{屋齡}-down-age/{房}_up_room-pattern/parking-tag，
 /// 分頁：.../{N}-page（N≥2）。
 /// </summary>
 public partial class HBHousingScraper(PlaywrightFetcher fetcher, ILogger<HBHousingScraper> logger) : ISourceScraper
@@ -22,10 +24,27 @@ public partial class HBHousingScraper(PlaywrightFetcher fetcher, ILogger<HBHousi
     private const int PageSize = 10;               // 住商每頁 10 筆
     private const int MaxPagesPerDistrict = 100;   // 禮貌性上限，避免過量請求（大量體行政區可達 60~70 頁）
 
-    // 建物型態 URL 區段：無電梯公寓、大樓(11樓以上)、華廈(10樓以下)
-    private const string TypeSlug = "noelevator-elevator-mansion-style";
+    // 建物型態 URL 代碼（{…}-style 段），依官方順序排列：
+    // noelevator 無電梯公寓、elevator 大樓(11樓以上)、mansion 華廈(10樓以下)
+    private static readonly string[] HBTypeCodes = ["noelevator", "elevator", "mansion"];
 
-    // 住宅型態白名單；不在此清單的型態（辦公室、店面、廠房）一律過濾。
+    // URL 型態代碼 → 卡片細節列型態用詞（client-side 白名單用）
+    private static readonly Dictionary<string, string[]> TypeCodeToCardTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["noelevator"] = ["公寓"],
+        ["elevator"] = ["大樓"],
+        ["mansion"] = ["華廈"],
+    };
+
+    // 樂屋網 typecode → 住商型態代碼對映（平台未設定住商專屬 TypeCodes 時的回退）
+    private static readonly Dictionary<string, string[]> RakuyaTypeToHB = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["R1"] = ["noelevator"],
+        ["R2"] = ["elevator", "mansion"],
+    };
+
+    // 預設住宅型態白名單（未設定 TypeCodes 時）；
+    // 不在此清單的型態（辦公室、店面、廠房）一律過濾。
     private static readonly HashSet<string> ResidentialTypes = new(StringComparer.Ordinal)
     {
         "公寓", "大樓", "華廈", "透天/別墅", "別墅", "透天厝", "農舍",
@@ -46,10 +65,14 @@ public partial class HBHousingScraper(PlaywrightFetcher fetcher, ILogger<HBHousi
         ["永和區"] = new("新北市", "234"), ["新店區"] = new("新北市", "231"), ["土城區"] = new("新北市", "236"),
         ["樹林區"] = new("新北市", "238"), ["三峽區"] = new("新北市", "237"), ["鶯歌區"] = new("新北市", "239"),
         ["三重區"] = new("新北市", "241"), ["蘆洲區"] = new("新北市", "247"), ["五股區"] = new("新北市", "248"),
-        ["泰山區"] = new("新北市", "243"), ["林口區"] = new("新北市", "244"),
+        ["泰山區"] = new("新北市", "243"), ["林口區"] = new("新北市", "244"), ["汐止區"] = new("新北市", "221"),
+        ["深坑區"] = new("新北市", "222"), ["瑞芳區"] = new("新北市", "224"), ["八里區"] = new("新北市", "249"),
+        ["淡水區"] = new("新北市", "251"),
         // 桃園市
         ["桃園區"] = new("桃園市", "330"), ["中壢區"] = new("桃園市", "320"), ["平鎮區"] = new("桃園市", "324"),
-        ["龜山區"] = new("桃園市", "333"), ["八德區"] = new("桃園市", "334"),
+        ["龜山區"] = new("桃園市", "333"), ["八德區"] = new("桃園市", "334"), ["龍潭區"] = new("桃園市", "325"),
+        ["楊梅區"] = new("桃園市", "326"), ["新屋區"] = new("桃園市", "327"), ["觀音區"] = new("桃園市", "328"),
+        ["大溪區"] = new("桃園市", "335"), ["大園區"] = new("桃園市", "337"), ["蘆竹區"] = new("桃園市", "338"),
     };
 
     public async Task<IReadOnlyList<PropertyDto>> FetchAsync(
@@ -76,13 +99,13 @@ public partial class HBHousingScraper(PlaywrightFetcher fetcher, ILogger<HBHousi
         for (var i = 0; i < knownDistricts.Count; i++)
         {
             var district = knownDistricts[i];
-            var maxWan = districtCriteria[district].MaxTotalPrice;
+            var criteria = districtCriteria[district];
             var info = DistrictZipMap[district];
 
             progress?.Report(new(district, i, total, IsStarting: true, FetchedCount: 0));
-            logger.LogInformation("HBHousing: scraping {District} (max={Max}萬)", district, maxWan);
+            logger.LogInformation("HBHousing: scraping {District} (max={Max}萬)", district, criteria.MaxTotalPrice);
 
-            var districtResults = await FetchDistrictAsync(info.City, district, info.Zip, maxWan, cancellationToken);
+            var districtResults = await FetchDistrictAsync(info.City, district, info.Zip, criteria, cancellationToken);
             results.AddRange(districtResults);
 
             progress?.Report(new(district, i, total, IsStarting: false, FetchedCount: districtResults.Count));
@@ -94,24 +117,105 @@ public partial class HBHousingScraper(PlaywrightFetcher fetcher, ILogger<HBHousi
         return results;
     }
 
+    /// <summary>
+    /// 依 DistrictCriteria 組出住商搜尋列表 URL。路徑段依序為（無設定者省略）：
+    /// 城市／{zip} 行政區／{…}-style 型態／{N}-down-price 總價／apartment-type 住宅／
+    /// area-{N}-up-area 坪數／{N}-down-age 屋齡／{N}_up_room-pattern 房數／parking-tag 車位；
+    /// 分頁 {N}-page（第 1 頁省略）。各段皆經實站驗證有 server-side 篩選效果。
+    /// </summary>
+    public static string BuildSearchUrl(string city, string zip, DistrictCriteria criteria, int page)
+    {
+        var segments = new List<string>
+        {
+            Uri.EscapeDataString(city),
+            zip,
+            $"{string.Join('-', ResolveTypeCodes(criteria.TypeCodes))}-style",
+        };
+
+        if (criteria.MaxTotalPrice > 0)
+            segments.Add($"{(int)criteria.MaxTotalPrice}-down-price");
+
+        // 用途固定住宅（UseCode 其他值為樂屋網商用/車位等，不適用住商住宅搜尋）
+        if (string.IsNullOrWhiteSpace(criteria.UseCode) || criteria.UseCode.Trim() == "1")
+            segments.Add("apartment-type");
+
+        if (criteria.MinSizePing > 0)
+            segments.Add($"area-{criteria.MinSizePing:0}-up-area");
+
+        if (criteria.MaxAgeYears > 0)
+            segments.Add($"{criteria.MaxAgeYears}-down-age");
+
+        var minRooms = ParseMinRooms(criteria.Rooms);
+        if (minRooms > 0)
+            segments.Add($"{minRooms}_up_room-pattern");
+
+        // 停車位：住商僅支援「有車位」單一條件（不分平面/機械），有勾任何車位代碼即帶入
+        if (!string.IsNullOrWhiteSpace(criteria.ParkingCodes))
+            segments.Add("parking-tag");
+
+        if (page > 1)
+            segments.Add($"{page}-page");
+
+        return $"{BaseUrl}/buyhouse/{string.Join('/', segments)}";
+    }
+
+    /// <summary>型態段：優先採住商代碼（noelevator/elevator/mansion）；樂屋網 R 代碼則對映；無法辨識時回退全部型態。</summary>
+    private static List<string> ResolveTypeCodes(string typeCodes)
+    {
+        var codes = SplitCodes(typeCodes);
+        var resolved = codes.Where(c => HBTypeCodes.Contains(c, StringComparer.OrdinalIgnoreCase))
+            .Select(c => c.ToLowerInvariant())
+            .Concat(codes.SelectMany(c => RakuyaTypeToHB.GetValueOrDefault(c, [])))
+            .Distinct()
+            .ToList();
+        if (resolved.Count == 0) return [.. HBTypeCodes];
+
+        // 依官方順序輸出，避免同組合產生不同 URL
+        return HBTypeCodes.Where(resolved.Contains).ToList();
+    }
+
+    /// <summary>依 TypeCodes 建立卡片型態白名單；未設定時回傳預設住宅白名單。</summary>
+    public static HashSet<string> BuildAllowedCardTypes(string typeCodes)
+    {
+        if (SplitCodes(typeCodes).Length == 0) return ResidentialTypes;
+
+        var allowed = ResolveTypeCodes(typeCodes)
+            .SelectMany(c => TypeCodeToCardTypes.GetValueOrDefault(c, []))
+            .ToHashSet(StringComparer.Ordinal);
+        return allowed.Count == 0 ? ResidentialTypes : allowed;
+    }
+
+    /// <summary>從 Rooms 條件（如 "2,3,5~"）取最小房數，住商以 {N}_up_room-pattern（N 房以上）表達。</summary>
+    private static int ParseMinRooms(string rooms)
+    {
+        var values = SplitCodes(rooms)
+            .Select(r => int.TryParse(r.TrimEnd('~'), out var n) ? n : 0)
+            .Where(n => n > 0)
+            .ToList();
+        return values.Count == 0 ? 0 : values.Min();
+    }
+
+    private static string[] SplitCodes(string s) =>
+        string.IsNullOrWhiteSpace(s)
+            ? []
+            : s.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
     private async Task<List<PropertyDto>> FetchDistrictAsync(
         string city,
         string district,
         string zip,
-        decimal maxWan,
+        DistrictCriteria criteria,
         CancellationToken ct)
     {
         // seen 限定此 district 的分頁去重；跨 district 重複由 DB upsert 處理
         var seen = new HashSet<string>();
         var all = new List<PropertyDto>();
-        var encodedCity = Uri.EscapeDataString(city);
-        var priceSegment = maxWan > 0 ? $"/{(int)maxWan}-down-price" : "";
+        var maxWan = criteria.MaxTotalPrice;
+        var allowedTypes = BuildAllowedCardTypes(criteria.TypeCodes);
 
         for (var page = 1; page <= MaxPagesPerDistrict; page++)
         {
-            var url = page == 1
-                ? $"{BaseUrl}/buyhouse/{encodedCity}/{zip}/{TypeSlug}{priceSegment}"
-                : $"{BaseUrl}/buyhouse/{encodedCity}/{zip}/{TypeSlug}{priceSegment}/{page}-page";
+            var url = BuildSearchUrl(city, zip, criteria, page);
 
             var html = await fetcher.FetchAsync(url, ct);
             if (html is null)
@@ -120,13 +224,20 @@ public partial class HBHousingScraper(PlaywrightFetcher fetcher, ILogger<HBHousi
                 break;
             }
 
-            var pageResults = ParseListings(html, city, district, maxWan, seen);
-            logger.LogInformation("HBHousing: {District} list page {Page}: {Count} listings",
-                district, page, pageResults.Count);
+            var seenBefore = seen.Count;
+            var pageResults = ParseListings(html, city, district, maxWan, seen, allowedTypes, out var rawCardCount);
+            logger.LogInformation("HBHousing: {District} list page {Page}: {Count}/{Raw} listings",
+                district, page, pageResults.Count, rawCardCount);
 
             all.AddRange(pageResults);
 
-            if (pageResults.Count < PageSize) break; // 最後一頁
+            // 最後一頁判斷須以「頁上原始卡片數」為準：client-side 型態/價格過濾與去重
+            // 會讓 pageResults 少於 PageSize，若以過濾後筆數判斷會提早中斷、漏抓後續分頁。
+            if (rawCardCount < PageSize) break;
+
+            // 超過最後一頁時站方會回傳與最後一頁相同內容：整頁滿版卡片卻沒有任何新 key
+            // （去重全命中），視為重複頁結束，避免空轉到 MaxPagesPerDistrict。
+            if (page > 1 && pageResults.Count == 0 && seen.Count == seenBefore && seenBefore > 0) break;
         }
 
         return all;
@@ -141,8 +252,21 @@ public partial class HBHousingScraper(PlaywrightFetcher fetcher, ILogger<HBHousi
         string queryCity,
         string queryDistrict,
         decimal maxWan,
-        HashSet<string>? seen = null)
+        HashSet<string>? seen = null,
+        HashSet<string>? allowedTypes = null) =>
+        ParseListings(html, queryCity, queryDistrict, maxWan, seen, allowedTypes, out _);
+
+    public List<PropertyDto> ParseListings(
+        string html,
+        string queryCity,
+        string queryDistrict,
+        decimal maxWan,
+        HashSet<string>? seen,
+        HashSet<string>? allowedTypes,
+        out int rawCardCount)
     {
+        allowedTypes ??= ResidentialTypes;
+        rawCardCount = 0;
         var results = new List<PropertyDto>();
         var doc = new HtmlDocument();
         doc.LoadHtml(html);
@@ -155,11 +279,13 @@ public partial class HBHousingScraper(PlaywrightFetcher fetcher, ILogger<HBHousi
             return results;
         }
 
+        rawCardCount = cards.Count;
+
         foreach (var card in cards)
         {
             try
             {
-                var dto = ParseCard(card, queryCity, queryDistrict, maxWan);
+                var dto = ParseCard(card, queryCity, queryDistrict, maxWan, allowedTypes);
                 if (dto is null) continue;
 
                 if (seen is not null && !seen.Add(dto.SourceListingKey)) continue;
@@ -175,7 +301,7 @@ public partial class HBHousingScraper(PlaywrightFetcher fetcher, ILogger<HBHousi
         return results;
     }
 
-    private PropertyDto? ParseCard(HtmlNode card, string queryCity, string queryDistrict, decimal maxWan)
+    private PropertyDto? ParseCard(HtmlNode card, string queryCity, string queryDistrict, decimal maxWan, HashSet<string> allowedTypes)
     {
         // 物件 SN 與標題從 h3 > a[href*="/detail?sn="] 取得
         var titleLink = card.SelectSingleNode(".//h3//a[contains(@href,'/detail?sn=') and not(contains(@href,'#'))]");
@@ -215,7 +341,7 @@ public partial class HBHousingScraper(PlaywrightFetcher fetcher, ILogger<HBHousi
 
         // 建物型態（index 0）
         var propertyType = parts.Length > 0 ? parts[0].Trim() : "";
-        if (!string.IsNullOrEmpty(propertyType) && !ResidentialTypes.Contains(propertyType))
+        if (!string.IsNullOrEmpty(propertyType) && !allowedTypes.Contains(propertyType))
             return null;
 
         // 屋齡（index 2，格式 "30.7年"）
