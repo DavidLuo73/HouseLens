@@ -224,6 +224,68 @@ public class TwHouseScraperTests
         results[0].UnitPrice.Should().BeApproximately(760m / 34.56m, 0.01m);
     }
 
+    // ─── BuildSearchUrl 測試 ─────────────────────────────────────────────────────
+
+    [Fact]
+    public void BuildSearchUrl_FullCriteria_AllSegmentsInOrder()
+    {
+        var criteria = new HouseLens.Application.Crawling.DistrictCriteria(
+            MaxTotalPrice: 1000m,
+            MinSizePing: 20m,
+            Rooms: "2,3,5~",
+            TypeCodes: "apartment,midrise,condo",
+            UseCode: "1",
+            MaxAgeYears: 30,
+            ParkingCodes: "PF,PM");
+
+        var url = TwHouseScraper.BuildSearchUrl("newTaipei-city", "235", criteria, 1);
+
+        url.Should().Be("https://www.twhg.com.tw/buy/list/newTaipei-city/235-zips/apartment-midrise-condo-kinds/1000down-price/20up-ping/fullBuildingPing-ping_type/2up-bedrooms/30down-house_year/1up-park_count/recomended-desc?page=1");
+    }
+
+    [Fact]
+    public void BuildSearchUrl_MinimalCriteria_OmitsOptionalSegments()
+    {
+        var criteria = new HouseLens.Application.Crawling.DistrictCriteria(
+            MaxTotalPrice: 800m, TypeCodes: "");
+
+        var url = TwHouseScraper.BuildSearchUrl("taoyuan-city", "320", criteria, 3);
+
+        // 未設定坪數/房數/屋齡/車位 → 對應段省略；型態空 → 回退全部住宅型態
+        url.Should().Be("https://www.twhg.com.tw/buy/list/taoyuan-city/320-zips/apartment-midrise-condo-kinds/800down-price/recomended-desc?page=3");
+    }
+
+    [Fact]
+    public void BuildSearchUrl_RakuyaTypeCodes_MappedToTwhgKinds()
+    {
+        // R1（公寓）→ apartment；R2（大樓/華廈）→ condo+midrise，輸出依官方順序
+        var r1 = new HouseLens.Application.Crawling.DistrictCriteria(500m, TypeCodes: "R1");
+        var r2 = new HouseLens.Application.Crawling.DistrictCriteria(500m, TypeCodes: "R2");
+
+        TwHouseScraper.BuildSearchUrl("newTaipei-city", "234", r1, 1)
+            .Should().Contain("/apartment-kinds/");
+        TwHouseScraper.BuildSearchUrl("newTaipei-city", "234", r2, 1)
+            .Should().Contain("/midrise-condo-kinds/");
+    }
+
+    [Fact]
+    public void BuildSearchUrl_MinRoomsTakenFromRoomsList()
+    {
+        var criteria = new HouseLens.Application.Crawling.DistrictCriteria(800m, Rooms: "3,4,5~", TypeCodes: "");
+
+        TwHouseScraper.BuildSearchUrl("newTaipei-city", "235", criteria, 1)
+            .Should().Contain("/3up-bedrooms/");
+    }
+
+    [Fact]
+    public void BuildSearchUrl_PingIncludesFullBuildingPingType()
+    {
+        var criteria = new HouseLens.Application.Crawling.DistrictCriteria(800m, MinSizePing: 25m, TypeCodes: "");
+
+        TwHouseScraper.BuildSearchUrl("newTaipei-city", "235", criteria, 1)
+            .Should().Contain("/25up-ping/fullBuildingPing-ping_type/");
+    }
+
     // ─── ParseDetail 測試 ───────────────────────────────────────────────────────
 
     // 詳情頁 HTML：含車位、5/7樓、完整地址、大樓型態

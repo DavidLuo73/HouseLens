@@ -152,7 +152,7 @@
               @click="activePlatform = s.value"
             >
               {{ s.label }}
-              <span v-if="['Rakuya', 'Sinyi', 'F591', 'Yungching', 'HBHousing', 'CtHouse'].includes(s.value)" class="tab-dot" title="支援額外篩選" />
+              <span v-if="['Rakuya', 'Sinyi', 'F591', 'Yungching', 'HBHousing', 'CtHouse', 'TwHouse'].includes(s.value)" class="tab-dot" title="支援額外篩選" />
             </button>
           </div>
 
@@ -396,6 +396,53 @@
             <p v-if="filterError" class="field-error">{{ filterError }}</p>
           </div>
 
+          <!-- 台灣房屋：型態 / 坪數 / 房數（連動搜尋 URL 路徑段） -->
+          <div v-else-if="activePlatform === 'TwHouse'" class="platform-panel">
+            <div class="add-row">
+              <div class="field">
+                <label class="field-label">最小坪數（0 = 不限）</label>
+                <input v-model.number="twForm.minSizePing" type="number" min="0" step="1" class="field-input field-input--price" />
+              </div>
+              <div class="field">
+                <label class="field-label">房數</label>
+                <select v-model="twForm.minRooms" class="field-input">
+                  <option value="">不限</option>
+                  <option v-for="n in [1, 2, 3, 4, 5]" :key="n" :value="String(n)">{{ n }} 房以上</option>
+                </select>
+              </div>
+              <div class="field">
+                <label class="field-label">用途</label>
+                <select v-model="twForm.useCode" class="field-input">
+                  <option value="1">住宅</option>
+                </select>
+              </div>
+            </div>
+            <div class="add-row">
+              <div class="field">
+                <label class="field-label">建物型態（不勾 = 全部住宅型態）</label>
+                <div class="check-group">
+                  <label v-for="t in TWHG_TYPE_OPTIONS" :key="t.code" class="check-item">
+                    <input type="checkbox" :value="t.code" v-model="twForm.typeCodes" />
+                    {{ t.label }}
+                  </label>
+                </div>
+              </div>
+            </div>
+            <p class="card-subtitle">
+              地區（{城市 slug}/{郵遞區號}-zips）、最高總價（{N}down-price）、屋齡上限（{N}down-house_year）、停車位（1up-park_count）
+              由上方地區列表的通用設定決定，會自動轉為台灣房屋搜尋 URL 路徑段；
+              坪數以「建坪」為基準（fullBuildingPing-ping_type）；
+              停車位勾選任一型式即帶入「有車位」條件（台灣房屋不分平面/機械），不勾＝不限。
+            </p>
+            <div class="platform-actions">
+              <button class="btn-add" :disabled="filterSaving" @click="saveTwFilter">
+                {{ filterSaving ? '儲存中…' : '儲存台灣房屋篩選' }}
+              </button>
+              <span v-if="filterSavedAt" class="save-hint">已儲存 ✓</span>
+            </div>
+            <p v-if="filterError" class="field-error">{{ filterError }}</p>
+          </div>
+
           <!-- 其他平台：目前無額外篩選 -->
           <div v-else class="platform-panel platform-panel--empty">
             {{ SOURCE_LABELS[activePlatform] }} 目前不支援額外篩選，使用上方共用的地區與最高總價設定。
@@ -492,6 +539,12 @@ const CT_TYPE_OPTIONS = [
   { code: '套房', label: '套房' },
   { code: '透天', label: '透天' },
 ]
+// ===== 台灣房屋（搜尋 URL {…}-kinds 段的型態 slug，實站驗證）=====
+const TWHG_TYPE_OPTIONS = [
+  { code: 'apartment', label: '公寓' },
+  { code: 'midrise', label: '華廈' },
+  { code: 'condo', label: '大樓' },
+]
 // ===== 永慶房屋（搜尋 URL {…}_type 段的型態名稱，實站驗證）=====
 const YUNGCHING_TYPE_OPTIONS = [
   { code: '電梯大廈', label: '電梯大廈' },
@@ -540,6 +593,14 @@ const hbForm = ref({
 
 // 中信專屬篩選（up-area 坪數／up-room 房數／type 型態；用途固定住宅）
 const ctForm = ref({
+  minSizePing: 0,
+  minRooms: '' as string,
+  useCode: '1',
+  typeCodes: [] as string[],
+})
+
+// 台灣房屋專屬篩選（up-ping 坪數／up-bedrooms 房數／kinds 型態；用途固定住宅）
+const twForm = ref({
   minSizePing: 0,
   minRooms: '' as string,
   useCode: '1',
@@ -610,6 +671,17 @@ async function load() {
         useCode: '1',
         // 舊資料可能存 Rakuya 代碼（R1,R2），非中信型態名一律視為未勾（爬蟲端自行對映）
         typeCodes: splitCodes(ctHouse.typeCodes || '').filter((c) => ctTypeCodes.includes(c)),
+      }
+    }
+    const twHouse = filters.find((f) => f.sourceSite === 'TwHouse')
+    if (twHouse) {
+      const twTypeCodes = TWHG_TYPE_OPTIONS.map((t) => t.code)
+      twForm.value = {
+        minSizePing: twHouse.minSizePing ?? 0,
+        minRooms: splitCodes(twHouse.rooms || '')[0] ?? '',
+        useCode: '1',
+        // 舊資料可能存 Rakuya 代碼（R1,R2），非台灣房屋 slug 一律視為未勾（爬蟲端自行對映）
+        typeCodes: splitCodes(twHouse.typeCodes || '').filter((c) => twTypeCodes.includes(c)),
       }
     }
   } catch (e: unknown) {
@@ -685,6 +757,25 @@ async function saveCtFilter() {
       minSizePing: ctForm.value.minSizePing,
       rooms: ctForm.value.minRooms,
       typeCodes: ctForm.value.typeCodes.join(','),
+      useCode: '1',
+    })
+    filterSavedAt.value = true
+  } catch (e: unknown) {
+    filterError.value = e instanceof Error ? e.message : '儲存失敗'
+  } finally {
+    filterSaving.value = false
+  }
+}
+
+async function saveTwFilter() {
+  filterError.value = null
+  filterSavedAt.value = false
+  filterSaving.value = true
+  try {
+    await api.platformFilters.update('TwHouse', {
+      minSizePing: twForm.value.minSizePing,
+      rooms: twForm.value.minRooms,
+      typeCodes: twForm.value.typeCodes.join(','),
       useCode: '1',
     })
     filterSavedAt.value = true
