@@ -8,8 +8,11 @@ namespace HouseLens.Infrastructure.Crawling.Scrapers;
 
 /// <summary>
 /// 中信房屋買屋網（buy.cthouse.com.tw）爬蟲。
-/// 後端 API 為 POST /api/house_list.ashx，body {"arg":"{城市}-city/{區}-town/0-{maxWan}-price/","page":N}，
-/// 伺服器端已完成城市/行政區/總價篩選，不需 Playwright。
+/// 後端 API 為 POST /api/house_list.ashx，body {"arg":"{路徑段}","page":N}，
+/// arg 與搜尋頁 URL 路徑相同，伺服器端支援城市/行政區/總價/坪數/型態/屋齡/房數/車位篩選
+/// （各段皆經實站驗證），不需 Playwright。arg 由 BuildSearchArg 依 DistrictCriteria 組成，
+/// 路徑段依序：{城市}-city/{區}-town/0-{maxWan}-price/{坪}-up-area/{型態,…}-type/
+/// 0-{年}-year/{房}-up-room/1-parking。
 /// robots.txt: User-agent: * / Allow: / （全域允許）
 /// </summary>
 public partial class CtHouseScraper(HttpFetcher fetcher, ILogger<CtHouseScraper> logger) : ISourceScraper
@@ -19,25 +22,49 @@ public partial class CtHouseScraper(HttpFetcher fetcher, ILogger<CtHouseScraper>
     private const string ApiUrl = "https://buy.cthouse.com.tw/api/house_list.ashx";
     private const string MediaBaseUrl = "https://media.cthouse.com.tw/photo";
     private const string HouseBaseUrl = "https://buy.cthouse.com.tw";
-    private const int MaxPagesPerDistrict = 10;
+    private const int MaxPagesPerDistrict = 100; // 禮貌性上限；實際依 totalpage 結束（寬條件行政區實測可超過 10 頁）
 
     // 住宅用途碼（house_type_usage）：1=住宅，2=商業/工業
     private const int ResidentialUsage = 1;
 
-    // 住宅型態碼白名單（house_type_class）：1=公寓/住宅，2=電梯大樓/華廈
-    private static readonly HashSet<int> ResidentialTypeClasses = [1, 2];
+    // 建物型態 URL 名稱（{…}-type 段，實站驗證有效），依官方順序排列
+    private static readonly string[] CtTypeCodes = ["電梯大樓", "公寓", "套房", "透天"];
 
-    // 行政區 → 中信城市名（與 SeedData 對齊，僅追蹤的新北六區、桃園二區）
+    // URL 型態名稱 → house_type_class 代碼（client-side 白名單用）：
+    // 電梯大樓=2（含華廈）、公寓=1、套房=3、透天=6
+    private static readonly Dictionary<string, int[]> TypeCodeToClasses = new(StringComparer.Ordinal)
+    {
+        ["電梯大樓"] = [2],
+        ["公寓"] = [1],
+        ["套房"] = [3],
+        ["透天"] = [6],
+    };
+
+    // 樂屋網 typecode → 中信型態名稱對映（平台未設定中信專屬 TypeCodes 時的回退）
+    private static readonly Dictionary<string, string[]> RakuyaTypeToCt = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["R1"] = ["公寓"],
+        ["R2"] = ["電梯大樓"],
+        ["R3"] = ["套房"],
+        ["R5"] = ["透天"],
+    };
+
+    // 預設型態（未設定 TypeCodes 或無法辨識時）：電梯大樓＋公寓（維持原白名單 class 1,2 行為）
+    private static readonly string[] DefaultTypeCodes = ["電梯大樓", "公寓"];
+
+    // 行政區 → 中信城市名（涵蓋前端可選的新北 19 區＋桃園 12 區）
     private static readonly Dictionary<string, string> DistrictToCity = new()
     {
-        ["中和區"] = "新北市",
-        ["永和區"] = "新北市",
-        ["新店區"] = "新北市",
-        ["板橋區"] = "新北市",
-        ["樹林區"] = "新北市",
-        ["新莊區"] = "新北市",
-        ["中壢區"] = "桃園市",
-        ["桃園區"] = "桃園市",
+        // 新北市
+        ["板橋區"] = "新北市", ["汐止區"] = "新北市", ["深坑區"] = "新北市", ["瑞芳區"] = "新北市",
+        ["新店區"] = "新北市", ["永和區"] = "新北市", ["中和區"] = "新北市", ["土城區"] = "新北市",
+        ["三峽區"] = "新北市", ["樹林區"] = "新北市", ["鶯歌區"] = "新北市", ["三重區"] = "新北市",
+        ["新莊區"] = "新北市", ["泰山區"] = "新北市", ["林口區"] = "新北市", ["蘆洲區"] = "新北市",
+        ["五股區"] = "新北市", ["八里區"] = "新北市", ["淡水區"] = "新北市",
+        // 桃園市
+        ["中壢區"] = "桃園市", ["平鎮區"] = "桃園市", ["龍潭區"] = "桃園市", ["楊梅區"] = "桃園市",
+        ["新屋區"] = "桃園市", ["觀音區"] = "桃園市", ["桃園區"] = "桃園市", ["龜山區"] = "桃園市",
+        ["八德區"] = "桃園市", ["大溪區"] = "桃園市", ["大園區"] = "桃園市", ["蘆竹區"] = "桃園市",
     };
 
     public async Task<IReadOnlyList<PropertyDto>> FetchAsync(
@@ -59,13 +86,13 @@ public partial class CtHouseScraper(HttpFetcher fetcher, ILogger<CtHouseScraper>
         for (var i = 0; i < knownDistricts.Count; i++)
         {
             var district = knownDistricts[i];
-            var maxWan = districtCriteria[district].MaxTotalPrice;
+            var criteria = districtCriteria[district];
             var city = DistrictToCity[district];
 
             progress?.Report(new(district, i, total, IsStarting: true, FetchedCount: 0));
-            logger.LogInformation("CtHouse: scraping {City} {District} (max={Max}萬)", city, district, maxWan);
+            logger.LogInformation("CtHouse: scraping {City} {District} (max={Max}萬)", city, district, criteria.MaxTotalPrice);
 
-            var districtResults = await FetchDistrictAsync(city, district, maxWan, seen, cancellationToken);
+            var districtResults = await FetchDistrictAsync(city, district, criteria, seen, cancellationToken);
             results.AddRange(districtResults);
 
             progress?.Report(new(district, i, total, IsStarting: false, FetchedCount: districtResults.Count));
@@ -77,16 +104,87 @@ public partial class CtHouseScraper(HttpFetcher fetcher, ILogger<CtHouseScraper>
         return results;
     }
 
+    /// <summary>
+    /// 依 DistrictCriteria 組出中信 API 的 arg 路徑段（與搜尋頁 URL 路徑一致）。
+    /// 依序為（無設定者省略）：{城市}-city／{區}-town／0-{N}-price 總價／{N}-up-area 坪數／
+    /// {型態,…}-type／0-{N}-year 屋齡／{N}-up-room 房數／1-parking 車位。
+    /// 各段皆經實站驗證有 server-side 篩選效果。
+    /// </summary>
+    public static string BuildSearchArg(string city, string district, DistrictCriteria criteria)
+    {
+        var segments = new List<string>
+        {
+            $"{city}-city",
+            $"{district}-town",
+        };
+
+        if (criteria.MaxTotalPrice > 0)
+            segments.Add($"0-{(int)criteria.MaxTotalPrice}-price");
+
+        if (criteria.MinSizePing > 0)
+            segments.Add($"{criteria.MinSizePing:0}-up-area");
+
+        segments.Add($"{string.Join('-', ResolveTypeCodes(criteria.TypeCodes))}-type");
+
+        if (criteria.MaxAgeYears > 0)
+            segments.Add($"0-{criteria.MaxAgeYears}-year");
+
+        var minRooms = ParseMinRooms(criteria.Rooms);
+        if (minRooms > 0)
+            segments.Add($"{minRooms}-up-room");
+
+        // 停車位：中信僅支援有/無車位（1/0-parking，不分平面/機械）；
+        // 不勾＝不限，URL 不帶車位段；勾選任一型式即要求有車位
+        if (!string.IsNullOrWhiteSpace(criteria.ParkingCodes))
+            segments.Add("1-parking");
+
+        return string.Join('/', segments) + "/";
+    }
+
+    /// <summary>型態段：優先採中信名稱（電梯大樓/公寓/套房/透天）；樂屋網 R 代碼則對映；無法辨識時回退預設（電梯大樓＋公寓）。</summary>
+    private static List<string> ResolveTypeCodes(string typeCodes)
+    {
+        var codes = SplitCodes(typeCodes);
+        var resolved = codes.Where(c => CtTypeCodes.Contains(c, StringComparer.Ordinal))
+            .Concat(codes.SelectMany(c => RakuyaTypeToCt.GetValueOrDefault(c, [])))
+            .Distinct()
+            .ToList();
+        if (resolved.Count == 0) return [.. DefaultTypeCodes];
+
+        // 依官方順序輸出，避免同組合產生不同 arg
+        return CtTypeCodes.Where(resolved.Contains).ToList();
+    }
+
+    /// <summary>依 TypeCodes 建立 house_type_class 白名單（client-side 防推薦物件混入非目標型態）。</summary>
+    public static HashSet<int> BuildAllowedTypeClasses(string typeCodes) =>
+        ResolveTypeCodes(typeCodes).SelectMany(c => TypeCodeToClasses.GetValueOrDefault(c, [])).ToHashSet();
+
+    /// <summary>從 Rooms 條件（如 "2,3,5~"）取最小房數，中信以 {N}-up-room（N 房以上）表達。</summary>
+    private static int ParseMinRooms(string rooms)
+    {
+        var values = SplitCodes(rooms)
+            .Select(r => int.TryParse(r.TrimEnd('~'), out var n) ? n : 0)
+            .Where(n => n > 0)
+            .ToList();
+        return values.Count == 0 ? 0 : values.Min();
+    }
+
+    private static string[] SplitCodes(string s) =>
+        string.IsNullOrWhiteSpace(s)
+            ? []
+            : s.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
     private async Task<List<PropertyDto>> FetchDistrictAsync(
         string city,
         string district,
-        decimal maxWan,
+        DistrictCriteria criteria,
         HashSet<string> seen,
         CancellationToken ct)
     {
         var all = new List<PropertyDto>();
-        var maxWanInt = (int)maxWan;
-        var arg = $"{city}-city/{district}-town/0-{maxWanInt}-price/";
+        var maxWan = criteria.MaxTotalPrice;
+        var allowedClasses = BuildAllowedTypeClasses(criteria.TypeCodes);
+        var arg = BuildSearchArg(city, district, criteria);
 
         for (var page = 1; page <= MaxPagesPerDistrict; page++)
         {
@@ -115,12 +213,16 @@ public partial class CtHouseScraper(HttpFetcher fetcher, ILogger<CtHouseScraper>
                 if (!root.TryGetProperty("houses", out var houses) || houses.ValueKind != JsonValueKind.Array)
                     break;
 
-                var pageResults = ParseListings(houses, city, district, maxWan, seen);
+                var seenBefore = seen.Count;
+                var pageResults = ParseListings(houses, city, district, maxWan, seen, allowedClasses);
                 all.AddRange(pageResults);
                 logger.LogInformation("CtHouse: {District} page {Page}/{Total}: {Count} listings",
                     district, page, totalPages, pageResults.Count);
 
                 if (page >= totalPages) break;
+
+                // 防呆：超過實際頁數時站方可能回傳重複內容，整頁去重全命中即視為結束
+                if (page > 1 && pageResults.Count == 0 && seen.Count == seenBefore && seenBefore > 0) break;
             }
             catch (Exception ex)
             {
@@ -140,15 +242,17 @@ public partial class CtHouseScraper(HttpFetcher fetcher, ILogger<CtHouseScraper>
         string queryCity,
         string queryDistrict,
         decimal maxWan,
-        HashSet<string>? seen = null)
+        HashSet<string>? seen = null,
+        HashSet<int>? allowedClasses = null)
     {
+        allowedClasses ??= BuildAllowedTypeClasses("");
         var results = new List<PropertyDto>();
 
         foreach (var item in houses.EnumerateArray())
         {
             try
             {
-                var dto = ParseItem(item, queryCity, queryDistrict, maxWan);
+                var dto = ParseItem(item, queryCity, queryDistrict, maxWan, allowedClasses);
                 if (dto is null) continue;
                 if (seen is not null && !seen.Add(dto.SourceListingKey)) continue;
                 results.Add(dto);
@@ -162,12 +266,12 @@ public partial class CtHouseScraper(HttpFetcher fetcher, ILogger<CtHouseScraper>
         return results;
     }
 
-    private PropertyDto? ParseItem(JsonElement item, string queryCity, string queryDistrict, decimal maxWan)
+    private PropertyDto? ParseItem(JsonElement item, string queryCity, string queryDistrict, decimal maxWan, HashSet<int> allowedClasses)
     {
-        // 住宅型態過濾：排除商業/工業用途與非住宅型態（含店面）
+        // 住宅型態過濾：排除商業/工業用途與不在型態白名單的物件（含店面、推薦物件混入）
         var typeUsage = GetInt(item, "house_type_usage");
         var typeClass = GetInt(item, "house_type_class");
-        if (typeUsage != ResidentialUsage || !ResidentialTypeClasses.Contains(typeClass))
+        if (typeUsage != ResidentialUsage || !allowedClasses.Contains(typeClass))
             return null;
 
         // 物件 ID

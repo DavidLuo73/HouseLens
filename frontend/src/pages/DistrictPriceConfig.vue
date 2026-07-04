@@ -152,7 +152,7 @@
               @click="activePlatform = s.value"
             >
               {{ s.label }}
-              <span v-if="['Rakuya', 'Sinyi', 'F591', 'Yungching', 'HBHousing'].includes(s.value)" class="tab-dot" title="支援額外篩選" />
+              <span v-if="['Rakuya', 'Sinyi', 'F591', 'Yungching', 'HBHousing', 'CtHouse'].includes(s.value)" class="tab-dot" title="支援額外篩選" />
             </button>
           </div>
 
@@ -350,6 +350,52 @@
             <p v-if="filterError" class="field-error">{{ filterError }}</p>
           </div>
 
+          <!-- 中信房屋：型態 / 坪數 / 房數（連動搜尋 API arg 路徑段） -->
+          <div v-else-if="activePlatform === 'CtHouse'" class="platform-panel">
+            <div class="add-row">
+              <div class="field">
+                <label class="field-label">最小坪數（0 = 不限）</label>
+                <input v-model.number="ctForm.minSizePing" type="number" min="0" step="1" class="field-input field-input--price" />
+              </div>
+              <div class="field">
+                <label class="field-label">房數</label>
+                <select v-model="ctForm.minRooms" class="field-input">
+                  <option value="">不限</option>
+                  <option v-for="n in [1, 2, 3, 4, 5]" :key="n" :value="String(n)">{{ n }} 房以上</option>
+                </select>
+              </div>
+              <div class="field">
+                <label class="field-label">用途</label>
+                <select v-model="ctForm.useCode" class="field-input">
+                  <option value="1">住宅</option>
+                </select>
+              </div>
+            </div>
+            <div class="add-row">
+              <div class="field">
+                <label class="field-label">建物型態（不勾 = 電梯大樓＋公寓）</label>
+                <div class="check-group">
+                  <label v-for="t in CT_TYPE_OPTIONS" :key="t.code" class="check-item">
+                    <input type="checkbox" :value="t.code" v-model="ctForm.typeCodes" />
+                    {{ t.label }}
+                  </label>
+                </div>
+              </div>
+            </div>
+            <p class="card-subtitle">
+              地區（{城市}-city/{地區}-town）、最高總價（0-{N}-price）、屋齡上限（0-{N}-year）、停車位（1-parking）
+              由上方地區列表的通用設定決定，會自動轉為中信搜尋路徑段；
+              停車位勾選任一型式即帶入「有車位」條件（中信不分平面/機械），不勾＝不限。
+            </p>
+            <div class="platform-actions">
+              <button class="btn-add" :disabled="filterSaving" @click="saveCtFilter">
+                {{ filterSaving ? '儲存中…' : '儲存中信篩選' }}
+              </button>
+              <span v-if="filterSavedAt" class="save-hint">已儲存 ✓</span>
+            </div>
+            <p v-if="filterError" class="field-error">{{ filterError }}</p>
+          </div>
+
           <!-- 其他平台：目前無額外篩選 -->
           <div v-else class="platform-panel platform-panel--empty">
             {{ SOURCE_LABELS[activePlatform] }} 目前不支援額外篩選，使用上方共用的地區與最高總價設定。
@@ -439,6 +485,13 @@ const HB_TYPE_OPTIONS = [
   { code: 'elevator', label: '大樓(11樓以上)' },
   { code: 'mansion', label: '華廈(10樓以下)' },
 ]
+// ===== 中信房屋（搜尋 URL {…}-type 段的型態名稱，實站驗證）=====
+const CT_TYPE_OPTIONS = [
+  { code: '電梯大樓', label: '電梯大樓（含華廈）' },
+  { code: '公寓', label: '公寓' },
+  { code: '套房', label: '套房' },
+  { code: '透天', label: '透天' },
+]
 // ===== 永慶房屋（搜尋 URL {…}_type 段的型態名稱，實站驗證）=====
 const YUNGCHING_TYPE_OPTIONS = [
   { code: '電梯大廈', label: '電梯大廈' },
@@ -479,6 +532,14 @@ const yungchingForm = ref({
 
 // 住商專屬篩選（area 坪數／room-pattern 房數／style 型態；用途固定住宅）
 const hbForm = ref({
+  minSizePing: 0,
+  minRooms: '' as string,
+  useCode: '1',
+  typeCodes: [] as string[],
+})
+
+// 中信專屬篩選（up-area 坪數／up-room 房數／type 型態；用途固定住宅）
+const ctForm = ref({
   minSizePing: 0,
   minRooms: '' as string,
   useCode: '1',
@@ -540,6 +601,17 @@ async function load() {
         typeCodes: splitCodes(hb.typeCodes || '').filter((c) => hbTypeCodes.includes(c)),
       }
     }
+    const ctHouse = filters.find((f) => f.sourceSite === 'CtHouse')
+    if (ctHouse) {
+      const ctTypeCodes = CT_TYPE_OPTIONS.map((t) => t.code)
+      ctForm.value = {
+        minSizePing: ctHouse.minSizePing ?? 0,
+        minRooms: splitCodes(ctHouse.rooms || '')[0] ?? '',
+        useCode: '1',
+        // 舊資料可能存 Rakuya 代碼（R1,R2），非中信型態名一律視為未勾（爬蟲端自行對映）
+        typeCodes: splitCodes(ctHouse.typeCodes || '').filter((c) => ctTypeCodes.includes(c)),
+      }
+    }
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : '載入失敗'
   } finally {
@@ -594,6 +666,25 @@ async function saveHBFilter() {
       minSizePing: hbForm.value.minSizePing,
       rooms: hbForm.value.minRooms,
       typeCodes: hbForm.value.typeCodes.join(','),
+      useCode: '1',
+    })
+    filterSavedAt.value = true
+  } catch (e: unknown) {
+    filterError.value = e instanceof Error ? e.message : '儲存失敗'
+  } finally {
+    filterSaving.value = false
+  }
+}
+
+async function saveCtFilter() {
+  filterError.value = null
+  filterSavedAt.value = false
+  filterSaving.value = true
+  try {
+    await api.platformFilters.update('CtHouse', {
+      minSizePing: ctForm.value.minSizePing,
+      rooms: ctForm.value.minRooms,
+      typeCodes: ctForm.value.typeCodes.join(','),
       useCode: '1',
     })
     filterSavedAt.value = true

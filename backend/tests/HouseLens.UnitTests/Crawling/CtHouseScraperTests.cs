@@ -1,4 +1,5 @@
 using FluentAssertions;
+using HouseLens.Application.Crawling;
 using HouseLens.Domain.Enums;
 using HouseLens.Infrastructure.Crawling.Scrapers;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -248,6 +249,91 @@ public class CtHouseScraperTests
     {
         using var doc = JsonDocument.Parse("[]");
         var results = _scraper.ParseListings(doc.RootElement, "新北市", "中和區", 800m);
+
+        results.Should().BeEmpty();
+    }
+
+    // ===== BuildSearchArg：依 DistrictCriteria 組出 API arg 路徑段 =====
+
+    [Fact]
+    public void BuildSearchArg_DefaultCriteria_CityTownPriceAndDefaultTypes()
+    {
+        var arg = CtHouseScraper.BuildSearchArg("新北市", "中和區", new DistrictCriteria(1000m));
+
+        arg.Should().Be("新北市-city/中和區-town/0-1000-price/電梯大樓-公寓-type/");
+    }
+
+    [Fact]
+    public void BuildSearchArg_FullCriteria_AllSegmentsInOrder()
+    {
+        var criteria = new DistrictCriteria(
+            MaxTotalPrice: 1000m,
+            MinSizePing: 20m,
+            Rooms: "2,3",
+            TypeCodes: "電梯大樓,公寓",
+            MaxAgeYears: 30,
+            ParkingCodes: "PF");
+
+        var arg = CtHouseScraper.BuildSearchArg("新北市", "中和區", criteria);
+
+        arg.Should().Be("新北市-city/中和區-town/0-1000-price/20-up-area/電梯大樓-公寓-type/0-30-year/2-up-room/1-parking/");
+    }
+
+    [Fact]
+    public void BuildSearchArg_NoParkingCodes_OmitsParkingSegment()
+    {
+        var arg = CtHouseScraper.BuildSearchArg("桃園市", "中壢區", new DistrictCriteria(800m, ParkingCodes: ""));
+
+        arg.Should().NotContain("parking");
+    }
+
+    [Fact]
+    public void BuildSearchArg_RakuyaTypeCodes_MappedToCtNames()
+    {
+        // R1=公寓、R2=電梯大樓（依官方順序輸出：電梯大樓在前）
+        var arg = CtHouseScraper.BuildSearchArg("新北市", "中和區", new DistrictCriteria(800m, TypeCodes: "R1,R2"));
+
+        arg.Should().Contain("/電梯大樓-公寓-type/");
+    }
+
+    [Fact]
+    public void BuildSearchArg_SingleCtTypeCode_OnlyThatType()
+    {
+        var arg = CtHouseScraper.BuildSearchArg("新北市", "中和區", new DistrictCriteria(800m, TypeCodes: "套房"));
+
+        arg.Should().Contain("/套房-type/");
+    }
+
+    [Fact]
+    public void BuildSearchArg_RoomsWithTilde_UsesMinRooms()
+    {
+        var arg = CtHouseScraper.BuildSearchArg("新北市", "中和區", new DistrictCriteria(800m, Rooms: "3,5~"));
+
+        arg.Should().Contain("/3-up-room/");
+    }
+
+    // ===== BuildAllowedTypeClasses：型態白名單連動 =====
+
+    [Fact]
+    public void BuildAllowedTypeClasses_Default_Classes1And2()
+    {
+        CtHouseScraper.BuildAllowedTypeClasses("").Should().BeEquivalentTo([1, 2]);
+    }
+
+    [Fact]
+    public void BuildAllowedTypeClasses_SuiteAndTownhouse_Classes3And6()
+    {
+        CtHouseScraper.BuildAllowedTypeClasses("套房,透天").Should().BeEquivalentTo([3, 6]);
+    }
+
+    [Fact]
+    public void ParseListings_TypeClassOutsideWhitelist_IsFiltered()
+    {
+        // 只允許公寓（class 1），電梯大樓（class 2）物件應被過濾
+        var houses = ParseHouses(ResidentialItem);
+
+        var results = _scraper.ParseListings(houses, "新北市", "中和區", 800m,
+            seen: null, allowedClasses: CtHouseScraper.BuildAllowedTypeClasses("公寓"));
 
         results.Should().BeEmpty();
     }
