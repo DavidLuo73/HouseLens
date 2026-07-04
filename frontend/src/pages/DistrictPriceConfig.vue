@@ -152,7 +152,7 @@
               @click="activePlatform = s.value"
             >
               {{ s.label }}
-              <span v-if="s.value === 'Rakuya' || s.value === 'Sinyi' || s.value === 'F591'" class="tab-dot" title="支援額外篩選" />
+              <span v-if="s.value === 'Rakuya' || s.value === 'Sinyi' || s.value === 'F591' || s.value === 'Yungching'" class="tab-dot" title="支援額外篩選" />
             </button>
           </div>
 
@@ -265,6 +265,45 @@
             <p v-if="filterError" class="field-error">{{ filterError }}</p>
           </div>
 
+          <!-- 永慶房屋：型態 / 坪數（連動搜尋 URL 路徑段 _type / _pin） -->
+          <div v-else-if="activePlatform === 'Yungching'" class="platform-panel">
+            <div class="add-row">
+              <div class="field">
+                <label class="field-label">最小坪數（0 = 不限）</label>
+                <input v-model.number="yungchingForm.minSizePing" type="number" min="0" step="1" class="field-input field-input--price" />
+              </div>
+              <div class="field">
+                <label class="field-label">用途</label>
+                <select v-model="yungchingForm.useCode" class="field-input">
+                  <option value="1">住宅</option>
+                </select>
+              </div>
+            </div>
+            <div class="add-row">
+              <div class="field">
+                <label class="field-label">建物型態（不勾 = 全部住宅型態）</label>
+                <div class="check-group">
+                  <label v-for="t in YUNGCHING_TYPE_OPTIONS" :key="t.code" class="check-item">
+                    <input type="checkbox" :value="t.code" v-model="yungchingForm.typeCodes" />
+                    {{ t.label }}
+                  </label>
+                </div>
+              </div>
+            </div>
+            <p class="card-subtitle">
+              地區（{城市}-{地區}_c）、最高總價（_price）、屋齡上限（_age）、停車位（_park）
+              由上方地區列表的通用設定決定，會自動轉為永慶搜尋 URL 路徑段；
+              停車位勾選後自動轉為永慶車位型式（平面→坡道平面＋昇降平面、機械→坡道機械＋昇降機械）。
+            </p>
+            <div class="platform-actions">
+              <button class="btn-add" :disabled="filterSaving" @click="saveYungchingFilter">
+                {{ filterSaving ? '儲存中…' : '儲存永慶篩選' }}
+              </button>
+              <span v-if="filterSavedAt" class="save-hint">已儲存 ✓</span>
+            </div>
+            <p v-if="filterError" class="field-error">{{ filterError }}</p>
+          </div>
+
           <!-- 其他平台：目前無額外篩選 -->
           <div v-else class="platform-panel platform-panel--empty">
             {{ SOURCE_LABELS[activePlatform] }} 目前不支援額外篩選，使用上方共用的地區與最高總價設定。
@@ -348,6 +387,13 @@ const SINYI_TYPE_OPTIONS = [
   { code: 'townhouse', label: '透天' },
   { code: 'villa', label: '別墅' },
 ]
+// ===== 永慶房屋（搜尋 URL {…}_type 段的型態名稱，實站驗證）=====
+const YUNGCHING_TYPE_OPTIONS = [
+  { code: '電梯大廈', label: '電梯大廈' },
+  { code: '華廈', label: '華廈' },
+  { code: '無電梯公寓', label: '無電梯公寓' },
+]
+
 const activePlatform = ref('Rakuya')
 const filterSaving = ref(false)
 const filterError = ref<string | null>(null)
@@ -370,6 +416,13 @@ const sinyiForm = ref({
 const f591Form = ref({
   minSizePing: 0,
   rooms: [] as string[],
+})
+
+// 永慶專屬篩選（_pin 坪數／_type 型態；用途固定住宅）
+const yungchingForm = ref({
+  minSizePing: 0,
+  useCode: '1',
+  typeCodes: [] as string[],
 })
 
 const splitCodes = (s: string) => (s ? s.split(',').map((x) => x.trim()).filter(Boolean) : [])
@@ -406,6 +459,16 @@ async function load() {
         rooms: splitCodes(f591.rooms || ''),
       }
     }
+    const yungching = filters.find((f) => f.sourceSite === 'Yungching')
+    if (yungching) {
+      const yungchingTypes = YUNGCHING_TYPE_OPTIONS.map((t) => t.code)
+      yungchingForm.value = {
+        minSizePing: yungching.minSizePing ?? 0,
+        useCode: '1',
+        // 舊資料可能存 Rakuya 代碼（R1,R2），非永慶型態名一律視為未勾（爬蟲端自行對映）
+        typeCodes: splitCodes(yungching.typeCodes || '').filter((c) => yungchingTypes.includes(c)),
+      }
+    }
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : '載入失敗'
   } finally {
@@ -422,6 +485,25 @@ async function saveF591Filter() {
       minSizePing: f591Form.value.minSizePing,
       rooms: f591Form.value.rooms.join(','),
       typeCodes: '',
+      useCode: '1',
+    })
+    filterSavedAt.value = true
+  } catch (e: unknown) {
+    filterError.value = e instanceof Error ? e.message : '儲存失敗'
+  } finally {
+    filterSaving.value = false
+  }
+}
+
+async function saveYungchingFilter() {
+  filterError.value = null
+  filterSavedAt.value = false
+  filterSaving.value = true
+  try {
+    await api.platformFilters.update('Yungching', {
+      minSizePing: yungchingForm.value.minSizePing,
+      rooms: '',
+      typeCodes: yungchingForm.value.typeCodes.join(','),
       useCode: '1',
     })
     filterSavedAt.value = true

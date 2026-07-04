@@ -62,7 +62,7 @@ public class CrawlOrchestrator(
                 .ToList();
         }
 
-        // 平台專屬篩選（目前僅樂屋網）：跑到該平台時合併進每個地區的 DistrictCriteria
+        // 平台專屬篩選：跑到該平台時合併進每個地區的 DistrictCriteria
         var platformFilters = (await repository.GetPlatformFilterConfigsAsync(ct))
             .ToDictionary(f => f.SourceSite);
 

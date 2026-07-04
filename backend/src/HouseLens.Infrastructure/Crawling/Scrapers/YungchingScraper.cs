@@ -11,12 +11,13 @@ namespace HouseLens.Infrastructure.Crawling.Scrapers;
 /// 含永慶直營與有巢氏加盟物件，使用 Angular SSR，物件卡片直接內嵌於 HTML。
 /// 網站具有 TLS 指紋辨識等強力反爬機制，以 PlaywrightFetcher（真實 Chromium）繞過。
 /// 列表頁需以總價區間縮小範圍，否則會退化成預設排序的「熱門」清單，在有限分頁內
-/// 幾乎抓不到目標行政區符合價格的物件：/list/{城市}-{行政區}_c/-{總價}_price，
-/// 分頁：?pg=N（N≥2）。
-/// 注意：網站 URL 上的「{型態}_type」區段實測對結果無任何篩選效果（不論帶入合法
-/// 型態、亂數字串、或省略，回傳結果與筆數皆相同），型態純粹由前端「已選條件」
-/// 麵包屑顯示，並未真正套用；因此型態過濾完全依賴本檔 ResidentialTypes 白名單於
-/// client-side 執行。
+/// 幾乎抓不到目標行政區符合價格的物件。URL 由 BuildSearchUrl 依 DistrictCriteria 組成，
+/// 路徑段依序（2026-07 實站驗證各段皆有 server-side 篩選效果，含 _type）：
+/// /list/{城市}-{行政區}_c/-{總價}_price/{型態,…}_type/{坪數}-_pin/住宅_p/{車位,…}_park/-{屋齡}_age，
+/// 分頁：?pg=N（N≥2）。型態另以 client-side 白名單二次過濾（URL 與卡片 caseType 用詞不同：
+/// 電梯大廈→住宅大樓、無電梯公寓→公寓）。
+/// 無符合物件時網站仍會顯示「本週精選」推薦卡（頁面含「暫無符合物件」字樣），
+/// 需以該字樣判斷為無資料，避免推薦物件混入。
 /// </summary>
 public partial class YungchingScraper(PlaywrightFetcher fetcher, ILogger<YungchingScraper> logger) : ISourceScraper
 {
@@ -25,9 +26,37 @@ public partial class YungchingScraper(PlaywrightFetcher fetcher, ILogger<Yungchi
     private const string BaseUrl = "https://buy.yungching.com.tw";
     private const int MaxPagesPerDistrict = 30; // 禮貌性上限，避免過量請求
 
-    // 住宅型態白名單（電梯大廈=住宅大樓、無電梯公寓=公寓、華廈）；
-    // 不在此清單的型態（辦公商業大樓、廠辦、店面、套房、土地、其他）一律過濾。
-    private static readonly HashSet<string> ResidentialTypes = new(StringComparer.Ordinal)
+    // 永慶搜尋 URL 的建物型態名稱（{…}_type 段），依官方順序排列
+    private static readonly string[] YungchingTypeNames = ["電梯大廈", "華廈", "無電梯公寓"];
+
+    // URL 型態名 → 列表卡片 caseType 用詞（client-side 白名單用；兩者用詞不同）
+    private static readonly Dictionary<string, string[]> TypeNameToCaseTypes = new(StringComparer.Ordinal)
+    {
+        ["電梯大廈"] = ["住宅大樓"],
+        ["華廈"] = ["華廈"],
+        ["無電梯公寓"] = ["公寓"],
+    };
+
+    // 樂屋網 typecode → 永慶型態名對映（平台未設定永慶專屬 TypeCodes 時的回退）
+    private static readonly Dictionary<string, string[]> RakuyaTypeToYungching = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["R1"] = ["無電梯公寓"],
+        ["R2"] = ["電梯大廈", "華廈"],
+    };
+
+    // 永慶車位段（{…}_park）合法值；y = 種類不限但須有車位
+    private static readonly string[] YungchingParkNames = ["坡道平面", "坡道機械", "昇降平面", "昇降機械", "庭院", "y"];
+
+    // 樂屋網停車位代碼 → 永慶車位名對映（回退用）：PF 平面類 / PM 機械類
+    private static readonly Dictionary<string, string[]> RakuyaParkingToYungching = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["PF"] = ["坡道平面", "昇降平面"],
+        ["PM"] = ["坡道機械", "昇降機械"],
+    };
+
+    // 預設住宅型態白名單（未設定 TypeCodes 時）；
+    // 不在清單的型態（辦公商業大樓、廠辦、店面、套房、土地、其他）一律過濾。
+    private static readonly HashSet<string> DefaultResidentialCaseTypes = new(StringComparer.Ordinal)
     {
         "公寓", "住宅大樓", "華廈",
     };
@@ -69,17 +98,16 @@ public partial class YungchingScraper(PlaywrightFetcher fetcher, ILogger<Yungchi
         for (var i = 0; i < validDistricts.Count; i++)
         {
             var (district, criteria) = validDistricts[i];
-            var maxPrice = criteria.MaxTotalPrice;
             var city = DistrictMap[district];
 
             progress?.Report(new(district, i, total, IsStarting: true, FetchedCount: 0));
 
-            var districtResults = await FetchDistrictAsync(district, city, (int)maxPrice, cancellationToken);
+            var districtResults = await FetchDistrictAsync(district, city, criteria, cancellationToken);
             results.AddRange(districtResults);
 
             progress?.Report(new(district, i, total, IsStarting: false, FetchedCount: districtResults.Count));
             logger.LogInformation("Yungching district {District} (max={Max}萬): {Count} listings",
-                district, (int)maxPrice, districtResults.Count);
+                district, (int)criteria.MaxTotalPrice, districtResults.Count);
 
             if (onDistrictCompleted is not null) await onDistrictCompleted(districtResults);
         }
@@ -91,21 +119,98 @@ public partial class YungchingScraper(PlaywrightFetcher fetcher, ILogger<Yungchi
         return results;
     }
 
+    /// <summary>
+    /// 依 DistrictCriteria 組出永慶搜尋列表 URL。路徑段依序為（無設定者省略）：
+    /// 地區 {城市}-{行政區}_c／價格 -{N}_price／型態 {…}_type／坪數 {N}-_pin／
+    /// 用途 住宅_p／車位 {…}_park／屋齡 -{N}_age；分頁 ?pg=N（第 1 頁省略）。
+    /// 各段皆經實站驗證有 server-side 篩選效果。
+    /// </summary>
+    public static string BuildSearchUrl(string city, string district, DistrictCriteria criteria, int page)
+    {
+        var segments = new List<string>
+        {
+            $"{Uri.EscapeDataString(city)}-{Uri.EscapeDataString(district)}_c",
+        };
+
+        if (criteria.MaxTotalPrice > 0)
+            segments.Add($"-{criteria.MaxTotalPrice:0}_price");
+
+        var types = ResolveTypeNames(criteria.TypeCodes);
+        segments.Add($"{string.Join(',', types.Select(Uri.EscapeDataString))}_type");
+
+        if (criteria.MinSizePing > 0)
+            segments.Add($"{criteria.MinSizePing:0.##}-_pin");
+
+        // 用途固定住宅（UseCode 其他值為樂屋網商用/車位等，不適用永慶住宅搜尋）
+        if (string.IsNullOrWhiteSpace(criteria.UseCode) || criteria.UseCode.Trim() == "1")
+            segments.Add($"{Uri.EscapeDataString("住宅")}_p");
+
+        var parks = ResolveParkNames(criteria.ParkingCodes);
+        if (parks.Count > 0)
+            segments.Add($"{string.Join(',', parks.Select(Uri.EscapeDataString))}_park");
+
+        if (criteria.MaxAgeYears > 0)
+            segments.Add($"-{criteria.MaxAgeYears}_age");
+
+        var url = $"{BaseUrl}/list/{string.Join('/', segments)}";
+        return page <= 1 ? url : $"{url}?pg={page}";
+    }
+
+    /// <summary>型態段：優先採永慶型態名；樂屋網 R 代碼則對映；無法辨識時回退全部住宅型態。</summary>
+    private static List<string> ResolveTypeNames(string typeCodes)
+    {
+        var codes = SplitCodes(typeCodes);
+        var names = codes.Where(c => YungchingTypeNames.Contains(c, StringComparer.Ordinal))
+            .Concat(codes.SelectMany(c => RakuyaTypeToYungching.GetValueOrDefault(c, [])))
+            .Distinct()
+            .ToList();
+        if (names.Count == 0) return [.. YungchingTypeNames];
+
+        // 依官方順序輸出，避免同組合產生不同 URL
+        return YungchingTypeNames.Where(names.Contains).ToList();
+    }
+
+    /// <summary>車位段：採永慶車位名（含 y=種類不限）；樂屋網 PF/PM 代碼則對映。空／無法辨識 → 不加車位條件。</summary>
+    private static List<string> ResolveParkNames(string parkingCodes)
+    {
+        var codes = SplitCodes(parkingCodes);
+        var names = codes.Where(c => YungchingParkNames.Contains(c, StringComparer.OrdinalIgnoreCase))
+            .Select(c => c == "Y" ? "y" : c)
+            .Concat(codes.SelectMany(c => RakuyaParkingToYungching.GetValueOrDefault(c, [])))
+            .Distinct()
+            .ToList();
+        return YungchingParkNames.Where(names.Contains).ToList();
+    }
+
+    /// <summary>依 TypeCodes 建立卡片 caseType 白名單；未設定時回傳預設住宅白名單。</summary>
+    public static HashSet<string> BuildAllowedCaseTypes(string typeCodes)
+    {
+        var codes = SplitCodes(typeCodes);
+        if (codes.Length == 0) return DefaultResidentialCaseTypes;
+
+        var allowed = ResolveTypeNames(typeCodes)
+            .SelectMany(n => TypeNameToCaseTypes.GetValueOrDefault(n, []))
+            .ToHashSet(StringComparer.Ordinal);
+        return allowed.Count == 0 ? DefaultResidentialCaseTypes : allowed;
+    }
+
+    private static string[] SplitCodes(string s) =>
+        string.IsNullOrWhiteSpace(s)
+            ? []
+            : s.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
     private async Task<List<PropertyDto>> FetchDistrictAsync(
-        string district, string city, int maxWan, CancellationToken ct)
+        string district, string city, DistrictCriteria criteria, CancellationToken ct)
     {
         var all = new List<PropertyDto>();
         // 跨頁去重：置頂廣告同一物件可能出現在每頁首位
         var seen = new HashSet<string>();
-
-        var encodedCity = Uri.EscapeDataString(city);
-        var encodedDistrict = Uri.EscapeDataString(district);
-        var priceSegment = maxWan > 0 ? $"/-{maxWan}_price" : "";
-        var listBase = $"{BaseUrl}/list/{encodedCity}-{encodedDistrict}_c{priceSegment}";
+        var maxWan = (int)criteria.MaxTotalPrice;
+        var allowedTypes = BuildAllowedCaseTypes(criteria.TypeCodes);
 
         for (var page = 1; page <= MaxPagesPerDistrict; page++)
         {
-            var url = page == 1 ? listBase : $"{listBase}?pg={page}";
+            var url = BuildSearchUrl(city, district, criteria, page);
 
             // Playwright 以真實 Chromium 導航，Referer 與 Sec-Fetch-* 均由瀏覽器自動附加
             var html = await fetcher.FetchAsync(url, ct);
@@ -115,7 +220,16 @@ public partial class YungchingScraper(PlaywrightFetcher fetcher, ILogger<Yungchi
                 break;
             }
 
-            var pageResults = ParseListings(html, city, district, maxWan, seen);
+            // 無符合物件時網站仍會顯示「本週精選」推薦卡（多半跨區或超出條件），
+            // 必須以「暫無符合物件」字樣判斷為無資料，不可解析頁上卡片。
+            if (html.Contains("暫無符合物件", StringComparison.Ordinal))
+            {
+                logger.LogInformation(
+                    "Yungching {District} page {Page}: no matching listings, ignoring recommended items", district, page);
+                break;
+            }
+
+            var pageResults = ParseListings(html, city, district, maxWan, seen, allowedTypes);
             logger.LogInformation("Yungching {District} page {Page}: {Count} listings", district, page, pageResults.Count);
 
             // 每頁實際筆數不固定（置頂廣告、型態/價格篩選皆會影響計數），不可用固定 PageSize 判斷最後一頁；
@@ -133,8 +247,10 @@ public partial class YungchingScraper(PlaywrightFetcher fetcher, ILogger<Yungchi
     /// 不使用隨 build 變動的 _ngcontent-ng-c* 屬性。
     /// </summary>
     public List<PropertyDto> ParseListings(
-        string html, string city, string district, int maxWan, HashSet<string>? seen = null)
+        string html, string city, string district, int maxWan,
+        HashSet<string>? seen = null, HashSet<string>? allowedTypes = null)
     {
+        allowedTypes ??= DefaultResidentialCaseTypes;
         var results = new List<PropertyDto>();
         var doc = new HtmlDocument();
         doc.LoadHtml(html);
@@ -153,7 +269,7 @@ public partial class YungchingScraper(PlaywrightFetcher fetcher, ILogger<Yungchi
         {
             try
             {
-                var dto = ParseCard(card, city, district, maxWan);
+                var dto = ParseCard(card, city, district, maxWan, allowedTypes);
                 if (dto is null) continue;
 
                 if (seen is not null && !seen.Add(dto.SourceListingKey)) continue;
@@ -169,7 +285,7 @@ public partial class YungchingScraper(PlaywrightFetcher fetcher, ILogger<Yungchi
         return results;
     }
 
-    private PropertyDto? ParseCard(HtmlNode card, string city, string district, int maxWan)
+    private PropertyDto? ParseCard(HtmlNode card, string city, string district, int maxWan, HashSet<string> allowedTypes)
     {
         // 物件 ID 從 href 取得，格式：house/{id}
         var href = card.GetAttributeValue("href", "");
@@ -181,7 +297,7 @@ public partial class YungchingScraper(PlaywrightFetcher fetcher, ILogger<Yungchi
         // 建物型態（用於住宅過濾）
         var caseTypeNode = card.SelectSingleNode(".//*[contains(@class,'caseType')]");
         var caseType = CleanText(caseTypeNode?.InnerText) ?? "";
-        if (!string.IsNullOrEmpty(caseType) && !ResidentialTypes.Contains(caseType))
+        if (!string.IsNullOrEmpty(caseType) && !allowedTypes.Contains(caseType))
             return null;
 
         // 標題

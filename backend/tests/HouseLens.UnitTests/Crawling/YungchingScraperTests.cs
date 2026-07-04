@@ -1,4 +1,5 @@
 using FluentAssertions;
+using HouseLens.Application.Crawling;
 using HouseLens.Domain.Enums;
 using HouseLens.Infrastructure.Crawling;
 using HouseLens.Infrastructure.Crawling.Scrapers;
@@ -252,6 +253,95 @@ public class YungchingScraperTests
         var results = _scraper.ParseListings("<html><body></body></html>", "新北市", "中和區", maxWan: 800);
 
         results.Should().BeEmpty();
+    }
+
+    // ===== BuildSearchUrl =====
+
+    private static string E(string s) => Uri.EscapeDataString(s);
+
+    [Fact]
+    public void BuildSearchUrl_FullCriteria_AllSegmentsInOrder()
+    {
+        var criteria = new DistrictCriteria(
+            MaxTotalPrice: 800,
+            MinSizePing: 20,
+            TypeCodes: "電梯大廈,華廈,無電梯公寓",
+            UseCode: "1",
+            MaxAgeYears: 30,
+            ParkingCodes: "坡道平面");
+
+        var url = YungchingScraper.BuildSearchUrl("新北市", "新店區", criteria, page: 1);
+
+        url.Should().Be(
+            $"https://buy.yungching.com.tw/list/{E("新北市")}-{E("新店區")}_c/-800_price" +
+            $"/{E("電梯大廈")},{E("華廈")},{E("無電梯公寓")}_type/20-_pin/{E("住宅")}_p" +
+            $"/{E("坡道平面")}_park/-30_age");
+    }
+
+    [Fact]
+    public void BuildSearchUrl_Page2_AppendsPgQuery()
+    {
+        var criteria = new DistrictCriteria(MaxTotalPrice: 800);
+
+        var url = YungchingScraper.BuildSearchUrl("新北市", "新店區", criteria, page: 2);
+
+        url.Should().EndWith("?pg=2");
+    }
+
+    [Fact]
+    public void BuildSearchUrl_RakuyaCodes_MappedToYungchingNames()
+    {
+        // R1→無電梯公寓、R2→電梯大廈+華廈；PF→坡道平面+昇降平面
+        var criteria = new DistrictCriteria(MaxTotalPrice: 800, TypeCodes: "R1,R2", ParkingCodes: "PF");
+
+        var url = YungchingScraper.BuildSearchUrl("新北市", "新店區", criteria, page: 1);
+
+        url.Should().Contain($"{E("電梯大廈")},{E("華廈")},{E("無電梯公寓")}_type");
+        url.Should().Contain($"{E("坡道平面")},{E("昇降平面")}_park");
+    }
+
+    [Fact]
+    public void BuildSearchUrl_NoOptionalCriteria_OmitsSegments()
+    {
+        var criteria = new DistrictCriteria(MaxTotalPrice: 800, TypeCodes: "", ParkingCodes: "");
+
+        var url = YungchingScraper.BuildSearchUrl("新北市", "新店區", criteria, page: 1);
+
+        url.Should().NotContain("_pin").And.NotContain("_park").And.NotContain("_age");
+        // 型態未設定 → 回退全部住宅型態
+        url.Should().Contain($"{E("電梯大廈")},{E("華廈")},{E("無電梯公寓")}_type");
+    }
+
+    [Fact]
+    public void BuildSearchUrl_ParkingAny_UsesYParkSegment()
+    {
+        var criteria = new DistrictCriteria(MaxTotalPrice: 800, ParkingCodes: "y");
+
+        var url = YungchingScraper.BuildSearchUrl("新北市", "新店區", criteria, page: 1);
+
+        url.Should().Contain("/y_park");
+    }
+
+    // ===== 型態白名單連動 =====
+
+    [Fact]
+    public void BuildAllowedCaseTypes_OnlyElevatorBuilding_FiltersApartment()
+    {
+        var allowed = YungchingScraper.BuildAllowedCaseTypes("電梯大廈");
+
+        allowed.Should().BeEquivalentTo(["住宅大樓"]);
+    }
+
+    [Fact]
+    public void ParseListings_AllowedTypesExcludesApartment_ApartmentFiltered()
+    {
+        var html = WrapInList(ApartmentCard, BuildingWithParkingCard);
+        var allowed = YungchingScraper.BuildAllowedCaseTypes("電梯大廈,華廈");
+
+        var results = _scraper.ParseListings(html, "新北市", "中和區", maxWan: 1500, seen: null, allowedTypes: allowed);
+
+        results.Should().HaveCount(1);
+        results[0].SourceListingKey.Should().Be("9876543"); // 住宅大樓；公寓被過濾
     }
 
     [Fact]
