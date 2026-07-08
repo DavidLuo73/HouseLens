@@ -18,7 +18,7 @@ public record PriceTrendPoint(DateOnly Date, decimal AvgUnitPrice);
 
 public static class DistrictAnalyticsService
 {
-    private const int MinPropertiesForStats = 3;
+    private const int MinPropertiesForStats = 2;
 
     public static DistrictStats CalcStats(
         IReadOnlyList<Property> properties,
@@ -65,12 +65,40 @@ public static class DistrictAnalyticsService
         );
     }
 
+    public static IReadOnlyList<PriceTrendPoint> CalcTrend(
+        IReadOnlyList<Property> properties,
+        IReadOnlyList<PriceHistoryEntry> entries,
+        string district)
+    {
+        var areaByPropertyId = properties
+            .Where(p => p.District == district)
+            .ToDictionary(p => p.Id, p => p.AreaPing);
+
+        return entries
+            .Where(e => areaByPropertyId.ContainsKey(e.PropertyId))
+            .Select(e => new
+            {
+                Date = DateOnly.FromDateTime(e.CapturedAt),
+                UnitPrice = e.UnitPrice.HasValue && e.UnitPrice.Value > 0
+                    ? e.UnitPrice.Value
+                    : areaByPropertyId[e.PropertyId] > 0 && e.TotalPrice > 0
+                        ? e.TotalPrice / areaByPropertyId[e.PropertyId]
+                        : 0m,
+            })
+            .Where(x => x.UnitPrice > 0)
+            .GroupBy(x => x.Date)
+            .OrderBy(g => g.Key)
+            .Select(g => new PriceTrendPoint(g.Key, g.Average(x => x.UnitPrice)))
+            .ToList();
+    }
+
     private static IReadOnlyList<PriceBucket> BuildBuckets(List<decimal> prices)
     {
         var min = (double)prices.Min();
         var max = (double)prices.Max();
         var range = max - min;
-        if (range <= 0) return [];
+        if (range <= 0)
+            return [new PriceBucket($"{min:F0}-{max:F0}", prices.Count)];
 
         var step = range / 5;
         var buckets = new List<PriceBucket>();

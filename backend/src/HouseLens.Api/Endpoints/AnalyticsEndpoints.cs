@@ -25,9 +25,15 @@ public static class AnalyticsEndpoints
             .Where(p => p.Status == PropertyStatus.Active)
             .ToListAsync();
 
+        var activeIds = properties.Select(p => p.Id).ToList();
+        var historyEntries = await db.PriceHistoryEntries
+            .Where(h => activeIds.Contains(h.PropertyId))
+            .ToListAsync();
+
         var districtStats = districts.Select(d =>
         {
             var stats = DistrictAnalyticsService.CalcStats(properties, d);
+            var trend = DistrictAnalyticsService.CalcTrend(properties, historyEntries, d);
             return new
             {
                 stats.District,
@@ -36,7 +42,7 @@ public static class AnalyticsEndpoints
                 stats.MinTotalPrice,
                 stats.MaxTotalPrice,
                 PriceBuckets = stats.PriceBuckets.Select(b => new { b.Range, b.Count }),
-                Trend = stats.Trend.Select(t => new { t.Date, t.AvgUnitPrice }),
+                Trend = trend.Select(t => new { t.Date, t.AvgUnitPrice }),
                 stats.InsufficientData
             };
         });
