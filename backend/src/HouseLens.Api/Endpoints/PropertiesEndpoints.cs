@@ -65,10 +65,10 @@ public static class PropertiesEndpoints
 
         query = sortBy.ToLower() switch
         {
-            "unitprice" => query.OrderBy(p => p.CurrentUnitPrice),
+            "unitprice" => query.OrderBy(p => p.CurrentUnitPrice.HasValue).ThenBy(p => p.CurrentUnitPrice),
             "pricedrop" => query.OrderBy(p => p.CurrentTotalPrice),
             "posteddate" => query.OrderByDescending(p => p.FirstSeenAt),
-            _ => query.OrderByDescending(p => p.Score).ThenBy(p => p.CurrentTotalPrice)
+            _ => query.OrderByDescending(p => p.Score.HasValue).ThenByDescending(p => p.Score).ThenBy(p => p.CurrentTotalPrice)
         };
 
         var total = await query.CountAsync();

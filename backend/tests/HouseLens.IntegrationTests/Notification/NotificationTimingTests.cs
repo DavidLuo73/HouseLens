@@ -12,25 +12,18 @@ namespace HouseLens.IntegrationTests.Notification;
 
 /// <summary>
 /// SC-007: 通知服務在模擬資料集下應於合理時間完成，確保排程後 10 分鐘內可送達。
-/// 測試量測 SendDailyNotificationsAsync 在 50 筆大降價資料下的執行時間。
+/// 遠端 PostgreSQL 的查詢與通知組裝分配 1 分鐘，保留 9 分鐘給爬蟲與實際 LINE 傳送。
 /// </summary>
 public class NotificationTimingTests : IAsyncLifetime
 {
-    private readonly string _dbPath =
-        Path.Combine(Path.GetTempPath(), $"timing_test_{Guid.NewGuid():N}.db");
+    private readonly PostgresTestDatabase _database = new();
 
-    private AppDbContext OpenDb()
-    {
-        var opts = new DbContextOptionsBuilder<AppDbContext>()
-            .UseSqlite($"Data Source={_dbPath}")
-            .Options;
-        return new AppDbContext(opts);
-    }
+    private AppDbContext OpenDb() => _database.CreateDbContext();
 
     public async Task InitializeAsync()
     {
+        await _database.InitializeAsync();
         await using var db = OpenDb();
-        await db.Database.EnsureCreatedAsync();
 
         // 植入追蹤條件（供 GetTrackingDistrictsAsync 使用）
         db.TrackingCriteria.Add(new TrackingCriteria
@@ -41,17 +34,12 @@ public class NotificationTimingTests : IAsyncLifetime
         await db.SaveChangesAsync();
     }
 
-    public Task DisposeAsync()
-    {
-        try { if (File.Exists(_dbPath)) File.Delete(_dbPath); } catch { /* best effort */ }
-        return Task.CompletedTask;
-    }
+    public Task DisposeAsync() => _database.DisposeAsync().AsTask();
 
     private async Task SeedBigDropsAsync(Guid crawlRunId, int count)
     {
         await using var db = OpenDb();
         db.CrawlRuns.Add(new CrawlRun { Id = crawlRunId, Status = RunStatus.Completed });
-        await db.SaveChangesAsync();
 
         for (int i = 0; i < count; i++)
         {
@@ -64,7 +52,6 @@ public class NotificationTimingTests : IAsyncLifetime
                 Score = 0.75m
             };
             db.Properties.Add(property);
-            await db.SaveChangesAsync();
 
             db.PriceHistoryEntries.Add(new PriceHistoryEntry
             {
@@ -80,7 +67,7 @@ public class NotificationTimingTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task SendDailyNotifications_With50BigDrops_CompletesWithin2Seconds()
+    public async Task SendDailyNotifications_With50BigDropsOnPostgres_CompletesWithinOneMinute()
     {
         // Arrange
         var runId = Guid.NewGuid();
@@ -89,19 +76,22 @@ public class NotificationTimingTests : IAsyncLifetime
         await using var db = OpenDb();
         var repo = new NotificationRepository(db);
 
-        // 使用立即回傳 true 的假 LINE 客戶端（排除網路延遲）
+        // 排除 LINE 傳送，但保留遠端資料庫查詢與寫入的網路成本。
         var fakeClient = new InstantLineClient();
         var service = new NotificationService(fakeClient, repo, NullLogger<NotificationService>.Instance);
 
-        // Act
+        // 排除連線建立成本，量測通知作業本身。
+        await db.Database.OpenConnectionAsync();
         var sw = Stopwatch.StartNew();
         await service.SendDailyNotificationsAsync(runId);
         sw.Stop();
 
-        // Assert：純資料庫查詢 + 訊息建構，應遠低於 2 秒
-        // 10 分鐘的 SC-007 預算主要由爬蟲消耗；通知本身應在數秒內完成
-        sw.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(2),
-            "通知服務本身（不含網路）應在 2 秒內完成，以確保留足夠緩衝讓整體流程在 10 分鐘內送達");
+        sw.Elapsed.Should().BeLessThan(TimeSpan.FromMinutes(1),
+            "遠端 PostgreSQL 通知作業須保留 SC-007 十分鐘預算中的九分鐘給爬蟲與實際 LINE 傳送");
+
+        var logs = await db.NotificationLogs.Where(log => log.CrawlRunId == runId).ToListAsync();
+        logs.Should().HaveCount(2).And.OnlyContain(log => log.Success);
+        logs.Select(log => log.Type).Should().BeEquivalentTo(["BigDrop", "Top5"]);
     }
 }
 

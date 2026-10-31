@@ -1,5 +1,6 @@
 using HouseLens.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace HouseLens.Infrastructure.Persistence;
 
@@ -19,6 +20,29 @@ public static class SeedData
 
     public static async Task SeedAsync(AppDbContext db)
     {
+        await db.Database.OpenConnectionAsync();
+        try
+        {
+            // API and Worker may bootstrap the shared database simultaneously.
+            await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_lock(184832467)");
+            await SeedCoreAsync(db);
+        }
+        finally
+        {
+            try { await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_unlock(184832467)"); }
+            finally { await db.Database.CloseConnectionAsync(); }
+        }
+    }
+
+    private static async Task SeedCoreAsync(AppDbContext db)
+    {
+        var schema = new NpgsqlConnectionStringBuilder(db.Database.GetConnectionString()).SearchPath;
+        if (string.IsNullOrWhiteSpace(schema) || schema.Contains(','))
+            throw new InvalidOperationException("A single PostgreSQL Search Path is required for initialization.");
+        using var identifiers = new NpgsqlCommandBuilder();
+#pragma warning disable EF1003 // Schema identifiers cannot be parameters; QuoteIdentifier escapes them.
+        await db.Database.ExecuteSqlRawAsync("CREATE SCHEMA IF NOT EXISTS " + identifiers.QuoteIdentifier(schema));
+#pragma warning restore EF1003
         await db.Database.MigrateAsync();
 
         if (!await db.DistrictConfigs.AnyAsync())

@@ -29,16 +29,9 @@ file sealed class SucceedingLineClient : ILineMessagingClient
 
 public class NotificationFailureTests : IAsyncLifetime
 {
-    private readonly string _dbPath =
-        Path.Combine(Path.GetTempPath(), $"notif_test_{Guid.NewGuid():N}.db");
+    private readonly PostgresTestDatabase _database = new();
 
-    private AppDbContext OpenDb()
-    {
-        var opts = new DbContextOptionsBuilder<AppDbContext>()
-            .UseSqlite($"Data Source={_dbPath}")
-            .Options;
-        return new AppDbContext(opts);
-    }
+    private AppDbContext OpenDb() => _database.CreateDbContext();
 
     private NotificationService BuildService(ILineMessagingClient client)
     {
@@ -47,17 +40,9 @@ public class NotificationFailureTests : IAsyncLifetime
         return new NotificationService(client, repo, NullLogger<NotificationService>.Instance);
     }
 
-    public async Task InitializeAsync()
-    {
-        using var db = OpenDb();
-        await db.Database.EnsureCreatedAsync();
-    }
+    public Task InitializeAsync() => _database.InitializeAsync();
 
-    public Task DisposeAsync()
-    {
-        try { if (File.Exists(_dbPath)) File.Delete(_dbPath); } catch { /* best effort */ }
-        return Task.CompletedTask;
-    }
+    public Task DisposeAsync() => _database.DisposeAsync().AsTask();
 
     // --- helpers ---
 

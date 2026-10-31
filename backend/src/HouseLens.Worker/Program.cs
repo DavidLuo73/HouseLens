@@ -2,16 +2,23 @@ using HouseLens.Application.Crawling;
 using HouseLens.Infrastructure;
 using HouseLens.Infrastructure.Crawling;
 using HouseLens.Infrastructure.Crawling.Scrapers;
+using HouseLens.Infrastructure.Persistence;
 using HouseLens.Worker;
 using Quartz;
 
 var builder = Host.CreateApplicationBuilder(args);
+builder.Configuration
+    .AddJsonFile(Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath,
+        "..", "..", "appsettings.Local.json")), optional: true)
+    .AddEnvironmentVariables()
+    .AddCommandLine(args);
 
 builder.Services.AddInfrastructure(builder.Configuration);
 
 // Register crawl infrastructure
 builder.Services.AddSingleton<HttpFetcher>();
 builder.Services.AddSingleton<PlaywrightFetcher>();
+builder.Services.AddSingleton<CrawlProgressState>();
 builder.Services.AddScoped<ICrawlRepository, CrawlRepository>();
 builder.Services.AddScoped<ISourceScraper, F591Scraper>();
 builder.Services.AddScoped<ISourceScraper, SinyiScraper>();
@@ -38,4 +45,6 @@ builder.Services.AddQuartz(q =>
 builder.Services.AddQuartzHostedService(q => q.WaitForJobsToComplete = true);
 
 var host = builder.Build();
-host.Run();
+using (var scope = host.Services.CreateScope())
+    await SeedData.SeedAsync(scope.ServiceProvider.GetRequiredService<AppDbContext>());
+await host.RunAsync();

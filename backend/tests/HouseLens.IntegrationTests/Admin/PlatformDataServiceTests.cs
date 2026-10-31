@@ -7,24 +7,15 @@ using Microsoft.EntityFrameworkCore;
 
 namespace HouseLens.IntegrationTests.Admin;
 
-public class PlatformDataServiceTests : IDisposable
+public class PlatformDataServiceTests : IAsyncLifetime
 {
-    private readonly string _dbPath = Path.Combine(Path.GetTempPath(), $"platformtest_{Guid.NewGuid():N}.db");
+    private readonly PostgresTestDatabase _database = new();
 
-    private AppDbContext CreateDb()
-    {
-        var opts = new DbContextOptionsBuilder<AppDbContext>()
-            .UseSqlite($"Data Source={_dbPath}")
-            .Options;
-        var db = new AppDbContext(opts);
-        db.Database.EnsureCreated();
-        return db;
-    }
+    private AppDbContext CreateDb() => _database.CreateDbContext();
 
-    public void Dispose()
-    {
-        try { if (File.Exists(_dbPath)) File.Delete(_dbPath); } catch { /* best effort */ }
-    }
+    public Task InitializeAsync() => _database.InitializeAsync();
+
+    public Task DisposeAsync() => _database.DisposeAsync().AsTask();
 
     private static Property MakeProperty(decimal price = 500m) => new()
     {

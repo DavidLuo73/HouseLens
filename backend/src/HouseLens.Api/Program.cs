@@ -1,13 +1,16 @@
 using HouseLens.Api.Endpoints;
 using HouseLens.Application.Crawling;
-using HouseLens.Domain.Enums;
 using HouseLens.Infrastructure;
 using HouseLens.Infrastructure.Crawling;
 using HouseLens.Infrastructure.Crawling.Scrapers;
 using HouseLens.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration
+    .AddJsonFile(Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath,
+        "..", "..", "appsettings.Local.json")), optional: true)
+    .AddEnvironmentVariables()
+    .AddCommandLine(args);
 
 builder.Services.AddInfrastructure(builder.Configuration);
 
@@ -68,17 +71,6 @@ if (!app.Environment.IsEnvironment("Testing"))
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await SeedData.SeedAsync(db);
-
-    // WAL 模式：允許讀寫並行，爬蟲寫入時讀取 API 不再被阻塞（設定持久化，只需執行一次）
-    await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
-
-    // 清理孤兒 CrawlRun：上次後端非正常關閉時可能留下 Running 狀態的記錄，
-    // 啟動時一律標為 Failed，防止前端永遠顯示「爬取中」
-    await db.CrawlRuns
-        .Where(r => r.Status == RunStatus.Running)
-        .ExecuteUpdateAsync(s => s
-            .SetProperty(r => r.Status, RunStatus.Failed)
-            .SetProperty(r => r.FinishedAt, DateTime.UtcNow));
 }
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));

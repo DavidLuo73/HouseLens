@@ -1,7 +1,7 @@
 # HouseLens 房屋售價追蹤系統
 
 單一使用者、本機部署的房屋售價追蹤應用。每日定時爬取台灣房仲平台（目前
-[591 售屋網](https://sale.591.com.tw/)）符合條件的物件，正規化後寫入 SQLite，
+[591 售屋網](https://sale.591.com.tw/)）符合條件的物件，正規化後寫入 Supabase PostgreSQL，
 追蹤歷史價格、下架與重複狀態，計算降價偵測與物件評分，並透過 LINE Messaging API
 推播「大降價清單」與「各區域 Top 5 優質物件」。前端以 Vue 3 呈現物件清單、篩選、
 價格趨勢圖與區域分析。
@@ -23,7 +23,7 @@
 
 | 層 | 技術 |
 |----|------|
-| 後端 | C# / .NET 10、ASP.NET Core Minimal API、EF Core 10（SQLite） |
+| 後端 | C# / .NET 10、ASP.NET Core Minimal API、EF Core 10.0.9 + Npgsql 10.0.3（Supabase PostgreSQL） |
 | 背景排程 | `Microsoft.Extensions.Hosting` + Quartz.NET |
 | 爬蟲 | Microsoft.Playwright（SPA 渲染）、HtmlAgilityPack（靜態備援） |
 | 通知 | LINE Messaging API |
@@ -44,7 +44,7 @@ backend/
 │   ├── HouseLens.UnitTests/       # 去重／降價／評分／解析器單元測試
 │   └── HouseLens.IntegrationTests/# API 端點與 EF Core 整合測試
 └── tools/
-    └── reset-data/                   # 本機 DB 清理／檢視小工具
+    └── reset-data/                   # PostgreSQL 清理／檢視小工具
 
 frontend/
 ├── src/
@@ -69,16 +69,23 @@ specs/001-house-price-tracker/   # 規格、計畫、資料模型、API 契約�
 
 ## 設定
 
-機密設定（LINE Token 等）**勿入版控**，請以使用者祕密或環境變數保存。
+機密設定（資料庫密碼、LINE Token 等）**勿入版控**。API 與 Worker 共用已忽略的
+`backend/appsettings.Local.json`，也可透過環境變數覆寫。完整設定見
+[後端 README](backend/README.md#設定)。
 
 | 設定鍵 | 說明 | 預設 |
 |--------|------|------|
-| 連線字串 | SQLite 資料庫位置 | `Data Source=HouseLens.db` |
+| `ConnectionStrings__Default` | Supabase PostgreSQL 的 Npgsql 連線字串 | 必填，無 SQLite fallback |
 | `LINE__ChannelAccessToken` | LINE 推播 Token | （無，需自行設定） |
 | `LINE__TargetUserId` | 推播目標使用者 ID | （無） |
 | `Schedule__DailyCron` | Worker 每日排程 Cron | `0 0 6 * * ?`（清晨 6 點） |
 
 前端 API 基底位址預設指向 `http://localhost:5000`。
+
+使用 Supabase **Session pooler（5432）**，連線設定包含 `Search Path=houselens`、
+`SSL Mode=VerifyFull` 與下載的 Supabase CA 憑證路徑 `Root Certificate=...`。
+資料存放於獨立的 `houselens` schema，前端仍透過本專案 API 讀寫。
+原有 SQLite 檔案保留，切換連線不會自動搬移其中的資料。
 
 ## 建置與啟動
 
@@ -108,13 +115,9 @@ Invoke-RestMethod -Uri "http://localhost:5000/api/crawl-runs/latest"
 # 查看抓取到的物件（支援篩選與排序）
 Invoke-RestMethod -Uri "http://localhost:5000/api/properties"
 
-# 完整重置 DB（清掉所有資料，重啟後自動 migrate + seed）
-# 1) 停止 API  2) 刪除 db 檔  3) 重新啟動 API  4) 觸發爬取
-Remove-Item backend/src/HouseLens.Api/HouseLens.db* -ErrorAction SilentlyContinue
-
-# 只清物件與歷史、保留地區／評分設定
+# 只清遠端物件與歷史、保留設定（先停止 API／Worker，並設定 ConnectionStrings__Default）
 dotnet run --project backend/tools/reset-data/reset-data.csproj -- `
-  backend/src/HouseLens.Api/HouseLens.db reset
+  reset --confirm
 ```
 
 ## API 端點
@@ -148,7 +151,9 @@ dotnet run --project backend/tools/reset-data/reset-data.csproj -- `
 ## 測試
 
 ```powershell
-dotnet test backend            # 後端單元 + 整合測試
+# 整合測試使用獨立 schema；請提供可建立 schema 的 PostgreSQL 測試連線
+$env:HOUSELENS_TEST_CONNECTION = 'Host=...;Database=postgres;Username=...;Password=...;SSL Mode=VerifyFull;Root Certificate=C:/certs/prod-ca-2021.crt'
+dotnet test backend --filter "Category!=Live"  # 後端單元 + PostgreSQL 整合測試
 cd frontend; npm run test      # 前端 Vitest
 ```
 

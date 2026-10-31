@@ -4,6 +4,7 @@ using HouseLens.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
@@ -15,31 +16,35 @@ namespace HouseLens.Infrastructure.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.9");
+            modelBuilder
+                .HasAnnotation("ProductVersion", "10.0.9")
+                .HasAnnotation("Relational:MaxIdentifierLength", 63);
+
+            NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("HouseLens.Domain.Entities.CrawlRun", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.Property<int>("BigDropCount")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
 
                     b.Property<int>("DelistedCount")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
 
                     b.Property<DateTime?>("FinishedAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("NewCount")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("StartedAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("Status")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
 
                     b.HasKey("Id");
 
@@ -52,31 +57,33 @@ namespace HouseLens.Infrastructure.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<string>("City")
                         .IsRequired()
                         .HasMaxLength(20)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("character varying(20)");
 
                     b.Property<string>("District")
                         .IsRequired()
                         .HasMaxLength(20)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("character varying(20)");
 
                     b.Property<bool>("IsEnabled")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.Property<int>("MaxAgeYears")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
 
                     b.Property<decimal>("MaxTotalPrice")
                         .HasPrecision(12, 2)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("numeric(12,2)");
 
                     b.Property<string>("ParkingCodes")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("text");
 
                     b.HasKey("Id");
 
@@ -90,42 +97,42 @@ namespace HouseLens.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ImageUrl")
                         .HasMaxLength(1000)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("character varying(1000)");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.Property<decimal>("LatestSourcePrice")
                         .HasPrecision(12, 2)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("numeric(12,2)");
 
                     b.Property<DateTime?>("PostedDate")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("PropertyId")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("SourceListingKey")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("character varying(100)");
 
                     b.Property<int>("SourceSite")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
 
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("character varying(200)");
 
                     b.Property<string>("Url")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("character varying(500)");
 
                     b.HasKey("Id");
 
@@ -141,25 +148,25 @@ namespace HouseLens.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("CrawlRunId")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ErrorMessage")
                         .HasMaxLength(1000)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("character varying(1000)");
 
                     b.Property<DateTime>("SentAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("Success")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("character varying(50)");
 
                     b.HasKey("Id");
 
@@ -170,29 +177,31 @@ namespace HouseLens.Infrastructure.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<decimal>("MinSizePing")
                         .HasPrecision(10, 2)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("numeric(10,2)");
 
                     b.Property<string>("Rooms")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("character varying(50)");
 
                     b.Property<int>("SourceSite")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
 
                     b.Property<string>("TypeCodes")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("character varying(100)");
 
                     b.Property<string>("UseCode")
                         .IsRequired()
                         .HasMaxLength(10)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("character varying(10)");
 
                     b.HasKey("Id");
 
@@ -206,37 +215,37 @@ namespace HouseLens.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("CapturedAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("ChangeFlag")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
 
                     b.Property<decimal?>("ChangePercent")
                         .HasPrecision(8, 4)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("numeric(8,4)");
 
                     b.Property<Guid>("CrawlRunId")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.Property<bool>("IsBigDrop")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.Property<Guid>("PropertyId")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.Property<int>("SourceSite")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
 
                     b.Property<decimal>("TotalPrice")
                         .HasPrecision(12, 2)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("numeric(12,2)");
 
                     b.Property<decimal?>("UnitPrice")
                         .HasPrecision(12, 2)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("numeric(12,2)");
 
                     b.HasKey("Id");
 
@@ -252,65 +261,65 @@ namespace HouseLens.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Address")
                         .HasMaxLength(200)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("character varying(200)");
 
                     b.Property<int?>("AgeYears")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
 
                     b.Property<decimal>("AreaPing")
                         .HasPrecision(10, 2)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("numeric(10,2)");
 
                     b.Property<string>("City")
                         .IsRequired()
                         .HasMaxLength(20)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("character varying(20)");
 
                     b.Property<decimal>("CurrentTotalPrice")
                         .HasPrecision(12, 2)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("numeric(12,2)");
 
                     b.Property<decimal?>("CurrentUnitPrice")
                         .HasPrecision(12, 2)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("numeric(12,2)");
 
                     b.Property<string>("District")
                         .IsRequired()
                         .HasMaxLength(20)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("character varying(20)");
 
                     b.Property<DateTime>("FirstSeenAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Floor")
                         .HasMaxLength(20)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("character varying(20)");
 
                     b.Property<bool>("HasParking")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsNew")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.Property<DateTime>("LastSeenAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid?>("MergedIntoPropertyId")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.Property<int>("MissingCount")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
 
                     b.Property<decimal?>("Score")
                         .HasPrecision(5, 4)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("numeric(5,4)");
 
                     b.Property<int>("Status")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
 
                     b.HasKey("Id");
 
@@ -325,36 +334,36 @@ namespace HouseLens.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.Property<decimal?>("AgeScore")
                         .HasPrecision(5, 4)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("numeric(5,4)");
 
                     b.Property<DateTime>("CalculatedAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("CrawlRunId")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.Property<decimal?>("LocationScore")
                         .HasPrecision(5, 4)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("numeric(5,4)");
 
                     b.Property<decimal?>("ParkingScore")
                         .HasPrecision(5, 4)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("numeric(5,4)");
 
                     b.Property<Guid>("PropertyId")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.Property<decimal>("Score")
                         .HasPrecision(5, 4)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("numeric(5,4)");
 
                     b.Property<decimal?>("UnitPriceScore")
                         .HasPrecision(5, 4)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("numeric(5,4)");
 
                     b.HasKey("Id");
 
@@ -367,31 +376,33 @@ namespace HouseLens.Infrastructure.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<decimal>("BigDropAmount")
                         .HasPrecision(12, 2)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("numeric(12,2)");
 
                     b.Property<decimal>("BigDropPercent")
                         .HasPrecision(5, 4)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("numeric(5,4)");
 
                     b.Property<decimal>("WeightAge")
                         .HasPrecision(5, 4)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("numeric(5,4)");
 
                     b.Property<decimal>("WeightLocation")
                         .HasPrecision(5, 4)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("numeric(5,4)");
 
                     b.Property<decimal>("WeightParking")
                         .HasPrecision(5, 4)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("numeric(5,4)");
 
                     b.Property<decimal>("WeightUnitPrice")
                         .HasPrecision(5, 4)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("numeric(5,4)");
 
                     b.HasKey("Id");
 
@@ -402,23 +413,23 @@ namespace HouseLens.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("CrawlRunId")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ErrorMessage")
                         .HasMaxLength(1000)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("character varying(1000)");
 
                     b.Property<int>("FetchedCount")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
 
                     b.Property<int>("SourceSite")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
 
                     b.Property<bool>("Success")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.HasKey("Id");
 
@@ -431,15 +442,17 @@ namespace HouseLens.Infrastructure.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<string>("Districts")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("text");
 
                     b.Property<decimal>("MaxTotalPrice")
                         .HasPrecision(12, 2)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("numeric(12,2)");
 
                     b.HasKey("Id");
 

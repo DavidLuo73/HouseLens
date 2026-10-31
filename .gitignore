@@ -63,3 +63,6 @@ desktop.ini
 *.iml
 *.swp
 *.swo
+
+# Local EF command-line tools
+backend/.tools/

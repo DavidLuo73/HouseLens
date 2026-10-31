@@ -4,8 +4,7 @@ using System.Text.Json.Serialization;
 namespace HouseLens.Api;
 
 /// <summary>
-/// EF Core 從 SQLite 讀回的 DateTime.Kind 為 Unspecified，System.Text.Json 序列化時不加 Z，
-/// 前端 new Date("...") 會誤認成本地時間。此 Converter 強制所有 DateTime 以 UTC 帶 Z 輸出。
+/// 保持 API 日期格式一致，所有 DateTime 均以 UTC 帶 Z 輸出。
 /// </summary>
 public class UtcDateTimeConverter : JsonConverter<DateTime>
 {
