@@ -14,7 +14,7 @@
 
 ## Global Constraints
 
-- 更新：2026-11-03；狀態：使用者已選 Native 與逐 Task 暫停／review，Task1已完成建置、測試與review，停點等待繼續Task2；Task2–14未開始，尚無七站真機成功證據。
+- 更新：2026-11-03；狀態：使用者已選 Native 與逐 Task 暫停／review，Task1–2已完成建置、測試與review，停點等待繼續Task3；Task3–14未開始，尚無七站真機成功證據。
 - 所有 Android plan、tasks、驗證紀錄都放在 `F:\SourceCode\HouseLens\android\` 下；不修改 Web／後端程式或正式資料庫。
 - 裝置：Samsung S25+、One UI 9.0、Android 17。使用者可安裝及操作，**不開 USB 偵錯**；不可把 adb／connectedAndroidTest 列成使用者驗收前提。
 - Kotlin＋Jetpack Compose；`minSdk=26`、`compileSdk/targetSdk=37`。API 26 是工程基線，不表示已驗證 Android 8；真機結論限本 S25+ 組合。
@@ -112,7 +112,7 @@ assertEquals(listOf(0, 1, 2, 3, 4, 5, 6),
     listOf(Site.F591, Site.Rakuya, Site.Sinyi, Site.Yungching, Site.TwHouse, Site.HBHousing, Site.CtHouse).map { it.code })
 ```
 
-負價格與不支援的行政區等輸入驗證放Task2。提交訊息 `build(android): bootstrap isolated probe app`。
+負價格與不支援的行政區等輸入驗證已於Task2完成。提交訊息 `build(android): bootstrap isolated probe app`。
 
 ### Task 2: 分頁與篩選決策，不複製舊漏抓條件
 
@@ -120,10 +120,10 @@ assertEquals(listOf(0, 1, 2, 3, 4, 5, 6),
 
 **Interfaces:** Produces `validateQuery(query: ProbeQuery): Unit`、`exclusionReason(item: ProbeListing, query: ProbeQuery): String?`、`nextDecision(page: PageResult, previousRawKeys: Set<String>, pageIndex: Int, pageLimit: Int): PageDecision`；PageDecision=`CONTINUE/COMPLETE/WAIT_FOR_USER/FAIL/TRUNCATE/INCONCLUSIVE`。
 
-- [ ] **Step 1 — 寫測試。** 原始10卡全被篩掉、next=MORE仍 CONTINUE；EMPTY+END才 COMPLETE；CHALLENGE為 WAIT；無 selector／未知結構為 FAIL；到上限且 MORE／UNKNOWN為 TRUNCATE；整頁原始 ID 重複但無可靠末頁證據為 INCONCLUSIVE。中信「板橋區」不得混入「中和區」有效資料，nullable 不被擅自改成真值。
-- [ ] **Step 2 — 跑 RED。** `./gradlew.bat :app:testDebugUnitTest --tests '*ProbeRulesTest'`。
-- [ ] **Step 3 — 實作上述三函式。** 共同檢查來源 ID、正價格、城市／行政區與現有可判定條件；站別型態／房數代碼留來源處理。缺少欄位只能標未知，不能捏造「已符合」；記錄排除理由。有效筆數不參與判斷原始頁是否已盡。
-- [ ] **Step 4 — 跑 GREEN。** 同上；重要斷言使用具體輸入：
+- [x] **Step 1 — 寫測試。** 原始10卡全被篩掉、next=MORE仍 CONTINUE；EMPTY+END才 COMPLETE；CHALLENGE為 WAIT；無 selector／未知結構為 FAIL；到上限且 MORE／UNKNOWN為 TRUNCATE；整頁原始 ID 重複但無可靠末頁證據為 INCONCLUSIVE。中信「板橋區」不得混入「中和區」有效資料，nullable 不被擅自改成真值。
+- [x] **Step 2 — 跑 RED。** `./gradlew.bat :app:testDebugUnitTest --tests '*ProbeRulesTest'`。
+- [x] **Step 3 — 實作上述三函式。** 共同檢查來源 ID、正價格、城市／行政區與現有可判定條件；站別型態／房數代碼留來源處理。缺少欄位只能標未知，不能捏造「已符合」；記錄排除理由。有效筆數不參與判斷原始頁是否已盡。
+- [x] **Step 4 — 跑 GREEN。** 同上；重要斷言使用具體輸入：
 
 ```kotlin
 val filteredPage = PageResult(PageKind.RESULTS, listOf("A"), emptyList(), mapOf("A" to "over_price"), NextPage.MORE, "next_link")
@@ -131,8 +131,10 @@ assertEquals(PageDecision.CONTINUE, nextDecision(filteredPage, emptySet(), 0, 30
 assertEquals(PageDecision.TRUNCATE, nextDecision(filteredPage, emptySet(), 29, 30))
 ```
 
-- [ ] **Step 5 — 提交。** `fix(android): distinguish filtered pages from end of results`。
+- [x] **Step 5 — 提交。** `fix(android): distinguish filtered pages from end of results`。
 
+
+Task2實作決定詳見 [執行紀錄](../tasks/task2.md)：probe僅接受新北中和／永和／新店；代碼先驗長度與格式，語意由來源／Task13驗證。共同篩選不直接套用minSizePing，因現有來源的主建／總建基準不同。exclusionReason回null只代表無可證排除，不表示未知屋齡／車位已符合。END需非空固定證據代碼，UNKNOWN仍有新raw keys時可繼續探測，達上限則截斷。
 ### Task 3: 可恢復的本機紀錄與可信背景判讀
 
 **Files:** Create `M/ProbeStore.kt`、`M/ProbeReport.kt`；Test `T/ProbeStoreTest.kt`、`T/ProbeReportTest.kt`。
@@ -348,4 +350,4 @@ assertTrue("hasParking" in page.listings.single().unknownFields)
 
 ## 執行交接
 
-使用者已選Native，不再詢問執行方式。Task1已完成，等待使用者繼續Task2，主代理依序實作，每Task結束暫停並review，更新 `android/handoff/2.md` 後等待繼續；context超過60%也先暫停更新摘要。詳細停點、不可見context讀數的限制與目前進度見 [交接2](../handoff/2.md)。全部實作完成後仍需獨立review；Task14的真機證據須由使用者實際操作回報。
+使用者已選Native，不再詢問執行方式。Task1–2已完成，等待使用者繼續Task3，主代理依序實作，每Task結束暫停並review，更新 `android/handoff/2.md` 後等待繼續；context超過60%也先暫停更新摘要。詳細停點、不可見context讀數的限制與目前進度見 [交接2](../handoff/2.md)。全部實作完成後仍需獨立review；Task14的真機證據須由使用者實際操作回報。

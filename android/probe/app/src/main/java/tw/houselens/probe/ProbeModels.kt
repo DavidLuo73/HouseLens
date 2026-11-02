@@ -62,6 +62,7 @@ data class RawCapture(
 
 enum class NextPage { MORE, END, UNKNOWN }
 enum class PageKind { RESULTS, EMPTY, CHALLENGE, INVALID }
+enum class PageDecision { CONTINUE, COMPLETE, WAIT_FOR_USER, FAIL, TRUNCATE, INCONCLUSIVE }
 
 data class PageResult(
     val kind: PageKind,
