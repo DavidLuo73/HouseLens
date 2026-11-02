@@ -14,7 +14,7 @@
 
 ## Global Constraints
 
-- 更新：2026-11-03；狀態：使用者已選 Native 與逐 Task 暫停／review，Task1–2已完成建置、測試與review，停點等待繼續Task3；Task3–14未開始，尚無七站真機成功證據。
+- 更新：2026-11-03；狀態：使用者已選 Native 與逐 Task 暫停／review，Task1–3已完成建置、測試與review，停點等待繼續Task4；Task4–14未開始，尚無七站真機成功證據。
 - 所有 Android plan、tasks、驗證紀錄都放在 `F:\SourceCode\HouseLens\android\` 下；不修改 Web／後端程式或正式資料庫。
 - 裝置：Samsung S25+、One UI 9.0、Android 17。使用者可安裝及操作，**不開 USB 偵錯**；不可把 adb／connectedAndroidTest 列成使用者驗收前提。
 - Kotlin＋Jetpack Compose；`minSdk=26`、`compileSdk/targetSdk=37`。API 26 是工程基線，不表示已驗證 Android 8；真機結論限本 S25+ 組合。
@@ -67,7 +67,7 @@ Task1工程與模型已建立，其餘為未來檔案；`P = android/probe`、`M
 - `CapturedJson(url: String, body: String)` 與 `RawCapture(documentUrl: String, statusCode: Int?, html: String?, json: List<CapturedJson>, navigationId: Long, networkObserved: Boolean)`：只在記憶體用於解析，不直接序列化到匯出檔。
 - `NextPage` = `MORE/END/UNKNOWN`；`PageKind` = `RESULTS/EMPTY/CHALLENGE/INVALID`；`PageResult(kind: PageKind, rawKeys: List<String>, listings: List<ProbeListing>, excluded: Map<String,String>, next: NextPage, evidence: String)`。`excluded` 記不含個資的固定理由代碼；`evidence` 也是固定代碼，不能塞原始 HTML。
 - `RunMode` = `FOREGROUND/BACKGROUND_10M/LOCKED_10M/FULL`；`RunState` = `RUNNING/WAITING_FOR_USER/COMPLETED/CANCELLED/INTERRUPTED/FAILED/TRUNCATED/INCONCLUSIVE`。
-- `ProbeEvent(runId: String, processId: String, site: Site, pageIndex: Int?, kind: String, utc: String, elapsedMs: Long, navigationId: Long?, rawCount: Int?, acceptedCount: Int?, networkObserved: Boolean?, reason: String?)`。processId 是每次程序啟動的隨機值，不是裝置識別碼；事件另以 APP_BACKGROUND／APP_FOREGROUND／SCREEN_OFF／SCREEN_ON 表示狀態區間。kind/reason只接受程式定義的代碼，拒絕任意網頁文字。
+- `ProbeEvent(runId: String, processId: String, site: Site, pageIndex: Int?, kind: ProbeEventKind, utc: String, elapsedMs: Long, navigationId: Long?, rawCount: Int?, acceptedCount: Int?, networkObserved: Boolean?, reason: ProbeReason?, evidenceSource: EvidenceSource, newRawCount: Int? = null)`。processId 是每次程序啟動的隨機值，不是裝置識別碼；事件另以 APP_BACKGROUND／APP_FOREGROUND／SCREEN_OFF／SCREEN_ON 表示狀態區間。kind/reason使用enum，只接受程式定義的代碼，拒絕任意網頁文字；PAGE_SAVED與終止事件由Store產生，newRawCount由已存頁rawKeys計算。
 - `EvidenceSource` = `LIVE/LOCAL_SELF_CHECK/SIMULATED`，RunRecord 與 ProbeEvent 必須明確提供 evidenceSource，與 RunMode 分開；Task3 判讀拒絕非 LIVE 證據。`RunRecord` 保存 runId、processId、query、mode、state、開始時裝置快照、已落盤頁索引及時間事件；`BackgroundVerdict` = `PASSED/FAILED/INCONCLUSIVE/NOT_TESTED`。
 
 `PageTransport.kt` 與來源介面：
@@ -137,16 +137,18 @@ assertEquals(PageDecision.TRUNCATE, nextDecision(filteredPage, emptySet(), 29, 3
 Task2實作決定詳見 [執行紀錄](../tasks/task2.md)：probe僅接受新北中和／永和／新店；代碼先驗長度與格式，語意由來源／Task13驗證。共同篩選不直接套用minSizePing，因現有來源的主建／總建基準不同。exclusionReason回null只代表無可證排除，不表示未知屋齡／車位已符合。END需非空固定證據代碼，UNKNOWN仍有新raw keys時可繼續探測，達上限則截斷。
 ### Task 3: 可恢復的本機紀錄與可信背景判讀
 
-**Files:** Create `M/ProbeStore.kt`、`M/ProbeReport.kt`；Test `T/ProbeStoreTest.kt`、`T/ProbeReportTest.kt`。
+**Files:** Create `M/ProbeStore.kt`、`M/ProbeReport.kt`、`M/ProbeJson.kt`；Modify `M/ProbeModels.kt`（事件enum、新raw計數及尾端遺失旗標）；Test `T/ProbeStoreTest.kt`、`T/ProbeReportTest.kt`。
 
-**Interfaces:** `ProbeStore(root: File, processId: String)` 提供 `create(record: RunRecord)`、`savePage(runId: String, index: Int, result: PageResult)`、`append(event: ProbeEvent)`、`finish(runId: String, state: RunState)`、`load(runId: String): RunRecord`、`export(runId: String, output: OutputStream)`；`backgroundVerdict(events: List<ProbeEvent>, mode: RunMode): BackgroundVerdict`。load只把舊processId且沒有終止記錄的run標INTERRUPTED，不能改寫已完成的歷史。
+**Interfaces:** `ProbeStore(root: File, processId: String)` 提供 `create(record: RunRecord)`、`savePage(runId: String, index: Int, result: PageResult)`、`append(event: ProbeEvent)`、`finish(runId: String, state: RunState)`、`load(runId: String): RunRecord`、`loadPage(runId: String, index: Int): PageResult`、`export(runId: String, output: OutputStream)`；`backgroundVerdict(events: List<ProbeEvent>, mode: RunMode): BackgroundVerdict`。load只把舊processId且沒有終止記錄的run標INTERRUPTED，不能改寫已完成的歷史。
 
-- [ ] **Step 1 — 寫測試。** 成功頁寫入後重載筆數一致；同頁重送不加倍；`.tmp` 半寫入不算完成；正式頁 JSON 損毀明確報錯；RUNNING 程序已不在時呈 INTERRUPTED。匯出不得含測試 cookie／token／電話／address／title／完整 URL 的祕密字串；金額 `798.00` 往返仍精確。
-- [ ] **Step 2 — 寫背景測試並跑 RED。** 只有心跳／networkObserved=false→INCONCLUSIVE；請求在背景、解析在回前景後→FAILED；切換滿600秒且第60/300/540秒請求均在背景取得新頁並完成解析／落盤才 PASSED；螢幕事件不符、processId變動、未滿600秒→INCONCLUSIVE。FOREGROUND不評背景（NOT_TESTED）；FULL需run完成且至少有背景內新頁成功，仍不推論10分鐘以上耐久性。`./gradlew.bat :app:testDebugUnitTest --tests '*ProbeStoreTest' --tests '*ProbeReportTest'`。
-- [ ] **Step 3 — 實作落盤。** app私有 `filesDir/runs/<UUID>/`；每頁獨立JSON，temp寫入＋flush/sync＋同目錄原子rename，成功後才增加checkpoint。重開由完整頁重建 seen／計數；不靠未同步的另一份計數檔。時間事件只接受類型化白名單，append後flush；尾端半行標註遺失。磁碟失敗停止採集，UI報錯，不能繼續宣告已保存。
-- [ ] **Step 4 — 實作匯出與判讀，再跑 GREEN。** ZipOutputStream 只產 `result.md/events.jsonl/sample.json`；sample含來源ID、價格、坪數、地區、排除理由及未知欄位，無原始頁與憑證。紀錄來源是 LOCAL_SELF_CHECK／LIVE，分開判讀；同run/process的單調時間為基準，UTC只供人讀。生產程式中的時鐘與檔案錯誤以函式注入測試，不建多層repository。
-- [ ] **Step 5 — 提交。** `feat(android): persist probe evidence and reject false background passes`。
+- [x] **Step 1 — 寫測試。** 成功頁寫入後重載筆數一致；同頁重送不加倍；`.tmp` 半寫入不算完成；正式頁 JSON 損毀明確報錯；RUNNING 程序已不在時呈 INTERRUPTED。匯出不得含測試 cookie／token／電話／address／title／完整 URL 的祕密字串；金額 `798.00` 往返仍精確。
+- [x] **Step 2 — 寫背景測試並跑 RED。** 只有心跳／networkObserved=false→INCONCLUSIVE；請求在背景、解析在回前景後→FAILED；切換滿600秒且第60/300/540秒請求均在背景取得新頁並完成解析／落盤才 PASSED；螢幕事件不符、processId變動、未滿600秒→INCONCLUSIVE。FOREGROUND不評背景（NOT_TESTED）；FULL需run完成且至少有背景內新頁成功，仍不推論10分鐘以上耐久性。`./gradlew.bat :app:testDebugUnitTest --tests '*ProbeStoreTest' --tests '*ProbeReportTest'`。
+- [x] **Step 3 — 實作落盤。** app私有 `filesDir/runs/<UUID>/`；每頁獨立JSON，temp寫入＋flush/sync＋同目錄原子rename，成功後才增加checkpoint。重開由完整頁重建 seen／計數；不靠未同步的另一份計數檔。時間事件只接受類型化白名單，append後flush；尾端半行標註遺失。磁碟失敗停止採集，UI報錯，不能繼續宣告已保存。
+- [x] **Step 4 — 實作匯出與判讀，再跑 GREEN。** ZipOutputStream 只產 `result.md/events.jsonl/sample.json`；sample含來源ID、價格、坪數、地區、排除理由及未知欄位，無原始頁與憑證。紀錄來源是 LOCAL_SELF_CHECK／LIVE，分開判讀；同run/process的單調時間為基準，UTC只供人讀。生產程式中的時鐘與檔案錯誤以函式注入測試，不建多層repository。
+- [x] **Step 5 — 提交。** `feat(android): persist probe evidence and reject false background passes`。
 
+
+Task3契約細節見 [執行紀錄](../tasks/task3.md)：load依完整頁重建索引，loadPage讀回內容；半行事件回傳eventTailIncomplete及EVIDENCE_INCOMPLETE。背景判讀使用第一段連續600秒區間，三個請求窗口為[60,300)、[300,540)、[540,600)秒，須於600秒內落盤。pageIndex與navigationId均不得重用充數。Store為單程序單例同步IO；頁原子提交後才記事件，未知或缺失證據不補造。明細、終止事件及匯出JSON採明列欄位編解碼。
 ### Task 4: HTTP 與 WebView 採集邊界
 
 **Files:** Create `M/PageTransport.kt`、`M/HttpPageTransport.kt`、`M/WebViewSession.kt`、`P/app/src/main/assets/probe-bridge.js`、`P/app/src/main/assets/selfcheck.html`；Test `T/CaptureGuardTest.kt`、`T/HttpPolicyTest.kt`。
@@ -350,4 +352,4 @@ assertTrue("hasParking" in page.listings.single().unknownFields)
 
 ## 執行交接
 
-使用者已選Native，不再詢問執行方式。Task1–2已完成，等待使用者繼續Task3，主代理依序實作，每Task結束暫停並review，更新 `android/handoff/2.md` 後等待繼續；context超過60%也先暫停更新摘要。詳細停點、不可見context讀數的限制與目前進度見 [交接2](../handoff/2.md)。全部實作完成後仍需獨立review；Task14的真機證據須由使用者實際操作回報。
+使用者已選Native，不再詢問執行方式。Task1–3已完成，等待使用者繼續Task4，主代理依序實作，每Task結束暫停並review，更新 `android/handoff/2.md` 後等待繼續；context超過60%也先暫停更新摘要。詳細停點、不可見context讀數的限制與目前進度見 [交接2](../handoff/2.md)。全部實作完成後仍需獨立review；Task14的真機證據須由使用者實際操作回報。

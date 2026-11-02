@@ -80,20 +80,34 @@ enum class RunState {
 enum class EvidenceSource { LIVE, LOCAL_SELF_CHECK, SIMULATED }
 enum class BackgroundVerdict { PASSED, FAILED, INCONCLUSIVE, NOT_TESTED }
 
+enum class ProbeEventKind {
+    RUN_STARTED, APP_BACKGROUND, APP_FOREGROUND, SCREEN_OFF, SCREEN_ON, HEARTBEAT,
+    REQUEST_STARTED, RESPONSE_RECEIVED, PAGE_PARSED, PAGE_SAVED, WAITING_FOR_USER, RESUMED,
+    RUN_COMPLETED, RUN_CANCELLED, RUN_INTERRUPTED, RUN_FAILED, RUN_TRUNCATED, RUN_INCONCLUSIVE,
+    EVIDENCE_INCOMPLETE,
+}
+
+enum class ProbeReason {
+    NETWORK_ERROR, HTTP_ERROR, RATE_LIMITED, ROBOTS_DISALLOWED, ROBOTS_UNKNOWN,
+    CHALLENGE_WAIT_TIMEOUT, RENDERER_GONE, STORAGE_ERROR, SERVICE_START_DENIED,
+    TIMEOUT, USER_CANCELLED, UNSUPPORTED, PARSE_ERROR, EVIDENCE_LOST, PROCESS_LOST,
+}
+
 data class ProbeEvent(
     val runId: String,
     val processId: String,
     val site: Site,
     val pageIndex: Int?,
-    val kind: String,
+    val kind: ProbeEventKind,
     val utc: String,
     val elapsedMs: Long,
     val navigationId: Long?,
     val rawCount: Int?,
     val acceptedCount: Int?,
     val networkObserved: Boolean?,
-    val reason: String?,
+    val reason: ProbeReason?,
     val evidenceSource: EvidenceSource,
+    val newRawCount: Int? = null,
 )
 
 data class DeviceSnapshot(
@@ -121,4 +135,5 @@ data class RunRecord(
     val evidenceSource: EvidenceSource,
     val savedPageIndices: Set<Int> = emptySet(),
     val events: List<ProbeEvent> = emptyList(),
+    val eventTailIncomplete: Boolean = false,
 )
