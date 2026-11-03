@@ -14,7 +14,7 @@
 
 ## Global Constraints
 
-- 更新：2026-11-03；狀態：使用者已選 Native 與逐 Task 暫停／review，Task1–3已完成建置、測試與review，停點等待繼續Task4；Task4–14未開始，尚無七站真機成功證據。
+- 更新：2026-11-03；狀態：使用者已選 Native 與逐 Task 暫停／review，Task1–4已完成實作、測試與review，停點等待繼續Task5；Task5–14未開始，尚無七站真機成功證據。
 - 所有 Android plan、tasks、驗證紀錄都放在 `F:\SourceCode\HouseLens\android\` 下；不修改 Web／後端程式或正式資料庫。
 - 裝置：Samsung S25+、One UI 9.0、Android 17。使用者可安裝及操作，**不開 USB 偵錯**；不可把 adb／connectedAndroidTest 列成使用者驗收前提。
 - Kotlin＋Jetpack Compose；`minSdk=26`、`compileSdk/targetSdk=37`。API 26 是工程基線，不表示已驗證 Android 8；真機結論限本 S25+ 組合。
@@ -155,12 +155,17 @@ Task3契約細節見 [執行紀錄](../tasks/task3.md)：load依完整頁重建�
 
 **Interfaces:** 依共用 PageTransport；WebViewSession 額外 `attach(container: ViewGroup)`、`detach()`、`destroy()`、`clearSession()`；純函式 `acceptCapture(origin: String, expectedOrigin: String, mainFrame: Boolean, receivedId: Long, expectedId: Long, bytes: Int): Boolean`。HTTP 補 `suspend fun loadImage(site: Site, url: String): ByteArray` 供Task13預覽、`suspend fun checkRobots(url: String): Boolean?` 供Runner對兩類transport檢查（null=未知）；不回傳或記錄敏感headers。
 
-- [ ] **Step 1 — 寫邊界測試。** `591.com.tw.evil.test`、第三方iframe、舊navigationId、超過2MiB橋接訊息拒絕；有效來源＋當頁接受。HTTP 取消不重試；最多3次總嘗試，退避2／4秒且仍滿足每個App發起請求至少3秒間距；429不自動密集重試，回報限流。robots明確禁用路徑停止，取不到內容記未知，不快取某一路徑結論給整站。
-- [ ] **Step 2 — 跑 RED。** `./gradlew.bat :app:testDebugUnitTest --tests '*CaptureGuardTest' --tests '*HttpPolicyTest'`。
-- [ ] **Step 3 — 實作 HTTP。** HttpsURLConnection 在 IO dispatcher，連線15秒／單次總30秒，取消立即disconnect；每請求3秒＋0–1999ms jitter，body上限8MiB。只接受來源生成的HTTPS與允許的來源／圖片CDN host，redirect重新檢查，不關閉TLS驗證；Accept-Encoding只宣告實際可解壓格式。沿用 HttpFetcher 的 robots／限速意圖，修正按host快取允許結果的問題為快取內容、逐path判斷；固定測試其現有支援的規則，不另造通用robots套件。UA用實際WebView UA記錄其值，不虛報Windows版Chrome。信義圖片加 `Referer: https://www.sinyi.com.tw/`，最多取一張縮圖且8MiB上限，decode另作尺寸限制。
-- [ ] **Step 4 — 實作 WebView 候選。** 所有WebView操作在main thread，service持有以application context建立的單一實例；Activity只attach/detach，旋轉不另開一個實例。背景不主動呼叫pauseTimers、無overlay或保持螢幕常亮。導航30秒、等待DOM最多再5秒；DOM不能只憑onPageFinished就視為搜尋完成。SSL錯誤取消，file/content存取關閉，Safe Browsing保持開啟。只在明列來源origin掛橋、main-frame判斷、每次導航更換ID；解析失敗不得回空成功。開始新run時清HTTP資源cache（不默默清登入cookie）；WebView與可用的ServiceWorker設定LOAD_NO_CACHE。networkObserved不能因橋接有訊息就設true：需對應本頁的實際網路證據（如可觀察的非零transferSize）；無法分辨service worker／cache回應時false並標證據不足，不宣稱已證明網路持續。
-- [ ] **Step 5 — 實作並核對橋接。** 用 `DOCUMENT_START_SCRIPT`＋`WEB_MESSAGE_LISTENER` feature detection，在loadUrl前注入短fetch/XHR觀察程式；只複製允許的591 JSON回應，不攔截／改寫原回應，不讀cookie，不用shouldInterceptRequest冒充response-body監聽。JS傳送url/status/content-type/body/navigationId；原生再驗host、主frame、ID與長度。功能不支援則回明確Unsupported，保留DOM候選與缺證狀態。未知網站訊息不寫原始log。renderer退出清除待取頁、重建前停止本次run，不無限重試。
-- [ ] **Step 6 — 跑 GREEN 與本機頁檢查。** JVM上述測試PASS；selfcheck.html包含fetch/XHR、延遲上一導航回應與iframe假訊息，透過WebViewAssetLoader的本機HTTPS origin提供測試回應，僅在使用者按本機檢查時啟用。Task 13提供無adb入口；此階段的未實際執行項目仍留unchecked。提交 `feat(android): add bounded HTTP and WebView capture transports`。
+- [x] **Step 1 — 寫邊界測試。** `591.com.tw.evil.test`、第三方iframe、舊navigationId、超過2MiB橋接訊息拒絕；有效來源＋當頁接受。HTTP 取消不重試；最多3次總嘗試，退避2／4秒且仍滿足每個App發起請求至少3秒間距；429不自動密集重試，回報限流。robots明確禁用路徑停止，取不到內容記未知，不快取某一路徑結論給整站。
+- [x] **Step 2 — 跑 RED。** `./gradlew.bat :app:testDebugUnitTest --tests '*CaptureGuardTest' --tests '*HttpPolicyTest'`。
+- [x] **Step 3 — 實作 HTTP。** HttpsURLConnection 在 IO dispatcher，連線15秒／單次總30秒，取消立即disconnect；每請求3秒＋0–1999ms jitter，body上限8MiB。只接受來源生成的HTTPS與允許的來源／圖片CDN host，redirect重新檢查，不關閉TLS驗證；Accept-Encoding只宣告實際可解壓格式。沿用 HttpFetcher 的 robots／限速意圖，修正按host快取允許結果的問題為快取內容、逐path判斷；固定測試其現有支援的規則，不另造通用robots套件。UA用實際WebView UA記錄其值，不虛報Windows版Chrome。信義圖片加 `Referer: https://www.sinyi.com.tw/`，最多取一張縮圖且8MiB上限，decode另作尺寸限制。
+- [x] **Step 4 — 實作 WebView 候選。** 所有WebView操作在main thread，service持有以application context建立的單一實例；Activity只attach/detach，旋轉不另開一個實例。背景不主動呼叫pauseTimers、無overlay或保持螢幕常亮。導航30秒、等待DOM最多再5秒；DOM不能只憑onPageFinished就視為搜尋完成。SSL錯誤取消，file/content存取關閉，Safe Browsing保持開啟。只在明列來源origin掛橋、main-frame判斷、每次導航更換ID；解析失敗不得回空成功。開始新run時清HTTP資源cache（不默默清登入cookie）；WebView與可用的ServiceWorker設定LOAD_NO_CACHE。networkObserved不能因橋接有訊息就設true：需對應本頁的實際網路證據（如可觀察的非零transferSize）；無法分辨service worker／cache回應時false並標證據不足，不宣稱已證明網路持續。
+- [x] **Step 5 — 實作並核對橋接。** 用 `DOCUMENT_START_SCRIPT`＋`WEB_MESSAGE_LISTENER` feature detection，在loadUrl前注入短fetch/XHR觀察程式；只複製允許的591 JSON回應，不攔截／改寫原回應，不讀cookie，不用shouldInterceptRequest冒充response-body監聽。JS傳送url/status/content-type/body/navigationId；原生再驗host、主frame、ID與長度。功能不支援則回明確Unsupported，保留DOM候選與缺證狀態。未知網站訊息不寫原始log。renderer退出清除待取頁、重建前停止本次run，不無限重試。
+- [x] **Step 6 — 跑 GREEN 與準備本機頁檢查資產。** JVM上述測試PASS；selfcheck.html包含fetch/XHR、延遲上一導航回應與iframe假訊息，透過WebViewAssetLoader的本機HTTPS origin提供測試回應，僅在使用者按本機檢查時啟用。Task 13提供無adb入口；此階段的未實際執行項目仍留unchecked。提交 `feat(android): add bounded HTTP and WebView capture transports`。
+
+
+Task4細節與限制見 [執行紀錄](../tasks/task4.md)。JVM及Node資產測試已驗證；WebView內實際本機頁仍留Task13，不能把Node結果當真機證據。
+
+- [ ] **後續Task13驗收：** 在APK內執行AssetLoader本機頁的fetch／XHR／iframe／跨導航延遲檢查。
 
 ### Task 5: 591 搜尋與 BFF 取證
 
@@ -352,4 +357,4 @@ assertTrue("hasParking" in page.listings.single().unknownFields)
 
 ## 執行交接
 
-使用者已選Native，不再詢問執行方式。Task1–3已完成，等待使用者繼續Task4，主代理依序實作，每Task結束暫停並review，更新 `android/handoff/2.md` 後等待繼續；context超過60%也先暫停更新摘要。詳細停點、不可見context讀數的限制與目前進度見 [交接2](../handoff/2.md)。全部實作完成後仍需獨立review；Task14的真機證據須由使用者實際操作回報。
+使用者已選Native，不再詢問執行方式。Task1–4完成後，等待使用者繼續Task5，主代理依序實作，每Task結束暫停並review，更新 `android/handoff/2.md` 後等待繼續；context超過60%也先暫停更新摘要。詳細停點、不可見context讀數的限制與目前進度見 [交接2](../handoff/2.md)。全部實作完成後仍需獨立review；Task14的真機證據須由使用者實際操作回報。
