@@ -15,11 +15,12 @@ import java.util.zip.ZipOutputStream
 import kotlinx.serialization.json.*
 
 private val evidenceCodes = setOf("next_link", "last_page", "zero_total", "total_pages", "total_count",
-    "no_next_link", "more_pages", "unknown", "empty_marker", "challenge", "invalid_structure", "parse_error")
+    "no_next_link", "more_pages", "unknown", "empty_marker", "challenge", "invalid_structure", "parse_error", "html_fallback")
 private val exclusionCodes = setOf("missing_id", "wrong_source", "unknown_price", "invalid_price", "wrong_city",
     "wrong_district", "over_price", "over_age", "no_parking", "non_residential", "unsupported_type", "duplicate_key")
 private val unknownFieldNames = setOf("city", "district", "address", "areaPing", "floor", "ageYears", "hasParking",
-    "totalPrice", "unitPrice", "sourceListingKey", "title", "url", "postedDate", "imageUrl")
+    "totalPrice", "unitPrice", "sourceListingKey", "title", "url", "postedDate", "imageUrl",
+    "areaBasis", "typeCodes", "useCode", "rooms", "parkingCodes")
 private val listingKey = Regex("[A-Za-z0-9_-]{1,80}")
 private val terminalKinds = mapOf(
     RunState.COMPLETED to ProbeEventKind.RUN_COMPLETED, RunState.CANCELLED to ProbeEventKind.RUN_CANCELLED,

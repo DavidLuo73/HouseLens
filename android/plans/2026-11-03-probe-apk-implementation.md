@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **使用者最新選擇：Native。** 使用 `superpowers:executing-plans`，主代理依序實作；每個 Task 結束後暫停並 review、更新 [交接 2](../handoff/2.md)，等待使用者繼續。Context 使用超過60%時也暫停並更新摘要；若環境沒有可靠比例指標，須明說而不捏造讀數。全部實作完成後另做獨立審查。此要求優先於上方通用模板的建議與任何批次執行預設。
+> **使用者最新選擇：Native。** 使用 `superpowers:executing-plans`，主代理依序實作；每個 Task 結束後暫停並 review、直接覆寫固定的 [交接文件](../handoff/handoff.md)，等待使用者繼續。所有交接一律寫入 `F:\SourceCode\HouseLens\android\handoff\handoff.md`，不另建編號或日期版本。Context 使用超過60%時也暫停並更新摘要；若環境沒有可靠比例指標，須明說而不捏造讀數。全部實作完成後另做獨立審查。此要求優先於上方通用模板的建議與任何批次執行預設。
 
 **Goal:** 交付使用者可自行安裝的測試 APK，驗證七站採集、切換 App／鎖屏進度及中斷行為，產生可人工核對的逐站證據。
 
@@ -14,7 +14,7 @@
 
 ## Global Constraints
 
-- 更新：2026-11-03；狀態：使用者已選 Native 與逐 Task 暫停／review，Task1–4已完成實作、測試與review，停點等待繼續Task5；Task5–14未開始，尚無七站真機成功證據。
+- 更新：2026-11-03；狀態：使用者已選 Native 與逐 Task 暫停／review，Task1–5已完成實作、測試與review，停點等待繼續Task6；Task6–14未開始，尚無七站真機成功證據。
 - 所有 Android plan、tasks、驗證紀錄都放在 `F:\SourceCode\HouseLens\android\` 下；不修改 Web／後端程式或正式資料庫。
 - 裝置：Samsung S25+、One UI 9.0、Android 17。使用者可安裝及操作，**不開 USB 偵錯**；不可把 adb／connectedAndroidTest 列成使用者驗收前提。
 - Kotlin＋Jetpack Compose；`minSdk=26`、`compileSdk/targetSdk=37`。API 26 是工程基線，不表示已驗證 Android 8；真機結論限本 S25+ 組合。
@@ -173,7 +173,7 @@ Task4細節與限制見 [執行紀錄](../tasks/task4.md)。JVM及Node資產測�
 
 **Interfaces:** `F591Source : SourceAdapter`，maxPages=40；request每頁firstRow=pageIndex×30，captureJson=true；parse只選屬於目前地區／分頁的回應，不能合併無關推薦。
 
-- [ ] **Step 1 — 建樣本／測試。** 參照 `F591Scraper.cs` 的 BuildSearchUrl、TryGetTotal、TryParseJsonResponse、ParseJsonListing 與 `ScraperTests.cs` URL測試。既有無BFF fixture，新增合成JSON：page1 key=100001／750萬／28.50坪／total31，page2 key=100002／800萬；total0但含推薦必須EMPTY。測region3/section38、firstRow30/60、PF,PM→parking=1,2,3；舊頁與錯section不得採納。測試 `zeroTotalRejectsRecommendations` 的核心斷言如下，jsonUrl是合成測試URL，不宣稱實站endpoint：
+- [x] **Step 1 — 建樣本／測試。** 參照 `F591Scraper.cs` 的 BuildSearchUrl、TryGetTotal、TryParseJsonResponse、ParseJsonListing 與 `ScraperTests.cs` URL測試。既有無BFF fixture，新增合成JSON：page1 key=100001／750萬／28.50坪／total31，page2 key=100002／800萬；total0但含推薦必須EMPTY。測region3/section38、firstRow30/60、PF,PM→parking=1,2,3；舊頁與錯section不得採納。測試 `zeroTotalRejectsRecommendations` 的核心斷言如下，jsonUrl是合成測試URL，不宣稱實站endpoint：
 
 ```kotlin
 val q = testQuery(Site.F591)
@@ -181,10 +181,12 @@ val raw = captureFixture(F591Source, q, "fixtures/591/zero-with-recommendations.
     "https://sale.591.com.tw/test/list?regionid=3&section=38&firstRow=0")
 assertEquals(PageKind.EMPTY, F591Source.parse(raw, q, 0).kind)
 ```
-- [ ] **Step 2 — 跑 RED。** `./gradlew.bat :app:testDebugUnitTest --tests '*F591SourceTest'`。
-- [ ] **Step 3 — 實作來源。** 支援現碼已列house_list與total路徑；以URI query解析核對region/section/offset，缺少分頁關聯即標未確認，不憑substring。total=0優先排推薦；一頁全過濾仍依total翻頁。HTML備援單獨註記方式，缺少可靠完整性資訊不能宣告BFF等價。缺欄位／body格式錯誤為INVALID。
-- [ ] **Step 4 — 跑 GREEN。** 上述命令PASS；pageIndex1與2URL及回應均不同，抽出的ID／金額精確。真機取不到body仍是合法的「方法未證明」結果，不得以fixture通過取代。
-- [ ] **Step 5 — 提交。** `feat(android): add 591 probe with page-correlated evidence`。
+- [x] **Step 2 — 跑 RED。** `./gradlew.bat :app:testDebugUnitTest --tests '*F591SourceTest'`。
+- [x] **Step 3 — 實作來源。** 支援現碼已列house_list與total路徑；以URI query解析核對region/section/offset，缺少分頁關聯即標未確認，不憑substring。total=0優先排推薦；一頁全過濾仍依total翻頁。HTML備援單獨註記方式，缺少可靠完整性資訊不能宣告BFF等價。缺欄位／body格式錯誤為INVALID。
+- [x] **Step 4 — 跑 GREEN。** 上述命令PASS；pageIndex1與2URL及回應均不同，抽出的ID／金額精確。真機取不到body仍是合法的「方法未證明」結果，不得以fixture通過取代。
+- [x] **Step 5 — 提交。** `feat(android): add 591 probe with page-correlated evidence`。
+
+Task5實作與裁決見 [執行紀錄](../tasks/task5.md)：第一頁合成樣本補足30卡並核對total；BFF已出現的filter須一致，HTML仍UNKNOWN。新增areaBasis/typeCodes/useCode/rooms/parkingCodes未知註記。20項來源測試及完整72項測試、lint、APK建置通過；尚無實站證據。
 
 ### Task 6: 樂屋資料與全過濾頁回歸
 
@@ -328,7 +330,7 @@ assertTrue("hasParking" in page.listings.single().unknownFields)
 
 ### Task 14: 使用者真機驗證與結論
 
-**Files:** Create `android/validation/summary.md`；由使用者回報後新增 `android/validation/<timestamp>-<site>-<case>/result.md` 與遮蔽資料；Modify `android/03-crawler-feasibility.md`、`android/handoff/2.md`。
+**Files:** Create `android/validation/summary.md`；由使用者回報後新增 `android/validation/<timestamp>-<site>-<case>/result.md` 與遮蔽資料；Modify `android/03-crawler-feasibility.md`、`android/handoff/handoff.md`。
 
 **Interfaces:** Consumes Task13 APK、Task3匯出以及驗證方案T0–T5。Produces 七站前景／B1／B2／B3／長輪次／中斷／圖片／人工介入矩陣；每格附APK版本和證據路徑，不生成不存在的結果。
 
@@ -357,4 +359,4 @@ assertTrue("hasParking" in page.listings.single().unknownFields)
 
 ## 執行交接
 
-使用者已選Native，不再詢問執行方式。Task1–4完成後，等待使用者繼續Task5，主代理依序實作，每Task結束暫停並review，更新 `android/handoff/2.md` 後等待繼續；context超過60%也先暫停更新摘要。詳細停點、不可見context讀數的限制與目前進度見 [交接2](../handoff/2.md)。全部實作完成後仍需獨立review；Task14的真機證據須由使用者實際操作回報。
+使用者已選Native，不再詢問執行方式。Task1–4完成後，等待使用者繼續Task5，主代理依序實作，每Task結束暫停並review，直接覆寫 `android/handoff/handoff.md` 後等待繼續；context超過60%也先暫停覆寫同檔更新摘要。詳細停點、不可見context讀數的限制與目前進度見 [交接文件](../handoff/handoff.md)。全部實作完成後仍需獨立review；Task14的真機證據須由使用者實際操作回報。
