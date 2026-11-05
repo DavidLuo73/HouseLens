@@ -14,7 +14,7 @@
 
 ## Global Constraints
 
-- 更新：2026-11-06；狀態：使用者已選 Native 與逐 Task 暫停／review，Task1–6已完成實作、測試與review，停點等待繼續Task7；Task7–14未開始，尚無七站真機成功證據。
+- 更新：2026-11-06；狀態：使用者已選 Native 與逐 Task 暫停／review，Task1–7已完成實作、測試與review，停點等待繼續Task8；Task8–14未開始，尚無七站真機成功證據。
 - 所有 Android plan、tasks、驗證紀錄都放在 `F:\SourceCode\HouseLens\android\` 下；不修改 Web／後端程式或正式資料庫。
 - 裝置：Samsung S25+、One UI 9.0、Android 17。使用者可安裝及操作，**不開 USB 偵錯**；不可把 adb／connectedAndroidTest 列成使用者驗收前提。
 - Kotlin＋Jetpack Compose；`minSdk=26`、`compileSdk/targetSdk=37`。API 26 是工程基線，不表示已驗證 Android 8；真機結論限本 S25+ 組合。
@@ -215,7 +215,7 @@ Task6實作與裁決見 [執行紀錄](../tasks/task6.md)：沿用住宅白名�
 
 **Interfaces:** YungchingSource實作SourceAdapter，maxPages=30；BuildSearchUrl使用1-based pg，住宅／型態映射沿現碼。
 
-- [ ] **Step 1 — 寫測試。** 移入ResidentialCard→1234567、750萬、28.50坪、12年；BuildingWithParking→9876543、1280萬、true；NonResidentialCard排除。新增「暫無符合物件」搭配本週精選→EMPTY、滿頁全部過濾→不結束、challenge→CHALLENGE。
+- [x] **Step 1 — 寫測試。** 移入ResidentialCard→1234567、750萬、28.50坪、12年；BuildingWithParking→9876543、1280萬、true；NonResidentialCard排除。新增「暫無符合物件」搭配本週精選→EMPTY、滿頁全部過濾→不結束、challenge→CHALLENGE。
 
 ```kotlin
 val q = testQuery(Site.Yungching)
@@ -223,10 +223,12 @@ val page = YungchingSource.parse(captureFixture(YungchingSource, q, "fixtures/yu
 assertEquals(PageKind.EMPTY, page.kind)
 assertTrue(page.listings.isEmpty())
 ```
-- [ ] **Step 2 — 跑 RED。** `./gradlew.bat :app:testDebugUnitTest --tests '*YungchingSourceTest'`。
-- [ ] **Step 3 — 實作。** 使用 `li.search-result-list-item a.link`，原始卡與有效結果分開；精選不作搜尋ID。缺資料不能吞錯成空。網站驗證轉等待，由使用者處理，不移植Playwright的驗證點擊。
-- [ ] **Step 4 — 跑 GREEN。** 同上，增加第二頁query `pg=2`斷言。
-- [ ] **Step 5 — 提交。** `feat(android): add Yungching probe and empty-state checks`。
+- [x] **Step 2 — 跑 RED。** `./gradlew.bat :app:testDebugUnitTest --tests '*YungchingSourceTest'`。
+- [x] **Step 3 — 實作。** 使用 `li.search-result-list-item a.link`，原始卡與有效結果分開；精選不作搜尋ID。缺資料不能吞錯成空。網站驗證轉等待，由使用者處理，不移植Playwright的驗證點擊。
+- [x] **Step 4 — 跑 GREEN。** 同上，增加第二頁query `pg=2`斷言。
+- [x] **Step 5 — 提交。** `feat(android): add Yungching probe and empty-state checks`。
+
+Task7實作與裁決見 [執行紀錄](../tasks/task7.md)：住宅／型態映射、精選空結果排除、原始卡完整性與未知欄位；16項來源測試及完整103項測試、lint、APK建置通過。review兩項修正已完成，尚未接UI或實站驗證。
 
 ### Task 8: 住商原始卡片計數
 
@@ -361,4 +363,4 @@ assertTrue("hasParking" in page.listings.single().unknownFields)
 
 ## 執行交接
 
-使用者已選Native，不再詢問執行方式。Task1–4完成後，等待使用者繼續Task5，主代理依序實作，每Task結束暫停並review，直接覆寫 `android/handoff/handoff.md` 後等待繼續；context超過60%也先暫停覆寫同檔更新摘要。詳細停點、不可見context讀數的限制與目前進度見 [交接文件](../handoff/handoff.md)。全部實作完成後仍需獨立review；Task14的真機證據須由使用者實際操作回報。
+使用者已選Native，不再詢問執行方式。Task1–7完成後，等待使用者繼續Task8，主代理依序實作，每Task結束暫停並review，直接覆寫 `android/handoff/handoff.md` 後等待繼續；context超過60%也先暫停覆寫同檔更新摘要。詳細停點、不可見context讀數的限制與目前進度見 [交接文件](../handoff/handoff.md)。全部實作完成後仍需獨立review；Task14的真機證據須由使用者實際操作回報。

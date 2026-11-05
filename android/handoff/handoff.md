@@ -4,7 +4,7 @@
 
 ## 下一輪從這裡開始
 
-**Task 6 實作、測試與獨立 review 已完成，停在使用者指定的逐 Task 停點；Task 7 尚未開始。** 等使用者說「繼續」，再依 [驗證 APK 實作計畫](../plans/2026-11-03-probe-apk-implementation.md) 執行 Task 7：永慶住宅與精選排除。不要重做 Task1–6 或重問執行方式。
+**Task 7 實作、測試與獨立 review 已完成，停在使用者指定的逐 Task 停點；Task 8 尚未開始。** 等使用者說「繼續」，再依 [驗證 APK 實作計畫](../plans/2026-11-03-probe-apk-implementation.md) 執行 Task 8：住商原始卡片計數。不要重做 Task1–7 或重問執行方式。
 
 所有 Android 程式碼必須寫在 **`F:\SourceCode\HouseLens\android\`** 下（使用者本輪再次明確指定），含工程、任務及驗證紀錄。工程位於 `android/probe/`。
 
@@ -20,6 +20,7 @@
 ## 必讀入口
 
 - [驗證 APK 實作計畫](../plans/2026-11-03-probe-apk-implementation.md)：14個Task、共用介面、fixture及驗證步驟。
+- [Task7 執行紀錄](../tasks/task7.md)：永慶住宅／型態、合法空頁排除精選、全過濾頁、review修正及103項測試。
 - [Task6 執行紀錄](../tasks/task6.md)：樂屋查詢／解析、主建與HALF_EVEN、全過濾頁／未知分頁、review修正及87項測試。
 - [Task5 執行紀錄](../tasks/task5.md)：591查詢／BFF關聯、合成樣本、HTML備援、完整性與未知欄位裁決、review修正及72項測試。
 - [Task4 執行紀錄](../tasks/task4.md)：HTTP／WebView安全邊界、robots／限速、橋接與本機頁、review修正及原生待驗證限制。
@@ -41,7 +42,8 @@
 | Task4 | **完成**：HTTP／WebView候選與橋接邊界，未接UI；本機頁尚未在WebView實跑 |
 | Task5 | **完成**：591 adapter／合成樣本／20項來源測試，未接UI、未實站驗證 |
 | Task6 | **完成**：樂屋adapter／三份合成樣本／15項來源測試，未接UI、未實站驗證 |
-| Task7–13 | **未開始**：目前手機畫面仍不能抓取、保存或匯出 |
+| Task7 | **完成**：永慶adapter／三份合成樣本／16項來源測試，未接UI、未實站驗證 |
+| Task8–13 | **未開始**：目前手機畫面仍不能抓取、保存或匯出 |
 | Task14 | **未開始**：尚無手機安裝、七站或背景成功證據 |
 | Web／Supabase／正式App | 未修改或部署 |
 
@@ -112,7 +114,7 @@ APK：`android/validation/builds/task1/HouseLens-probe.apk`（0.1.0／versionCod
 - 限制：沒有真實BFF endpoint/body；若實站省略offset、改POST、不同host/path或頁大小，會保守INVALID，需實際證據後調整。未重跑未修改的Node資產；未跑實站／WebView／adb／手機或背景。Task1留存APK未覆蓋，當前建置UI仍只有版本與未開始。
 - 全部指令已結束，沒有阻礙；context實際百分比不可見。下一步Task6先讀RakuyaScraper與測試、沿用Fixtures，主建面積與HALF_EVEN取整、全過濾頁不停止是重點。依使用者要求此處停下。
 
-## Task6 最新結果與下一步
+## Task6 歷史結果與接續契約
 
 - 新增 `probe/app/src/main/java/tw/houselens/probe/sources/RakuyaSource.kt`、`RakuyaSourceTest.kt`、`src/test/resources/fixtures/rakuya/apartment.html`／`house.html`／`filtered-page.html`。沿用Fixtures、ProbeRules、Store與transport，沒有依賴、SDK、manifest、UI或後端變更。
 - 最終命令（repo root）：`./android/probe/gradlew.bat -p android/probe :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --offline --console plain --no-daemon '-Pkotlin.compiler.execution.strategy=in-process'` → **exit0／BUILD SUCCESSFUL，87 tests／0失敗／0錯誤，lint0 errors／5個既有鎖版新版提示**。來源15項、既有72項通過；紀錄 `validation/builds/task6/verified.log`／`build-info.json`，其餘紅綠測試見Task6紀錄。
@@ -124,6 +126,18 @@ APK：`android/validation/builds/task1/HouseLens-probe.apk`（0.1.0／versionCod
 - 獨立唯讀review找到兩項必修，均由主代理RED→GREEN修完：城市與行政區間空白造成跨區物件被補成查詢區；缺型態時把房數／屋齡／樓層當非住宅。回歸涵蓋普通／全形／NBSP空白及逐步缺欄位。沒有必修遺留。
 - Store實際save/load/export測試通過，fixture networkObserved=false／SIMULATED，不能當LIVE。未重跑未修改的Node橋接資產；未跑實站／WebView／adb／手機或背景。Task1留存APK未覆蓋，當前UI仍只有版本與未開始。
 - 全部指令已結束，沒有阻礙；context實際百分比不可見。下一步Task7先讀YungchingScraper與測試，住宅／型態、停車位、精選與合法空結果優先序是重點；依使用者要求此處停下。
+
+## Task7 最新結果與下一步
+
+- 新增 `probe/app/src/main/java/tw/houselens/probe/sources/YungchingSource.kt`、`YungchingSourceTest.kt`、`src/test/resources/fixtures/yungching/residential.html`／`parking.html`／`empty-featured.html`。沿用 Fixtures、ProbeRules、Store 與 transport；沒有依賴、SDK、manifest、UI 或後端變更。
+- 最終命令（repo root）：`./android/probe/gradlew.bat -p android/probe :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --offline --console plain --no-daemon '-Pkotlin.compiler.execution.strategy=in-process'` → **exit0／BUILD SUCCESSFUL，103 tests／0失敗／0錯誤，lint0 errors／5個既有鎖版新版提示**。來源16項、既有87項通過；見 `validation/builds/task7/verified.log`／`build-info.json`。
+- 永慶 maxPages30，第一頁無query、第二頁 `pg=2`；browser=true、captureJson=false、warmup首頁。URL沿用現碼城市／區、價格、型態、坪數、住宅、車位、屋齡順序；價格／坪數保留精確小數。R1→無電梯公寓、R2→電梯大廈＋華廈，卡片對應公寓／住宅大樓／華廈；PF／PM與原生車位名稱／y沿現碼映射；未知代碼或非住宅useCode拒絕。
+- 住宅樣本→1234567／750萬／建坪28.50／12.5年HALF_EVEN→12；車位樣本→9876543／1280萬／35坪／8年／永和區／有車位。地址明確跨區時排除，不能用query覆寫。缺城市／區域才以query補值並標未知；車位缺標記／負向文案保守未知。房數未有URL映射，房數、用途、精確車位類型與面積篩選基準未核實保留unknownFields。
+- document必須HTTPS精確host、相同解碼後path與相同query／page；優先序為URL核對→CHALLENGE→HTTP狀態→合法空結果→卡片。卡片ID必須合法本站house數字路徑且價格正值；壞卡整頁INVALID，先驗證再去重／篩選。有效重複ID沿HTML取首筆，異價新舊仍未裁決。
+- 固定「暫無符合物件」空標記回EMPTY／END／empty_marker，忽略本週精選，rawKeys與listings皆空；卡片／腳本／模板及明確隱藏元素中的文字不算空標記。無卡無標記INVALID，非空頁UNKNOWN，全過濾頁保留rawKeys繼續，重複頁INCONCLUSIVE、上限TRUNCATE；尚不能證明實站完整分頁。
+- 獨立唯讀review發現兩項必修並由主代理RED→GREEN修完：inline隱藏空標記誤報END；「無 車位」誤確認有車位。新增回歸含display:none、visibility:hidden／collapse、大小寫／important、NBSP與拆span負向文案。沒有必修遺留。外部CSS的computed visibility不由靜態HTML還原，實站空標記仍需核對。
+- Store save/load/export實測通過，fixture networkObserved=false／SIMULATED，不可當LIVE。圖片沿用來源縮圖，不照搬放大1200。未重跑未修改的Node資產；未跑實站／WebView／adb／手機或背景。Task1留存APK未覆蓋，當前UI仍只有版本與未開始。
+- 全部命令已結束，沒有阻礙；context實際百分比不可見。下一步Task8先讀HBHousingScraper與測試，重點為10張原始卡全過濾仍MORE、1–9張正確原始卡末頁證據、0卡合法空標記；依使用者要求此處停下。
 
 ## 工具鏈與接續注意事項
 
