@@ -14,7 +14,7 @@
 
 ## Global Constraints
 
-- 更新：2026-11-06；狀態：使用者已選 Native 與逐 Task 暫停／review，Task1–7已完成實作、測試與review，停點等待繼續Task8；Task8–14未開始，尚無七站真機成功證據。
+- 更新：2026-11-06；狀態：使用者已選 Native 與逐 Task 暫停／review，Task1–8已完成實作、測試與review，停點等待繼續Task9；Task9–14未開始，尚無七站真機成功證據。
 - 所有 Android plan、tasks、驗證紀錄都放在 `F:\SourceCode\HouseLens\android\` 下；不修改 Web／後端程式或正式資料庫。
 - 裝置：Samsung S25+、One UI 9.0、Android 17。使用者可安裝及操作，**不開 USB 偵錯**；不可把 adb／connectedAndroidTest 列成使用者驗收前提。
 - Kotlin＋Jetpack Compose；`minSdk=26`、`compileSdk/targetSdk=37`。API 26 是工程基線，不表示已驗證 Android 8；真機結論限本 S25+ 組合。
@@ -236,7 +236,7 @@ Task7實作與裁決見 [執行紀錄](../tasks/task7.md)：住宅／型態映�
 
 **Interfaces:** HBHousingSource實作SourceAdapter，maxPages=100，原始頁大小10。
 
-- [ ] **Step 1 — 寫測試。** 移入ResidentialCard→YS202291／750萬／29.05坪；BuildingWithParking→ZS203105／1280萬／true；OutRawCardCount案例；10張原始卡全部被排除仍MORE。重複原始keys不得無限循環，未知空頁不是EMPTY。
+- [x] **Step 1 — 寫測試。** 移入ResidentialCard→YS202291／750萬／29.05坪；BuildingWithParking→ZS203105／1280萬／true；OutRawCardCount案例；10張原始卡全部被排除仍MORE。重複原始keys不得無限循環，未知空頁不是EMPTY。
 
 ```kotlin
 val q = testQuery(Site.HBHousing).copy(maxTotalPrice = BigDecimal("1"))
@@ -245,10 +245,10 @@ assertEquals(10, page.rawKeys.size)
 assertTrue(page.listings.isEmpty())
 assertEquals(NextPage.MORE, page.next)
 ```
-- [ ] **Step 2 — 跑 RED。** `./gradlew.bat :app:testDebugUnitTest --tests '*HBHousingSourceTest'`。
-- [ ] **Step 3 — 實作。** 按現碼section class含`@container`與`h3 a`的detail?sn提取卡片，避開fragment重複連結。1–9張正確原始卡可作現有末頁證據；0卡需明確空標記／頁面證據，否則INVALID。
-- [ ] **Step 4 — 跑 GREEN。** 同上；rawKeys數量與過濾前卡片相符，已接受資料依來源ID去重。
-- [ ] **Step 5 — 提交。** `feat(android): add HBHousing probe with raw-card boundaries`。
+- [x] **Step 2 — 跑 RED。** `./gradlew.bat :app:testDebugUnitTest --tests '*HBHousingSourceTest'`。
+- [x] **Step 3 — 實作。** 按現碼section class含`@container`與`h3 a`的detail?sn提取卡片，避開fragment重複連結。1–9張正確原始卡可作現有末頁證據；0卡需明確空標記／頁面證據，否則INVALID。
+- [x] **Step 4 — 跑 GREEN。** 同上；rawKeys數量與過濾前卡片相符，已接受資料依來源ID去重。
+- [x] **Step 5 — 提交。** `feat(android): add HBHousing probe with raw-card boundaries`。
 
 ### Task 9: 信義 HTTP、SSR 與圖片
 
@@ -363,4 +363,4 @@ assertTrue("hasParking" in page.listings.single().unknownFields)
 
 ## 執行交接
 
-使用者已選Native，不再詢問執行方式。Task1–7完成後，等待使用者繼續Task8，主代理依序實作，每Task結束暫停並review，直接覆寫 `android/handoff/handoff.md` 後等待繼續；context超過60%也先暫停覆寫同檔更新摘要。詳細停點、不可見context讀數的限制與目前進度見 [交接文件](../handoff/handoff.md)。全部實作完成後仍需獨立review；Task14的真機證據須由使用者實際操作回報。
+使用者已選Native，不再詢問執行方式。Task1–8完成後，等待使用者繼續Task9，主代理依序實作，每Task結束暫停並review，直接覆寫 `android/handoff/handoff.md` 後等待繼續；context超過60%也先暫停覆寫同檔更新摘要。詳細停點、不可見context讀數的限制與目前進度見 [交接文件](../handoff/handoff.md)。全部實作完成後仍需獨立review；Task14的真機證據須由使用者實際操作回報。
