@@ -14,7 +14,7 @@
 
 ## Global Constraints
 
-- 更新：2026-11-03；狀態：使用者已選 Native 與逐 Task 暫停／review，Task1–5已完成實作、測試與review，停點等待繼續Task6；Task6–14未開始，尚無七站真機成功證據。
+- 更新：2026-11-06；狀態：使用者已選 Native 與逐 Task 暫停／review，Task1–6已完成實作、測試與review，停點等待繼續Task7；Task7–14未開始，尚無七站真機成功證據。
 - 所有 Android plan、tasks、驗證紀錄都放在 `F:\SourceCode\HouseLens\android\` 下；不修改 Web／後端程式或正式資料庫。
 - 裝置：Samsung S25+、One UI 9.0、Android 17。使用者可安裝及操作，**不開 USB 偵錯**；不可把 adb／connectedAndroidTest 列成使用者驗收前提。
 - Kotlin＋Jetpack Compose；`minSdk=26`、`compileSdk/targetSdk=37`。API 26 是工程基線，不表示已驗證 Android 8；真機結論限本 S25+ 組合。
@@ -194,7 +194,7 @@ Task5實作與裁決見 [執行紀錄](../tasks/task5.md)：第一頁合成樣�
 
 **Interfaces:** RakuyaSource實作SourceAdapter，maxPages=30；warmupUrl=`https://www.rakuya.com.tw`，逐頁以同一session導覽。
 
-- [ ] **Step 1 — 寫測試。** 從 `RakuyaScraperTests.cs` 移入ApartmentCard、TransparentHouse與DuplicateCards：ID `0ca48612345678a`／2088萬／主建26.98坪；透天1580萬／總建45坪／44.5年依HALF_EVEN為44；重複卡一筆。補「第一頁全部過濾、第二頁仍有效」與無卡但沒有空狀態的INVALID案例。
+- [x] **Step 1 — 寫測試。** 從 `RakuyaScraperTests.cs` 移入ApartmentCard、TransparentHouse與DuplicateCards：ID `0ca48612345678a`／2088萬／主建26.98坪；透天1580萬／總建45坪／44.5年依HALF_EVEN為44；重複卡一筆。補「第一頁全部過濾、第二頁仍有效」與無卡但沒有空狀態的INVALID案例。
 
 ```kotlin
 val q = testQuery(Site.Rakuya, "新店區")
@@ -202,10 +202,12 @@ val page = RakuyaSource.parse(captureFixture(RakuyaSource, q, "fixtures/rakuya/a
 assertEquals("0ca48612345678a", page.listings.single().sourceListingKey)
 assertEquals(0, page.listings.single().areaPing.compareTo(BigDecimal("26.98")))
 ```
-- [ ] **Step 2 — 跑 RED。** `./gradlew.bat :app:testDebugUnitTest --tests '*RakuyaSourceTest'`。
-- [ ] **Step 3 — 實作。** 取 `section.search-obj` 的data-ehid，先保存原始keys再過濾；沿用BuildSearchUrl映射。可靠下一頁／空狀態才能END；目前fixture無此證據時UNKNOWN並受上限保護，不猜selector或默認0卡=完成。禁止複製現有pageResults.Count==0停止條件。
-- [ ] **Step 4 — 跑 GREEN。** 同上；以兩頁fixture序列核對Task2決策不漏第二頁。
-- [ ] **Step 5 — 提交。** `feat(android): add Rakuya probe preserving raw pagination evidence`。
+- [x] **Step 2 — 跑 RED。** `./gradlew.bat :app:testDebugUnitTest --tests '*RakuyaSourceTest'`。
+- [x] **Step 3 — 實作。** 取 `section.search-obj` 的data-ehid，先保存原始keys再過濾；沿用BuildSearchUrl映射。可靠下一頁／空狀態才能END；目前fixture無此證據時UNKNOWN並受上限保護，不猜selector或默認0卡=完成。禁止複製現有pageResults.Count==0停止條件。
+- [x] **Step 4 — 跑 GREEN。** 同上；以兩頁fixture序列核對Task2決策不漏第二頁。
+- [x] **Step 5 — 提交。** `feat(android): add Rakuya probe preserving raw pagination evidence`。
+
+Task6實作與裁決見 [執行紀錄](../tasks/task6.md)：沿用住宅白名單與主建優先，HALF_EVEN取整；無可靠末頁／空結果樣本，非空UNKNOWN、無卡INVALID。15項來源測試及完整87項測試、lint、APK建置通過；review修正地區空白與缺型態誤排除。尚未接UI或實站驗證。
 
 ### Task 7: 永慶住宅與精選排除
 
