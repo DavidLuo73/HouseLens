@@ -4,7 +4,7 @@
 
 ## 下一輪從這裡開始
 
-**Task 10 實作、測試與獨立 review 已完成，停在使用者指定的逐 Task 停點；Task 11 尚未開始。** 等使用者說「繼續」，再依 [驗證 APK 實作計畫](../plans/2026-11-03-probe-apk-implementation.md) 執行 Task 11：台灣房屋建坪與未知欄位。不要重做 Task1–10 或重問執行方式。
+**Task 11 實作、測試與獨立 review 已完成，停在使用者指定的逐 Task 停點；Task 12 尚未開始。** 等使用者說「繼續」，再依 [驗證 APK 實作計畫](../plans/2026-11-03-probe-apk-implementation.md) 執行 Task 12：單一作業、背景服務與中斷收尾。不要重做 Task1–11 或重問執行方式。
 
 所有 Android 程式碼必須寫在 **`F:\SourceCode\HouseLens\android\`** 下（使用者本輪再次明確指定），含工程、任務及驗證紀錄。工程位於 `android/probe/`。
 
@@ -20,6 +20,7 @@
 ## 必讀入口
 
 - [驗證 APK 實作計畫](../plans/2026-11-03-probe-apk-implementation.md)：14個Task、共用介面、fixture及驗證步驟。
+- [Task11 執行紀錄](../tasks/task11.md)：台灣房屋建坪／現價、未知欄位、空頁／全過濾頁、review修正及175項測試。
 - [Task10 執行紀錄](../tasks/task10.md)：中信POST／envelope／現價、全過濾頁／跨區、review修正及153項測試。
 - [Task9 執行紀錄](../tasks/task9.md)：信義HTTP／SSR、原始20卡分頁、圖片解碼／影片／fallback、review修正及137項測試。
 - [Task8 執行紀錄](../tasks/task8.md)：住商原始卡數／分頁、未知零筆、型態／車位修正、review及120項測試。
@@ -49,7 +50,8 @@
 | Task8 | **完成**：住商adapter／三份合成樣本／17項來源測試，未接UI、未實站驗證 |
 | Task9 | **完成**：信義adapter／三份合成樣本／17項來源測試，未接UI、未實站驗證 |
 | Task10 | **完成**：中信adapter／三份合成JSON／16項來源測試，未接UI、未實站驗證 |
-| Task11–13 | **未開始**：目前手機畫面仍不能抓取、保存或匯出 |
+| Task11 | **完成**：台灣房屋adapter／三份合成HTML／22項來源測試，未接UI、未實站驗證 |
+| Task12–13 | **未開始**：目前手機畫面仍不能抓取、保存或匯出 |
 | Task14 | **未開始**：尚無手機安裝、七站或背景成功證據 |
 | Web／Supabase／正式App | 未修改或部署 |
 
@@ -171,7 +173,7 @@ APK：`android/validation/builds/task1/HouseLens-probe.apk`（0.1.0／versionCod
 - fixture均SIMULATED／networkObserved=false。真實DOM、合法零筆、含多金額卡片、短頁、小數URL、圖片可用性仍待實站核對；合成測試不證明手機或背景成功。未跑實站／WebView／adb／手機／背景，未重跑未修改Node橋接。Task1留存APK未覆蓋，當前UI仍只有版本與未開始。
 - 全部命令已結束，無阻礙；context實際百分比不可見。下一步Task10先讀CtHouseScraper與測試，重點為POST JSON `{arg,page}`、RS／houses／totalpage envelope驗證、sell_price現價、跨區排除與全過濾頁不停止；依使用者要求此處停下。
 
-## Task10 最新結果與下一步
+## Task10 歷史結果與接續契約
 
 - 新增 `probe/app/src/main/java/tw/houselens/probe/sources/CtHouseSource.kt`、`CtHouseSourceTest.kt`、三份 `src/test/resources/fixtures/cthouse/` 合成JSON（results／discounted／error）。沿用 Fixtures、ProbeRules、Store 與 HTTP transport；無依賴、SDK、manifest、共用程式、UI或後端變更。
 - 最終命令（repo root）：`./android/probe/gradlew.bat -p android/probe :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --offline --console plain --no-daemon '-Pkotlin.compiler.execution.strategy=in-process'` → **exit0／BUILD SUCCESSFUL，153 tests／0失敗／0錯誤，lint0 errors／5個既有鎖版新版提示**。來源16項、既有137項全通過；見 `validation/builds/task10/verified.log`／`build-info.json`。原始RED缺API，review-red為16項中2項依預期失敗。
@@ -184,6 +186,20 @@ APK：`android/validation/builds/task1/HouseLens-probe.apk`（0.1.0／versionCod
 - 實際HTTP transport整合測試只替換連線邊界，驗POST／JSON body／Content-Type／navigationId／RawCapture.json；Store save/load/export保留798.00及白名單證據。arg/page不在回應URL，頁次關聯需由當次transport呼叫與Task12 Runner navigationId維持，parser不能單靠endpoint證明頁次。
 - fixture均SIMULATED／networkObserved=false；未跑實站、WebView、adb／手機／背景或未修改的Node橋接。空頁、小數條件、欄位與圖片可用性仍待實站核對；Task1留存APK未覆蓋，當前UI仍只有版本與未開始。
 - 全部命令已結束，無阻礙；context實際百分比不可見。下一步Task11先讀TwHouseScraper與測試，重點為建坪非地坪、現價、合法空標記、全過濾頁繼續，列表缺地址／樓層／車位保持未知；不自行加逐屋詳情請求。依使用者要求此處停下。
+
+## Task11 最新結果與下一步
+
+- 新增 `probe/app/src/main/java/tw/houselens/probe/sources/TwHouseSource.kt`、`TwHouseSourceTest.kt`、三份 `src/test/resources/fixtures/twhouse/` 合成HTML（residential／discounted／empty）。沿用 Fixtures、ProbeRules、Store 與 HTTP transport；沒有依賴、SDK、manifest、共用程式、UI或後端變更。
+- 最終命令（repo root）：`./android/probe/gradlew.bat -p android/probe :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --offline --console plain --no-daemon '-Pkotlin.compiler.execution.strategy=in-process'` → **exit0／BUILD SUCCESSFUL，175 tests／0失敗／0錯誤，lint0 errors／5個既有鎖版新版提示**。來源22項、既有153項全通過；見 `validation/builds/task11/final.log`／`build-info.json`。原始RED缺API；review-red為21項中5失敗；nested-price-red重現巢狀負號。
+- 台灣房屋 maxPages30，HTTP GET／browser=false／captureJson=false／無warmup；中和235／永和234／新店231，1-based `?page=N`。型態順序apartment／midrise／condo，R1→apartment、R2→midrise＋condo；空type預設三種。房數取最小值，PF／PM僅映射有車位；未知代碼／非住宅用途拒絕。價格與坪數保留小數，坪數必帶 `fullBuildingPing-ping_type`。
+- Residential→A123456789／760萬／建坪34.56／25年／單價21.99；Discounted→TF02157997／現價1480萬／32.00坪／永和區，不能取原價1800。只讀建坪，不讀地坪。屋齡／單價HALF_EVEN；areaBasis及精確條件仍待實站核實，不新增本地minSizePing排除。
+- 當頁須精確安全HTTPS host/path/query；challenge先於空頁，HTTP失敗／壞卡INVALID。排除列表導覽與非房源標題連結，有房源內容的壞ID仍報錯。每卡先驗安全ID與正現價，再篩選／去重；rawKeys保留重複原始卡。同ID完整listing與排除理由須一致，衝突整頁INVALID。
+- 非空頁UNKNOWN／unknown，全過濾頁保留rawKeys繼續；重複頁INCONCLUSIVE，30頁上限TRUNCATE。合法可見「暫無查詢物件」回EMPTY／END／empty_marker，忽略推薦卡；卡片／script／template／hidden／inline隱藏文字不算空證據。外部CSS可見性仍需實站核對。
+- 城市與行政區分開解析，含全形／NBSP空白；已知跨區排除，缺值才補query並標未知。完整地址／樓層／車位／刊登日期列表未取得；null／false只是佔位，unknownFields明示。型態／用途、指定房數／車位型式未逐筆核實；沒有接入舊ParseDetail或增加逐屋請求。完整欄位矩陣在Task11紀錄。
+- 獨立review六項均RED→GREEN修完：地址「萬」誤當價格、缺現價退回舊價、重複卡住宅判斷衝突、非房源標題導覽誤當卡片、缺行政區覆寫已知城市、巢狀金額略過父層負號。Reviewer已核對最終修正，沒有必修遺留。
+- 現價直接驗既有住宅 `.mt-auto` 容器或降價卡末端直接欄位的完整文字，允許數字／單位拆標籤，拒絕負號／待更新／錯誤單位／空白。**未知價格版型或容器同時含多個金額會保守INVALID**；不得改回最後一個成功解析金額，需取得實站DOM後補selector。程式已註明shortcut。
+- Store save/load/export實測通過；fixture均SIMULATED／networkObserved=false。未跑實站、WebView、adb／手機／背景或未修改的Node橋接。圖片／空頁／小數條件與目前網站結構仍待實站確認；Task1留存APK未覆蓋，當前UI仍只有版本與未開始。
+- 全部命令已結束，無阻礙；context實際百分比不可見。下一步Task12先核對Store／Report／transport接線契約，寫Runner／Recovery紅測試：單作業、filtered→valid→END、取消／晚到回應、存檔失敗、頁限／challenge及舊程序恢復，再接服務與生命週期。依使用者要求此處停下。
 
 ## 工具鏈與接續注意事項
 

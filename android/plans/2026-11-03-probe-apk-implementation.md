@@ -14,7 +14,7 @@
 
 ## Global Constraints
 
-- 更新：2026-11-06；狀態：使用者已選 Native 與逐 Task 暫停／review，Task1–10已完成實作、測試與review，停點等待繼續Task11；Task11–14未開始，尚無七站真機成功證據。
+- 更新：2026-11-06；狀態：使用者已選 Native 與逐 Task 暫停／review，Task1–11已完成實作、測試與review，停點等待繼續Task12；Task12–14未開始，尚無七站真機成功證據。
 - 所有 Android plan、tasks、驗證紀錄都放在 `F:\SourceCode\HouseLens\android\` 下；不修改 Web／後端程式或正式資料庫。
 - 裝置：Samsung S25+、One UI 9.0、Android 17。使用者可安裝及操作，**不開 USB 偵錯**；不可把 adb／connectedAndroidTest 列成使用者驗收前提。
 - Kotlin＋Jetpack Compose；`minSdk=26`、`compileSdk/targetSdk=37`。API 26 是工程基線，不表示已驗證 Android 8；真機結論限本 S25+ 組合。
@@ -298,7 +298,7 @@ Task10結果詳見 [執行紀錄](../tasks/task10.md)：16項來源測試、全�
 
 **Interfaces:** TwHouseSource實作SourceAdapter，maxPages=30；HTTP列表。舊ParseDetail方法沒有接入FetchDistrictAsync，本試驗不假裝列表已得到詳情欄位。
 
-- [ ] **Step 1 — 寫測試。** 移入ResidentialCard→A123456789／760萬／34.56坪／25年；DiscountedCard→TF02157997／1480萬；min25坪URL含 `/25up-ping/fullBuildingPing-ping_type/`。加入「暫無查詢物件」→EMPTY、全過濾頁仍翻頁、缺地址／樓層／車位時unknownFields明示，不把false當已確認無車位。
+- [x] **Step 1 — 寫測試。** 移入ResidentialCard→A123456789／760萬／34.56坪／25年；DiscountedCard→TF02157997／1480萬；min25坪URL含 `/25up-ping/fullBuildingPing-ping_type/`。加入「暫無查詢物件」→EMPTY、全過濾頁仍翻頁、缺地址／樓層／車位時unknownFields明示，不把false當已確認無車位。
 
 ```kotlin
 val q = testQuery(Site.TwHouse).copy(minSizePing = BigDecimal("25"))
@@ -306,10 +306,12 @@ assertTrue(TwHouseSource.request(q, 0).url.contains("/25up-ping/fullBuildingPing
 val page = TwHouseSource.parse(captureFixture(TwHouseSource, q, "fixtures/twhouse/residential.html"), q, 0)
 assertTrue("hasParking" in page.listings.single().unknownFields)
 ```
-- [ ] **Step 2 — 跑 RED。** `./gradlew.bat :app:testDebugUnitTest --tests '*TwHouseSourceTest'`。
-- [ ] **Step 3 — 實作。** 使用現碼有效/buy/卡片選取與住宅過濾，排除導覽連結；價格取現價、建坪非地坪。保留列表本來缺值的限制，結果欄位矩陣寫「未取得」，若完整需求需詳情取得，列為後續阻礙，不自行增加逐屋大量請求。
-- [ ] **Step 4 — 跑 GREEN。** 同上；一頁全被過濾不得沿用舊 `pageResults.Count==0` 完成邏輯。
-- [ ] **Step 5 — 提交。** `feat(android): add TwHouse probe with explicit unknown fields`。
+- [x] **Step 2 — 跑 RED。** `./gradlew.bat :app:testDebugUnitTest --tests '*TwHouseSourceTest'`。
+- [x] **Step 3 — 實作。** 使用現碼有效/buy/卡片選取與住宅過濾，排除導覽連結；價格取現價、建坪非地坪。保留列表本來缺值的限制，結果欄位矩陣寫「未取得」，若完整需求需詳情取得，列為後續阻礙，不自行增加逐屋大量請求。
+- [x] **Step 4 — 跑 GREEN。** 同上；一頁全被過濾不得沿用舊 `pageResults.Count==0` 完成邏輯。
+- [x] **Step 5 — 提交。** `feat(android): add TwHouse probe with explicit unknown fields`。
+
+Task11結果見 [執行紀錄](../tasks/task11.md)：22項來源測試及既有153項全通過，完整test／lint／assemble成功。建坪與現價解析、原始卡分頁、未知詳情欄位、合法空marker及review回歸已完成；價格容器與實站欄位仍待核對。
 
 ### Task 12: 單一作業、背景服務與中斷收尾
 
