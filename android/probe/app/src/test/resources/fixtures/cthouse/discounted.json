@@ -1,0 +1,23 @@
+{
+  "RS": "OK",
+  "totalpage": 1,
+  "houses": [{
+    "id": 2066497,
+    "case_name": "降價住宅合成樣本",
+    "address": "新北市中和區中和路",
+    "sell_price": "798.00",
+    "origin_trust_fee": "858",
+    "diff": 60.0,
+    "discount": 6,
+    "unit_price": 21.49,
+    "house_area": 37.13,
+    "size_val": 37.13,
+    "age": 30,
+    "floor_val": "4樓/共7樓",
+    "parking_lot_belong": 1,
+    "house_type_usage": 1,
+    "house_type_class": 2,
+    "imgs": [],
+    "url": "/house/2066497.html"
+  }]
+}

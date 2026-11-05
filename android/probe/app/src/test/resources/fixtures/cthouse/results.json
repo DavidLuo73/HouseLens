@@ -1,0 +1,20 @@
+{
+  "RS": "OK",
+  "totalpage": 1,
+  "houses": [{
+    "id": 2097688,
+    "case_name": "4K28精美套房",
+    "address": "新北市中和區華順街",
+    "sell_price": "788",
+    "unit_price": 96.33,
+    "house_area": 8.18,
+    "size_val": 8.18,
+    "age": 10,
+    "floor_val": "4樓/共9樓",
+    "parking_lot_belong": 0,
+    "house_type_usage": 1,
+    "house_type_class": 2,
+    "imgs": ["/project2/house_photo/202603/2097688-1_new.jpg"],
+    "url": "/house/2097688.html"
+  }]
+}

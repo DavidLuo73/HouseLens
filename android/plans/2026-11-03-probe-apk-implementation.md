@@ -14,7 +14,7 @@
 
 ## Global Constraints
 
-- 更新：2026-11-06；狀態：使用者已選 Native 與逐 Task 暫停／review，Task1–9已完成實作、測試與review，停點等待繼續Task10；Task10–14未開始，尚無七站真機成功證據。
+- 更新：2026-11-06；狀態：使用者已選 Native 與逐 Task 暫停／review，Task1–10已完成實作、測試與review，停點等待繼續Task11；Task11–14未開始，尚無七站真機成功證據。
 - 所有 Android plan、tasks、驗證紀錄都放在 `F:\SourceCode\HouseLens\android\` 下；不修改 Web／後端程式或正式資料庫。
 - 裝置：Samsung S25+、One UI 9.0、Android 17。使用者可安裝及操作，**不開 USB 偵錯**；不可把 adb／connectedAndroidTest 列成使用者驗收前提。
 - Kotlin＋Jetpack Compose；`minSdk=26`、`compileSdk/targetSdk=37`。API 26 是工程基線，不表示已驗證 Android 8；真機結論限本 S25+ 組合。
@@ -277,7 +277,7 @@ Task9結果詳見 [執行紀錄](../tasks/task9.md)：17項來源測試、全套
 
 **Interfaces:** CtHouseSource實作SourceAdapter，maxPages=100；POST `https://buy.cthouse.com.tw/api/house_list.ashx`，JSON `{arg,page}`，page=pageIndex+1；request.captureJson=true、browser=false，HttpPageTransport將JSON body放進RawCapture.json而非html。
 
-- [ ] **Step 1 — 寫測試。** 移入ResidentialItem→2097688／788萬／8.18坪；DiscountedItem取sell_price=798而非原委託價；重複ID一筆。補RS!=OK、houses缺失／錯型、totalpage缺失或不合理→INVALID；RS=OK且合法零筆→EMPTY。跨區fixture本來只驗「解析成板橋」，本APK經共同篩選後須拒絕混入中和。
+- [x] **Step 1 — 寫測試。** 移入ResidentialItem→2097688／788萬／8.18坪；DiscountedItem取sell_price=798而非原委託價；重複ID一筆。補RS!=OK、houses缺失／錯型、totalpage缺失或不合理→INVALID；RS=OK且合法零筆→EMPTY。跨區fixture本來只驗「解析成板橋」，本APK經共同篩選後須拒絕混入中和。
 
 ```kotlin
 val q = testQuery(Site.CtHouse)
@@ -285,10 +285,12 @@ val page = CtHouseSource.parse(captureFixture(CtHouseSource, q, "fixtures/cthous
     CtHouseSource.request(q, 0).url), q, 0)
 assertEquals(0, page.listings.single().totalPrice.compareTo(BigDecimal("798")))
 ```
-- [ ] **Step 2 — 跑 RED。** `./gradlew.bat :app:testDebugUnitTest --tests '*CtHouseSourceTest'`。
-- [ ] **Step 3 — 實作。** BuildSearchArg沿現碼城市／區域與條件順序，JSON序列化不拼接未跳脫文字。先解析完整envelope與原始keys，再做住宅／價格／地區過濾；根據totalpage翻頁，不因有效0筆提早停。所有數值以原字串轉BigDecimal。
-- [ ] **Step 4 — 跑 GREEN。** 同上；加入兩頁序列第一頁全過濾、第二頁有效的斷言。
-- [ ] **Step 5 — 提交。** `feat(android): add CtHouse envelope and current-price validation`。
+- [x] **Step 2 — 跑 RED。** `./gradlew.bat :app:testDebugUnitTest --tests '*CtHouseSourceTest'`。
+- [x] **Step 3 — 實作。** BuildSearchArg沿現碼城市／區域與條件順序，JSON序列化不拼接未跳脫文字。先解析完整envelope與原始keys，再做住宅／價格／地區過濾；根據totalpage翻頁，不因有效0筆提早停。所有數值以原字串轉BigDecimal。
+- [x] **Step 4 — 跑 GREEN。** 同上；加入兩頁序列第一頁全過濾、第二頁有效的斷言。
+- [x] **Step 5 — 提交。** `feat(android): add CtHouse envelope and current-price validation`。
+
+Task10結果詳見 [執行紀錄](../tasks/task10.md)：16項來源測試、全套153項通過，lint0 errors／5個既有提示，APK建置成功；獨立review的HTML人機驗證與RS精確比對問題已修正並覆核。合成envelope的空頁慣例、小數條件與網站欄位仍待實站核對，未接UI／未跑真機。
 
 ### Task 11: 台灣房屋建坪與未知欄位
 
@@ -365,4 +367,4 @@ assertTrue("hasParking" in page.listings.single().unknownFields)
 
 ## 執行交接
 
-使用者已選Native，不再詢問執行方式。Task1–8完成後，等待使用者繼續Task9，主代理依序實作，每Task結束暫停並review，直接覆寫 `android/handoff/handoff.md` 後等待繼續；context超過60%也先暫停覆寫同檔更新摘要。詳細停點、不可見context讀數的限制與目前進度見 [交接文件](../handoff/handoff.md)。全部實作完成後仍需獨立review；Task14的真機證據須由使用者實際操作回報。
+使用者已選Native，不再詢問執行方式。Task1–10完成後，等待使用者繼續Task11，主代理依序實作，每Task結束暫停並review，直接覆寫 `android/handoff/handoff.md` 後等待繼續；context超過60%也先暫停覆寫同檔更新摘要。詳細停點、不可見context讀數的限制與目前進度見 [交接文件](../handoff/handoff.md)。全部實作完成後仍需獨立review；Task14的真機證據須由使用者實際操作回報。
