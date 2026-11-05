@@ -1,6 +1,6 @@
 # HouseLens Android 規劃
 
-更新：2026-11-06。此目錄包含需求、設計、查證資料及已完成Task1–8的獨立驗證工程 `probe/`；APK目前僅顯示版本與未開始狀態。所有 Android plan、tasks 與驗證紀錄都放在本目錄下，不混入 Web 專案的規劃目錄。
+更新：2026-11-06。此目錄包含需求、設計、查證資料及已完成Task1–9的獨立驗證工程 `probe/`；APK目前僅顯示版本與未開始狀態。所有 Android plan、tasks 與驗證紀錄都放在本目錄下，不混入 Web 專案的規劃目錄。
 
 ## 已確認的方向
 
@@ -21,7 +21,7 @@
 3. [七平台爬蟲可行性驗證規格](03-crawler-feasibility.md)：實作前必須取得的證據與停止條件。
 4. [遠端結構快照](supabase-schema-2026-11-01.json)：欄位、約束、索引、RLS 與 grants；不含業務資料或連線密鑰。
 5. [S25+ 驗證計畫與任務](plans/2026-11-03-s25plus-validation.md)：無 USB 偵錯的 APK 操作、七站測試、證據門檻與後續待確認事項；已完成Task1空白APK，採集能力與真機驗證未開始。
-6. [驗證 APK 實作計畫](plans/2026-11-03-probe-apk-implementation.md)：14 個任務的檔案、介面、測試、建置與交付步驟；已選 Native，每 Task 完成後暫停並 review，Task1–8已完成，Task9–14未開始。
+6. [驗證 APK 實作計畫](plans/2026-11-03-probe-apk-implementation.md)：14 個任務的檔案、介面、測試、建置與交付步驟；已選 Native，每 Task 完成後暫停並 review，Task1–9已完成，Task10–14未開始。
 7. [最新交接](handoff/handoff.md)：目前進度、逐 Task 停點、context 60% 門檻與下一輪入口。每次交接直接覆寫此固定檔案，不另建編號或日期版本。
 
 ## 狀態與邊界

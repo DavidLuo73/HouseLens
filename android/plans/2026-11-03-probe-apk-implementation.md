@@ -14,7 +14,7 @@
 
 ## Global Constraints
 
-- 更新：2026-11-06；狀態：使用者已選 Native 與逐 Task 暫停／review，Task1–8已完成實作、測試與review，停點等待繼續Task9；Task9–14未開始，尚無七站真機成功證據。
+- 更新：2026-11-06；狀態：使用者已選 Native 與逐 Task 暫停／review，Task1–9已完成實作、測試與review，停點等待繼續Task10；Task10–14未開始，尚無七站真機成功證據。
 - 所有 Android plan、tasks、驗證紀錄都放在 `F:\SourceCode\HouseLens\android\` 下；不修改 Web／後端程式或正式資料庫。
 - 裝置：Samsung S25+、One UI 9.0、Android 17。使用者可安裝及操作，**不開 USB 偵錯**；不可把 adb／connectedAndroidTest 列成使用者驗收前提。
 - Kotlin＋Jetpack Compose；`minSdk=26`、`compileSdk/targetSdk=37`。API 26 是工程基線，不表示已驗證 Android 8；真機結論限本 S25+ 組合。
@@ -256,7 +256,7 @@ assertEquals(NextPage.MORE, page.next)
 
 **Interfaces:** SinyiSource實作SourceAdapter，maxPages=5，原始頁大小20；request使用HTTP，圖片交Task4.loadImage。
 
-- [ ] **Step 1 — 寫測試。** 沿用URL型態 `/apartment-dalou-huaxia-type/`、車位slugs、`3,4,5~`→`/3-up-roomtotal/`。既有測試沒有parser樣本，依現碼語意class建合成卡：3087NK／750萬／28.50坪；只含全站__NEXT_DATA__不能產生結果；首圖影片跳過、Next image解碼、無圖用來源既有fallback。
+- [x] **Step 1 — 寫測試。** 沿用URL型態 `/apartment-dalou-huaxia-type/`、車位slugs、`3,4,5~`→`/3-up-roomtotal/`。既有測試沒有parser樣本，依現碼語意class建合成卡：3087NK／750萬／28.50坪；只含全站__NEXT_DATA__不能產生結果；首圖影片跳過、Next image解碼、無圖用來源既有fallback。
 
 ```kotlin
 val q = testQuery(Site.Sinyi)
@@ -264,10 +264,12 @@ val page = SinyiSource.parse(captureFixture(SinyiSource, q, "fixtures/sinyi/next
 assertTrue(page.listings.isEmpty())
 assertEquals(PageKind.INVALID, page.kind)
 ```
-- [ ] **Step 2 — 跑 RED。** `./gradlew.bat :app:testDebugUnitTest --tests '*SinyiSourceTest'`。
-- [ ] **Step 3 — 實作。** 解析div.buy-list-item與LongInfoCard_Type_*語意class，不綁hash後綴。用原始卡計算20筆分頁，不用解析／過濾後數量。未識別合法零筆頁時保守INVALID；新鮮網頁證據才能補空狀態規則。
-- [ ] **Step 4 — 跑 GREEN。** 同上；圖像測試確認Referer只限信義圖片、不帶Supabase headers，圖片失敗單獨回報不抹除列表證據。
-- [ ] **Step 5 — 提交。** `feat(android): add Sinyi SSR probe and image checks`。
+- [x] **Step 2 — 跑 RED。** `./gradlew.bat :app:testDebugUnitTest --tests '*SinyiSourceTest'`。
+- [x] **Step 3 — 實作。** 解析div.buy-list-item與LongInfoCard_Type_*語意class，不綁hash後綴。用原始卡計算20筆分頁，不用解析／過濾後數量。未識別合法零筆頁時保守INVALID；新鮮網頁證據才能補空狀態規則。
+- [x] **Step 4 — 跑 GREEN。** 同上；圖像測試確認Referer只限信義圖片、不帶Supabase headers，圖片失敗單獨回報不抹除列表證據。
+- [x] **Step 5 — 提交。** `feat(android): add Sinyi SSR probe and image checks`。
+
+Task9結果詳見 [執行紀錄](../tasks/task9.md)：17項來源測試、全套137項通過；原始20卡分頁、未知零筆INVALID、全站JSON不採集、Next圖片解碼／影片排除／fallback、圖片失敗隔離。review修正金額與樓層截尾，無必修遺留；型態／用途／車位與面積基準保留未知，尚無實站證據。
 
 ### Task 10: 中信 JSON envelope 與現價
 
