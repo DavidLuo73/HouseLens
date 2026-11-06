@@ -1,7 +1,7 @@
 # HouseLens Android 瀏覽 App 規格
 
-日期：2026-11-07  
-狀態：需求已釐清的設計稿，供檢閱；尚未實作 App、登入或雲端部署。  
+日期：2026-11-07
+狀態：依使用者最新指示改採 Supabase 直連；Native 實作進行中，優先手機 UI／UX。
 規格位置：`F:\SourceCode\HouseLens\androidView\spec.md`
 
 ## 1. 目的與已確認決策
@@ -13,14 +13,14 @@
 | 瀏覽範圍 | 使用者選擇完整瀏覽：房源篩選、詳情／價格歷史、收藏、優質排行、大降價、區域分析。 |
 | 技術 | 使用者選擇 Kotlin＋Jetpack Compose，優先 Android 體驗。 |
 | 資料操作 | 使用者要求不做爬取；本 App 定位為瀏覽端，不提供觸發爬取、資料清除或共用設定編輯。收藏與查詢條件僅寫入本機。 |
-| 連線 | 使用者要求外出也能使用。沿用既有共用 API 方向，將持續運作的 HTTPS API 列為上線前置條件。 |
+| 連線 | 使用者要求外出也能使用。Android 直接讀取 Supabase 託管的 HTTPS Data API，不另外新增或部署 .NET API。 |
 | 登入 | 使用者選擇 Google 登入，僅允許事先核准的本人／家人帳號。 |
 | 設計交付 | 使用者選擇先完成文字 spec，包含頁面配置與操作流程，不製作瀏覽器草圖。 |
 | 排除範圍 | 本次未讀取、搜尋或沿用 `android/`、`androidtest/` 內容；新 App 與它們分開。 |
 
-以下是本規格提出的設計決定，並非使用者逐項指定：四個主導覽入口、收藏各裝置獨立、Supabase Auth 串接 Google、系統瀏覽器登入、淺色品牌主題、Android 8.0（API 26）以上、第一版以簽署 APK 供少數成員安裝。這些決定可在設計檢閱時調整。
+以下是本規格提出的設計決定，並非使用者逐項指定：四個主導覽入口、收藏各裝置獨立、Supabase Auth 串接 Google、系統瀏覽器＋PKCE 登入、淺色品牌主題、Android 8.0（API 26）以上、第一版以簽署 APK 供少數成員安裝。這些決定可在設計檢閱時調整。
 
-本文件取代舊共用架構文件中「Android 可管理設定、操作爬蟲與清除資料」的 App 範圍；不代表刪除網站既有管理能力。房源與評分仍共用，收藏依既有架構維持各裝置獨立。
+本文件取代舊共用架構文件中「Android 可管理設定、操作爬蟲與清除資料」的 App 範圍；不代表刪除網站既有管理能力。房源與評分仍共用，收藏維持各裝置獨立。使用者已明確撤銷本 App 依賴 .NET API 的方向；既有網站的 API 仍留給網站使用。
 
 ### 第一版不包含
 
@@ -55,39 +55,34 @@ HouseLens/
 
 | 現況 | 對 Android 的影響 |
 | --- | --- |
-| Web 為 Vue 3／TypeScript／Pinia／ECharts；後端為 .NET 10、EF Core／Npgsql。 | 重用 API、語意、配色；Vue 元件不能直接作為 Compose 元件使用。 |
-| 網站已有清單、詳情、歷史、排行、大降價及區域分析。 | 多數畫面可沿用現有唯讀 API。 |
+| Web 為 Vue 3／TypeScript／Pinia／ECharts；後端為 .NET 10、EF Core／Npgsql。 | 重用資料、語意與配色；Vue 元件不能直接作為 Compose 元件使用。 |
+| 網站已有清單、詳情、歷史、排行、大降價及區域分析。 | 沿用其畫面語意與資料，App 改由 Supabase 查詢取得。 |
 | 網站卡片圖片／標題直接開房仲網站；站內詳情路由存在，但不是主要卡片流程。 | Android 改為先進 App 詳情，避免瀏覽過程反覆離開。 |
 | 網站收藏只有 `localStorage` ID 集合與愛心，沒有收藏清單或收藏 API。 | App 新增本機收藏頁；不是移植一個已完成的收藏服務。 |
-| 清單 API 已回傳完整歷史；排行及大降價回應較精簡。 | 清單不額外逐卡查詳情；排行／降價使用精簡卡片，點入才取詳情。 |
+| 清單 API 已回傳完整歷史；排行及大降價回應較精簡。 | App 清單只查必要摘要與最近變動；完整歷史進詳情才載入，原 Web 契約不變。 |
 | 已有 Supabase PostgreSQL 設定，API／Worker 使用同一 schema。 | 不新增第二份房源資料庫，不重做資料遷移。 |
-| API 程式尚無 authentication／authorization，預設本機網址。 | 正式手機可用仍須部署 API、加入登入驗證與成員限制。 |
+| API 程式尚無 authentication／authorization，預設本機網址。 | App 不依賴它；登入與成員限制改在 Supabase Auth／資料庫權限處理。 |
 
-已安全確認 `backend/appsettings.Local.json` 存在 `ConnectionStrings.Default`，內容包含 Supabase pooler、`Search Path=houselens` 與 `SSL Mode=VerifyFull`。本文件不包含主機識別、密碼、完整連線字串或金鑰；本次沒有測試資料庫連線，也未驗證正式部署狀態。
+已安全確認 `backend/appsettings.Local.json` 存在 `ConnectionStrings.Default`，內容包含 Supabase pooler、`Search Path=houselens` 與 `SSL Mode=VerifyFull`。本文件不包含主機識別、密碼、完整連線字串或金鑰；本次已以唯讀方式連線確認資料表與權限：12 個既有關聯、未啟用 RLS，anon／authenticated 尚無這些表的 SELECT 或寫入權限。未查詢房源內容、未改遠端權限；查不到 authenticator 的 exposed-schema 覆寫不等於已確認 Dashboard 設定。
 
-## 3. 方案選擇與資料流
+## 3. 最小架構與資料流
 
-| 方案 | 優點 | 成本／取捨 | 結論 |
-| --- | --- | --- | --- |
-| Kotlin＋Compose 原生 App | 可直接依 Android 的導覽、狀態恢復、觸控與無障礙模式設計。 | 需另寫畫面及資料轉換，與 Web 維護兩套 UI。 | 使用者選擇。 |
-| Vue＋Capacitor | 可重用 Web 元件、圖表與前端技術。 | 仍需重新安排手機互動、返回與生命週期。 | 已比較，未採用。 |
-
-資料層沿用先前已選的 .NET API。改成 Supabase Data API 會需要另外處理 schema 暴露、RLS 與查詢／分析規則，並非只把連線字串填進 App；本次不改走這條路。
+使用者已選 Kotlin＋Compose 原生 App，並再次確認只需瀏覽爬取後的結果、以好用的 UI／UX 為重點。Vue＋Capacitor 曾列為省開發量的候選，但未採用。
 
 ```text
-Android App ── Google 登入 ──> Supabase Auth
-      │                         │
-      │<──── 登入 session ──────┘
-      │ HTTPS＋access token
-      ▼
-持續運作的 .NET API ── 驗證 token＋核准成員 ──> 現有 Supabase PostgreSQL
-
-既有資料產生端 ──> 同一份 PostgreSQL
-Android 本機 ──> 收藏 ID、收藏摘要、查詢偏好（不回寫房源）
+Android ── Google／PKCE ──> Supabase Auth
+Android ── publishable key＋個人 JWT ──> Supabase Data API
+                                            │
+                                     SELECT 權限＋RLS
+                                            │
+                                     現有 houselens 資料
+既有資料產生端 ───────────────────────────────┘
+Android 本機 ──> 收藏 ID／摘要／查詢偏好
 ```
 
-資料庫連線只在可信任後端使用。App 僅持有公開的服務位址／Auth publishable key 及個人登入 session，不持有 PostgreSQL 密碼、Google client secret 或 Supabase service-role key。[Supabase 連線方式](https://supabase.com/docs/guides/database/connecting-to-postgres)
+不新增 API server、反向代理、Edge Function、資料同步或另一份房源資料庫。Supabase 自動提供資料端點；必要的組合查詢用少量唯讀 SQL views，無須獨立服務。App 只持有 Project URL、publishable／anon key 與個人 session，不持有 PostgreSQL 密碼或 service-role key。
 
+先補核准成員名單、SELECT 權限及 RLS，再開放 Data API；不是把資料庫連線字串直接放入 APK。[Supabase custom schema](https://supabase.com/docs/guides/api/using-custom-schemas)、[RLS](https://supabase.com/docs/guides/database/postgres/row-level-security)
 ## 4. 資訊架構與主流程
 
 ### 主導覽
@@ -103,7 +98,7 @@ Android 本機 ──> 收藏 ID、收藏摘要、查詢偏好（不回寫房源
 
 ### 主要操作流程
 
-1. 首次啟動 → Google 登入 → API 確認成員 → 找房首頁；不顯示爬取導引或管理設定。
+1. 首次啟動 → Google 登入 → 查核 Supabase 成員名單 → 找房首頁；不顯示爬取導引或管理設定。
 2. 找房 → 開篩選 → 編輯暫存條件 → 套用 → 更新第 1 頁 → 點卡片 → 詳情 → 返回原清單位置。
 3. 在清單或詳情按愛心 → 本機保存 → 收藏頁立即可見 → 重開 App 仍保留。
 4. 精選 → 優質排行／大降價 → 點項目 → 同一個詳情頁 → 返回原精選分頁及捲動位置。
@@ -118,7 +113,7 @@ Android 本機 ──> 收藏 ID、收藏摘要、查詢偏好（不回寫房源
 
 登入頁以 HouseLens 標誌、短說明「隨時查看收藏與房價變化」及標準 Google 登入按鈕構成；不放假房源或必填個資表單。登入使用系統瀏覽器的 OAuth 授權流程與 PKCE，不用內嵌 WebView 收集 Google 密碼。
 
-取消登入回原頁；失敗可重試，不無限跳轉。Google 身分驗證成功後仍需 API 成員檢查；未核准顯示「此帳號尚未獲得使用權限」，提供切換帳號／登出，不顯示任何房源快取。帳號頁顯示目前 email、App 版本、收藏僅此裝置保存的說明及登出。
+取消登入回原頁；失敗可重試，不無限跳轉。Google 身分驗證成功後仍需 Supabase 成員名單檢查；未核准顯示「此帳號尚未獲得使用權限」，提供切換帳號／登出，不顯示任何房源快取。帳號頁顯示目前 email、App 版本、收藏僅此裝置保存的說明及登出。
 
 ### 5.2 找房首頁
 
@@ -145,10 +140,10 @@ Android 本機 ──> 收藏 ID、收藏摘要、查詢偏好（不回寫房源
 | 平台 | 複選，與網站既有七個 SourceSite 對應；未知來源仍可在卡片顯示原字串。 |
 | 總價 | 最低／最高，單位萬元，數字鍵盤。不得負值，最低不得大於最高；錯誤就地顯示且不送查詢。 |
 | 車位 | 不限／有車位／未標示車位，對應省略／true／false。 |
-| 降價 | 「曾有降價紀錄」開關；現有 API 並非只篩選最近一次降價。 |
-| 狀態 | 在售／已下架單選；現有 API 沒有兩者合併查詢。 |
+| 降價 | 「曾有降價紀錄」開關；語意為歷史曾降價，不是只看最近一次變動。 |
+| 狀態 | 在售／已下架單選；第一版採單選，不新增混合狀態模式。 |
 
-作用中 chips 包含地區、平台及所有非預設條件，可單獨移除或清除全部；移除後回第 1 頁。排序為獨立選單，僅提供 API 真正支援的四項，詳見第 8 節。第一版不增加房數、屋齡區間、坪數區間、地圖或自由文字篩選。
+作用中 chips 包含地區、平台及所有非預設條件，可單獨移除或清除全部；移除後回第 1 頁。排序為獨立選單，提供已定義的四項排序，詳見第 8 節。第一版不增加房數、屋齡區間、坪數區間、地圖或自由文字篩選。
 
 查詢切換取消或忽略舊請求結果，晚回來的舊查詢不得蓋掉新條件。地區選項讀取失敗不阻擋全部房源瀏覽，提供重新載入選項；已套用但不在最新選項中的地區仍顯示為可移除 chip。
 
@@ -158,7 +153,7 @@ Android 本機 ──> 收藏 ID、收藏摘要、查詢偏好（不回寫房源
 
 不把各平台的縮圖當成同一刊登的完整相簿。圖片失敗有占位；影片不自動播放、不建立影音播放器，提示至原始刊登查看。地址、坪數、樓層、屋齡、車位、首見與最後觀測時間依實際欄位顯示；資料缺少不得補猜。
 
-價格區必須區分「目前總價」與歷史事件價格。詳情回應沒有 `latestChangeFlag/latestChangePercent/latestIsBigDrop`，由回應的最新歷史紀錄推導，不能因 Web 型別宣告繼承而假設欄位必然存在。
+價格區必須區分「目前總價」與歷史事件價格。詳情沿用房源摘要，再分開取得完整歷史與來源；不要讓找房列表為每張卡片下載整段歷史。
 
 歷史區呈現折線圖與可展開的紀錄列，最新紀錄在列上方、圖表時間由舊至新。圖使用實際時間間隔及直接線段，不用平滑曲線暗示未觀測價格；同時間多筆不合併或編造先後。點圖顯示日期、價格與變動，TalkBack 可從紀錄列取得相同資訊。
 
@@ -166,7 +161,7 @@ Android 本機 ──> 收藏 ID、收藏摘要、查詢偏好（不回寫房源
 - 一筆：顯示單一觀測點及日期，不宣稱有趨勢或降幅。
 - 多筆：可顯示期間最高／最低與變動；基準價為 0 或缺失時不計百分比。
 - 第一次顯示最近 20 筆紀錄，按「顯示更多」每次展開 20 筆；資料仍來自同一份完整歷史。
-- 圖表標題使用「系統擷取價格紀錄」，說明「可能包含不同平台的觀測價格」。API 尚無歷史來源欄位，不提供分平台曲線，也不把每次變動說成同一賣方調價。
+- 圖表標題使用「系統擷取價格紀錄」，說明「可能包含不同平台的觀測價格」。資料表雖有來源欄位，第一版仍不做分平台曲線，也不把跨來源價差說成同一賣方調價。
 
 外部來源列有平台名稱與可辨識的網域；僅開啟合法 HTTP／HTTPS 刊登網址，阻擋 `javascript:`、`file:` 等 scheme。沒有來源網址時停用主要動作並說明。來源不因 App 登入而取得 HouseLens token。
 
@@ -174,22 +169,22 @@ Android 本機 ──> 收藏 ID、收藏摘要、查詢偏好（不回寫房源
 
 頁頂為兩個分段入口，保留各自的行政區選擇及位置。
 
-優質排行按區顯示 Top 5，卡片包含名次、標題、總價、單價、屋齡、車位與系統評分。沒有資料的區域顯示「尚無可評分房源」。現有 API 不給圖片／坪數，不為每一列額外查詳情；使用一致的白卡、圓角、字級與價格強調即可保持品牌一致。
+優質排行按區顯示 Top 5，卡片包含名次、標題、總價、單價、屋齡、車位與系統評分。沒有資料的區域顯示「尚無可評分房源」。優質排行只取必要欄位，不為每一列額外查詳情；使用一致的白卡、圓角、字級與價格強調即可保持品牌一致。
 
-大降價用縱向事件卡片，呈現行政區、標題、當次原價 → 當次降價後價格、降幅及降額，依降幅由大至小在本機排序，同值依 ID 固定順序。區域選擇只在已取得集合中篩選，不假設 API 支援相關 query。
+大降價用縱向事件卡片，呈現行政區、標題、當次原價 → 當次降價後價格、降幅及降額，在 Supabase 查詢按降幅由大至小排序，同值依 ID 固定順序；地區條件一起送到資料查詢，不只過濾當前頁。
 
-此頁固定說明：「曾出現的大降價紀錄；可能包含已下架物件，最新售價與狀態請查看詳情。」現有 API 沒有事件日期與狀態，不顯示今日／近七日或在售保證，不把 `newPrice` 標成現價。列表不以當前頁的 `latestIsBigDrop` 代替這個 API 的完整集合。
+此頁固定說明：「曾出現的大降價紀錄；可能包含已下架物件，最新售價與狀態請查看詳情。」顯示實際觀測日期與目前上架狀態，但不將歷史事件宣稱為今日優惠，也不把事件價格標成現價。列表不以當前頁的 `latestIsBigDrop` 代替歷史大降價 view 的集合。
 
-大降價回應無分頁，第一版一次取得、懶載入呈現；這是已知限制。若真實回應超出第 11 節效能目標，需先加入伺服器分頁／事件欄位，再提供相應 UI，不能在手機逐物件查詢補齊整份列表。
+大降價使用 Supabase 原生 limit／offset 分頁（20 筆），以降幅及 ID 固定排序；不在手機下載全部房源或逐列補查詳情。
 
 ### 5.6 收藏
 
-收藏依「API 環境＋登入 user ID＋property ID」隔離，只在本機保存。存入 ID、收藏時間及卡片必要摘要；不下載整個房源庫或完整歷史。預設依最近收藏排列，重新啟動仍在。
+收藏依「Supabase Project URL＋登入 user ID＋property ID」隔離，只在本機保存。存入 ID、收藏時間及卡片必要摘要；不下載整個房源庫或完整歷史。預設依最近收藏排列，重新啟動仍在。
 
-收藏頁先呈現可用摘要並標明尚未刷新，再對可見／即將可見項目以既有詳情 API 重查，最多 3 個並行；捲動才查下一批。不能只掃當前找房頁來找收藏，否則跨頁收藏會消失。此做法適合少數人的本機收藏；大量收藏造成瓶頸時才新增批次唯讀查詢。
+收藏頁先呈現可用摘要並標明尚未刷新，再對可見／即將可見項目讀取 Supabase 房源摘要重查，最多 3 個並行；捲動才查下一批。不能只掃當前找房頁來找收藏，否則跨頁收藏會消失。此做法適合少數人的本機收藏；大量收藏造成瓶頸時才新增批次唯讀查詢。
 
 - 取消收藏立即更新所有畫面，提供短暫「復原」；儲存失敗則還原愛心並提示重試。
-- 已下架仍保留，標示已下架；404 顯示「此物件已移除」，保留摘要及移除收藏操作。
+- 已下架仍保留，標示已下架；房源查無資料時顯示「此物件已移除」，保留摘要及移除收藏操作。
 - 網路錯誤保留摘要並標「暫時無法更新」，不得當成已刪除。
 - 不提供跨裝置同步、匯出或自動匯入網站 localStorage。
 - 登出清除 session 與房源摘要／圖片快取，可保留該 user ID 隔離的收藏 ID；同一帳號登入後重新取得內容。切換帳號不得顯示另一帳號的收藏。
@@ -199,9 +194,9 @@ Android 本機 ──> 收藏 ID、收藏摘要、查詢偏好（不回寫房源
 
 以行政區選擇器、摘要卡（物件數／平均單價／總價範圍）、價格分布圖、平均單價趨勢、查看本區房源按鈕構成；不使用需橫向捲動的大型表格。
 
-本頁分析的是系統目前追蹤的房源樣本，標示「刊登資料分析，非實價登錄」。不自行加入房貸建議或市場漲跌推論。`insufficientData=true` 顯示資料不足說明；物件數為 0 時平均與範圍顯示「—」。
+本頁透過資料庫 view 分析系統目前追蹤的房源樣本，標示「刊登資料分析，非實價登錄」。不自行加入房貸建議或市場漲跌推論。`insufficientData=true` 顯示資料不足說明；物件數為 0 時平均與範圍顯示「—」。
 
-第一版沿用 API 依行政區名稱篩選／分組的語意，跨縣市同名區可能合併。篩選與分析皆顯示「依行政區名稱統計，同名區可能包含不同縣市」說明；房源卡片以 city＋district 顯示實際位置。不能從縣市視覺分組推論 API 已支援縣市條件。未來要區分同名區時，須一起擴充查詢、排行與分析契約。
+第一版沿用網站依行政區名稱篩選／分組的語意，跨縣市同名區可能合併。篩選與分析皆顯示「依行政區名稱統計，同名區可能包含不同縣市」說明；房源卡片以 city＋district 顯示實際位置。不能從縣市視覺分組推論目前已精確依縣市篩選；未來再一起調整篩選與分析。
 
 分布使用伺服器 bucket 文字與筆數，不在手機重算分箱。趨勢日期為伺服器 DateOnly，照日期顯示，不做 UTC → 台灣日期位移；沒有資料或只有一個點時採與詳情一致的空／單點模式。圖表提供文字摘要及可讀資料列，不只依賴顏色或點選 tooltip。
 
@@ -236,129 +231,96 @@ Android 本機 ──> 收藏 ID、收藏摘要、查詢偏好（不回寫房源
 | 查詢無結果 | 顯示目前條件，提供清除條件；不誤報網路錯誤。 |
 | 無網路／逾時 | 有記憶體資料時保留並標示舊資料；冷啟動無資料則顯示連線與重試頁。 |
 | 401 | 合併同時發生的 session 更新，最多重試一次；仍失敗回登入並保留可恢復的導覽目標。 |
-| 403 | 顯示未核准／存取已停用，停止資料請求並清除可見快取；不無限更新 token。 |
-| 404 詳情 | 顯示已移除，允許返回及取消收藏；收藏資料不自動消失。 |
+| 未核准／權限撤回 | 成員查核不通過或收到 403 時停止資料請求並清除可見快取；RLS 也獨立限制資料列，不無限更新 token。 |
+| 詳情查無資料 | 顯示已移除，允許返回及取消收藏；收藏資料不自動消失。 |
 | 429／5xx | 友善錯誤、遵守 Retry-After 或提供手動重試；不持續高速自動重送。 |
 | 圖片失敗 | 固定比例占位圖，文字與操作照常使用。 |
 
-正常進入頁面及手動更新時讀 API；返回詳情前的列表不強制重抓。背景不輪詢、不觸發 Worker、不使用 SSE。網路請求需有有限逾時（設計預設 15 秒），取消不顯示為使用者操作失敗。
+正常進入頁面及手動更新時讀 Supabase；返回詳情前的列表不強制重抓。背景不輪詢、不觸發 Worker、不使用 SSE。網路請求需有有限逾時（設計預設 15 秒），取消不顯示為使用者操作失敗。
 
 一般房源資料只作 session 記憶體快取；收藏可有摘要，圖片可用有上限的磁碟快取。第一版需連網，冷啟動須先完成有效成員確認才展示保留資料；不提供登入失效後的離線瀏覽繞過。已載入頁面在短暫斷線時可繼續閱讀，但不宣稱資料即時。
 
-時間區分：API 取得時間是手機這次拿到回應的時間；物件 `lastSeenAt` 是最後觀測；最近輪次只是最近一次資料擷取作業。`completed` 可能仍有來源失敗，也可能只是單平台作業，不能顯示為「所有平台已同步」。可於資料狀態說明呈現最近輪次與來源結果，不呈現爬取控制或即時進度。
+時間區分：資料取得時間是手機這次拿到回應的時間；物件 `lastSeenAt` 是最後觀測；最近輪次只是最近一次資料擷取作業。`completed` 可能仍有來源失敗，也可能只是單平台作業，不能顯示為「所有平台已同步」。可於資料狀態說明呈現最近輪次與來源結果，不呈現爬取控制或即時進度。
 
-## 8. API 契約與現有語意
+## 8. Supabase 查詢契約
 
-API origin 與 `/api` 路徑集中設定，正式版固定使用 HTTPS；不在一般使用者流程要求輸入資料庫設定。JSON 欄位 camelCase，ID 為 UUID 字串，金額萬元、面積坪，比例小數（`-0.05` → `▼ 5.0%`）。時間戳解析 UTC `Z` 後顯示 Asia/Taipei；日期欄位與時間戳分開處理。金額運算保持十進位精度，缺值與 0 分開。
+正式連線為 `https://<project-ref>.supabase.co`，使用 `/rest/v1/`、`Accept-Profile: houselens`、publishable key 與目前使用者 JWT。所有金額保留十進位精度；萬元、坪、小數比例與 UTC／DateOnly 顯示規則不變。
 
-| 用途 | 現有端點 | 回應／限制 |
+| 畫面／用途 | 資料來源 | 最小查詢 |
 | --- | --- | --- |
-| 房源列表 | `GET /api/properties` | `{total,page,pageSize,items}`；目前每筆含完整 `priceHistory`。 |
-| 詳情 | `GET /api/properties/{id}` | 基本資料、sources、priceHistory、firstSeenAt、lastSeenAt；沒有清單的 latest 三欄。 |
-| 優質排行 | `GET /api/analytics/top-properties?type=topRated&limit=5` | `{type,byDistrict:[{district,items}]}`；每區最多五筆，active 且有 score。 |
-| 歷史大降價 | `GET /api/analytics/top-properties?type=bigDrop` | `{type,items}`；無分頁，limit 不生效，可能含已下架。 |
-| 區域分析 | `GET /api/analytics/districts` | `{districts}`；地區來自 TrackingCriteria，無條件或日期範圍參數。 |
-| 地區選項 | `GET /api/config/districts` | 設定陣列，非現存房源地區全集；App 只讀必要標籤。 |
-| 資料狀態 | `GET /api/crawl-runs/latest` | 最近輪次／來源結果；無輪次 404 應顯示「尚無紀錄」。 |
-| 圖片代理 | `GET /api/proxy/image?url=...` | 只代理白名單 HTTPS 圖片，限制大小及內容類型。 |
+| 成員資格 | `ViewerMembers` | RLS 只允許讀自己的 UserId；每次畫面載入／刷新先查資格，無資料即拒絕。 |
+| 找房／收藏摘要／詳情主資料 | `viewer_properties` view | 主資料、首張圖、標題、來源代碼陣列、最近變動、曾降價旗標；清單20筆與 exact count，不含完整歷史。 |
+| 詳情來源 | `Listings` | 只取 PropertyId 相符的來源、標題、網址、圖片及刊登日期。 |
+| 價格歷史 | `PriceHistoryEntries` | 指定 PropertyId，依 CapturedAt／Id 反向排序；分批取得，不能因 Data API 預設上限截斷歷史。 |
+| 優質排行 | `viewer_top_properties` view | 已上架且有分數，依區名分組 row_number ≤ 5，取必要欄位。 |
+| 大降價 | `viewer_big_drops` view | 每房源最近一次大降價事件，含事件日期與目前狀態，按降幅／ID排序分頁。 |
+| 區域分析 | `viewer_district_stats` view | 在售樣本筆數、平均單價、總價範圍、分布及每日趨勢；伺服器聚合，不下載所有房源到手機計算。 |
+| 地區選項 | `DistrictConfigs` | 只查 City／District／IsEnabled；含已停用但可能仍有房源的地區。 |
+| 資料狀態 | `CrawlRuns`＋`SourceRunResults` | 最近一輪及來源成功／筆數，不授予讀取原始 ErrorMessage 的權限。 |
 
-列表參數使用重複 key，例如 `district=中和區&district=永和區`，不是 `district[]` 或逗號字串；平台同理。其他為 `minPrice/maxPrice/hasParking/priceDropped/status/sortBy/page/pageSize`。不傳空字串假冒 null。
+view 採 `security_invoker=true`，遵守底層表的 SELECT 權限與 RLS；不使用會繞過 RLS 的預設 definer view。[Supabase views](https://supabase.com/docs/guides/database/views)
 
-| App 排序文案 | API 值 | 必須保留／說明的現況 |
-| --- | --- | --- |
-| 系統評分優先 | `score` | 有分數優先、分數降冪、總價升冪。 |
-| 總價低到高 | `priceDrop` | 名稱雖是 priceDrop，實際按總價升冪；不標成降幅排序。 |
-| 單價排序（未提供優先） | `unitPrice` | 現在 null 排前、其後單價升冪；不在手機只重排單頁來假裝全域不同排序。 |
-| 最近收錄 | `postedDate` | 實際為 FirstSeenAt 降冪，不是平台刊登日期。 |
+地區使用區名集合、來源使用整數陣列 overlap；總價／車位／狀態／曾降價用原生 filters。App 先驗證價格範圍與分頁，查詢一律透過 SDK／URL builder 編碼，不串接使用者 SQL。排序如下：
 
-`priceDropped=true` 表示歷史曾降價，false 等同不篩；來源篩選只判斷任一 listing 來自指定平台，不會把卡片主圖片、標題或價格限制成該平台。歷史未回傳來源識別，現價也不保證是各平台最低價。
+- 系統評分優先：score 降冪、null 在後、總價升冪、ID升冪。
+- 總價低到高：總價升冪、ID升冪。
+- 單價排序（未提供優先）：null 在前、單價升冪、ID升冪。
+- 最近收錄：FirstSeenAt 降冪、ID升冪。
 
-圖片 API 回傳原 URL；Web 的相對 proxy URL 是前端轉換結果。Android 依解析後的精確 host 決定代理，不使用字串 includes 判斷。信義白名單圖片使用 API proxy，其餘合法 HTTPS 圖片直接載入；未知／HTTP 媒體可顯示占位並導向原始刊登，不放寬正式版 cleartext 限制。現有 proxy 白名單是 `res.sinyi.com.tw`、`s.591.com.tw`、`img.591.com.tw`，5 MB 上限，非任意 URL 轉送服務。
+`PropertyStatus` 為 Active=0、Delisted=1、Merged=2；`PriceChangeFlag` 為 None=0、Increased=1、Decreased=2。來源值沿用現有 SourceSite：F591=0、Rakuya=1、Sinyi=2、Yungching=3、TwHouse=4、HBHousing=5、CtHouse=6。DTO 在資料邊界轉成 UI 文案，不把整數直接呈現給使用者。
 
-圖片載入至自有 API origin 時才帶登入憑證；第三方圖片與外部刊登不得帶 token。錯誤解析須兼容既有 `{error:{code,message}}`、ProblemDetails、空 body 與非 JSON 回應，不直接把例外堆疊／資料庫錯誤顯示給使用者。
+圖片由 Android 圖片 client 直接取得；信義白名單圖片可附來源網站 Referer，不需要另設圖片 proxy。無法載入則顯示占位與原刊登入口，不下載影片。Supabase Bearer／apikey 絕不傳給第三方圖片或刊登網站。限制 redirect，避免憑證跨 origin；HTTP 圖片在正式版不放寬 cleartext。
 
-## 9. 登入、授權與外出使用前置條件
+## 9. 登入與資料存取權限
 
-選用現有 Supabase 專案的 Auth 搭配 Google OAuth，房源查詢仍走 .NET。Auth 尚未在本專案實作，必須配置 Google provider、redirect allowlist、App callback 與環境設定。[Supabase Google 登入](https://supabase.com/docs/guides/auth/social-sign-in/auth-google)
+Supabase Auth Google 登入＋系統瀏覽器 PKCE；第一版 callback 為 `tw.houselens.viewer://auth/callback`，在 Supabase Redirect URLs 精確登錄，不用 wildcard。不需要為 App 另租網域；未來已有網域再改 verified App Link。PKCE verifier 與 session 用 Android Keystore 保護並排除備份；驗證 callback 的 scheme／host／path／pending transaction，重送只處理一次。
 
-App 使用系統瀏覽器及 PKCE，優先配置可驗證的 HTTPS Android App Link 回到 App；驗證 state／callback，不將 token 放進日誌。session 透過 Android Keystore 保護的儲存保存，排除備份；不以明文 Preferences 保存 refresh token。實作者選擇相容的 Auth SDK，依鎖定版本驗證冷啟動、取消、程序被終止後的回呼與 refresh rotation。[行動登入回呼](https://supabase.com/docs/guides/auth/native-mobile-deep-linking)
+- 新增最小 `houselens.ViewerMembers` 表，僅存核准的 Supabase UserId，由維運者管理；App 無新增／修改／刪除成員權限，也不製作會員管理 UI。
+- 事先核對本人／家人 Google 身分，將對應 user ID 加入名單後才能看資料；首次登入產生 Auth 身分不等於開通。
+- 所需資料表啟用 RLS，authenticated 只有 SELECT policy：必須在 ViewerMembers 名單內。名單自己的 policy 只允許看自己的列；anon 不授權讀取。
+- 僅 grant 所需表／欄位／views 的 SELECT，沒有 INSERT／UPDATE／DELETE；不採 `GRANT ALL` 或全 schema default grant。NotificationLogs、評分設定、平台管理等資料不開放。
+- RLS 不使用 FORCE，先確認既有受信任資料產生帳號為 owner／BYPASSRLS，再套政策，避免破壞現有寫入。既有表目前沒有其他 RLS 政策；正式套用前再次檢查漂移，有新政策不可直接覆蓋。
+- RLS 拒絕讀取通常回空集合，不能一律期待 HTTP403。每次畫面載入／刷新先查自身會員列；不在名單就清畫面／快取並顯示未核准。即使查核後被移除，後續資料 SELECT 仍由資料庫 RLS 阻擋；已載入離線內容不保證被遠端立即撤回，不另做即時訂閱。
 
-### 成員管理的最小邊界
+正式上線只需要現有 Supabase Project URL、publishable／anon key、Google provider 設定、核准 user IDs、SQL 權限／view 安裝及 Data API exposed schema 設定。沒有自建 API 主機、Caddy、DNS 或 Google client secret 放入 App 的步驟。現有資料產生端可維持原環境；其停止時手機仍能瀏覽舊資料。
 
-- API 以驗證後的 Supabase `sub` 作穩定使用者 ID。第一版核准名單由維運者在伺服器設定管理，不做 App 邀請／後台管理畫面。
-- 維運者先確認家人 Google 帳號，建立／確認其 Supabase Auth 身分後，才把 user ID 加入核准名單。若身分須首次 Google 登入才建立，該次登入只能看到「尚未核准」；維運核對 email 與 user ID 後開通，房源存取始終先核准再開放。
-- 不因 Google 登入成功、email 網域相同或使用者提供 email 字串而自動取得資格。不得依可由使用者修改的 metadata 授權。
-- API 驗證 issuer、audience、簽章、有效期及成員名單；支援 Auth 簽章金鑰輪替。停用成員在名單更新生效後的下一個請求即拒絕，即使原 token 尚未到期。[Supabase JWT](https://supabase.com/docs/guides/auth/jwts)
-- 首頁資料、分析、圖片 proxy、設定查詢及資料狀態都須驗證；不得只保護 App 的首頁。
+SQL 先在隔離測試庫驗證匿名／未核准／核准／撤權／寫入禁止與既有寫入者相容性，再提供可檢閱腳本供正式套用。此次唯讀調查不代表遠端已配置完成。[Supabase RLS](https://supabase.com/docs/guides/database/postgres/row-level-security)
 
-### 部署邊界
+## 10. 最小實作邊界
 
-| 必要事項 | 規格要求 |
-| --- | --- |
-| API 持續運作 | 部署在手機可連線的持續運作主機；電腦關機後仍能讀取既存資料。資料庫在線不代表 API 已在線。 |
-| HTTPS 與網域 | 有效憑證、固定 API origin 與 App Link 設定；開發用 localhost 不進正式 APK。 |
-| 公開路由 | 公開入口只開放本規格的唯讀 API、必要 Auth callback 靜態檔及最小 health；拒絕管理端點、修改方法及 SSE。路由規則不能僅用「所有 GET」。 |
-| 既有管理能力 | 管理端點保留於受保護的私人入口；不能只隱藏 App 按鈕，卻把匿名 trigger／delete 端點公開。後端直接 port 亦不得對公網繞過入口。 |
-| Web 共用 | Web 若走正式公開讀取 API，須同步具備登入及 token 傳遞；本機／私人管理入口另行維持。這是上線整合依賴，不在本次修改 Web。 |
-| 憑證 | PostgreSQL 連線、Google secret、簽署金鑰只存在各自的可信任部署／建置環境。既有 VerifyFull 與 CA 驗證不可停用。 |
-| 資料更新 | App 不負責資料產生；現有資料產生端停止時仍可讀舊資料，畫面如實顯示觀測時間。若要求電腦關機後資料仍自動更新，既有 Worker 也須持續運作，但不屬於手機功能。 |
+Android 維持單一 app module、Compose／Material 3、ViewModel／StateFlow、手動注入、DataStore 收藏與成熟圖片／Auth 套件。資料接點為一個可測的 Supabase client，不增加 Repository／UseCase 層、後端專案、Edge Functions、Room 或背景同步。
 
-主機供應商、費用、正式網域、Google OAuth 設定值與核准 user ID 是部署時須提供的輸入，尚未選定或驗證。本次不購買服務、不部署、不改遠端 Supabase 設定。這些輸入不阻礙依規格製作 UI／測試，但全部完成前不能宣稱外出使用已可交付。
+必要修改僅在 `androidView/`：原生 App、少量 SQL views／RLS 安裝與測試腳本、建置及使用說明。`backend/`、`frontend/` 的實作保持原樣。已在隔離分支產生的新 API 兩筆提交已用 revert 撤回，留下追蹤紀錄。
 
-## 10. 實作邊界與必要變更
-
-未來 App 放在 `androidView/`，保留本規格；建議單一 Android app module，使用 Compose／Material 3 自訂品牌主題、ViewModel／StateFlow、協程與集中式 HTTP client。按畫面分 package 即可，不預先拆成大量 Gradle module 或引入跨平台層。
-
-```text
-androidView/
-├─ spec.md
-└─ app/                     未來實作，這次不建立
-   └─ src/main/.../
-      ├─ ui/                theme、共用卡片與各頁
-      ├─ data/              API DTO／轉換與本機收藏
-      └─ auth/              session、登入與授權狀態
-```
-
-HTTP／圖片／Auth 套件採必要的成熟方案；圖表須支援觸控及無障礙替代資料，套件版本與 Gradle／Kotlin／SDK 相容組合在實作計畫中鎖定。API DTO 與 UI 模型分清楚即可，不逐層增加無用途的抽象。Android 最低 API 26 是本設計預設，compile／target SDK 依實作時穩定工具鏈決定並真機驗證。
-
-| 變更範圍 | 必須完成的內容／影響 |
-| --- | --- |
-| 新 Android App | 上述頁面、登入、本機收藏、API 轉換、狀態恢復與適當測試；不依賴排除目錄。 |
-| API 公開部署 | 驗證 token／成員、路由暴露限制、HTTPS、圖片憑證處理；需與 Web 公開讀取一起驗證。 |
-| 穩定分頁 | 列表每種排序追加唯一 ID 作 tie-breaker，配合 App 去重；資料變動期間仍非交易快照，手動刷新重新取第一頁。現有 Web 排序同值的順序可能改變。 |
-| Query 驗證 | 公開 API 驗證 page ≥ 1、pageSize 1–100、合法排序／狀態／平台、非負價格及上下限，無效回 400。不能只靠 App 驗證。補對應 API 測試；目前 Web 的合法請求應繼續成功。 |
-| 原有回應 | 第一版不刪清單完整歷史、不改降價／排序的既有語意。若日後改善，先更新契約及 Web／Android callers 與既有測試。 |
-
-其餘後端業務計算與資料模型沿用。登入與部署屬必要配套；不把新的爬蟲、資料清除功能或整套後端重寫夾帶為 App 任務。
-
+先完成 UI 流程與本機 fixture 測試，再接 Supabase；無正式 publishable key／Google 設定時不把 fixture 當已連線。繼續採 Native 執行，測試、驗收與最後獨立 review 不省略。
 ## 11. 驗收與驗證策略
 
 下列是未來實作驗收要求，不是本次已通過的測試。
 
 | 編號 | 情境與通過條件 |
 | --- | --- |
-| AC-01 | 核准帳號 Google 登入成功且可讀資料；未核准帳號得到 403、無房源或快取洩露；移除資格後下一次請求拒絕。 |
-| AC-02 | 在行動網路、開發電腦關機時可開啟清單／詳情，證明連的是正式 API；資料是否新鮮與可否讀取分開顯示。 |
+| AC-01 | 核准帳號 Google 登入成功且可讀資料；未核准帳號被成員查核與 RLS 拒絕、無房源或快取洩露；移除資格後下一次請求拒絕。 |
+| AC-02 | 在行動網路、開發電腦關機時可開啟清單／詳情，證明直接連的是 Supabase；資料是否新鮮與可否讀取分開顯示。 |
 | AC-03 | 篩選面板取消不改結果；套用後回第一頁；最低大於最高不送查詢；快速換條件時舊結果不覆蓋新結果；跨市同名區 fixture 合併成單一明示選項，不假裝已有縣市篩選。 |
 | AC-04 | 連續瀏覽至少三頁，無重複 ID；同價／同分 fixture 的順序固定；下一頁失敗不清空列表，重試可續接。 |
 | AC-05 | 清單、精選、收藏均可進詳情；返回恢復入口、條件及位置；收藏按鈕不誤觸跳頁。 |
-| AC-06 | 收藏跨 App 重啟保留，跨登入帳號隔離；取消可復原，持久化失敗可回復；已下架、404、網路失敗分別呈現。 |
+| AC-06 | 收藏跨 App 重啟保留，跨登入帳號隔離；取消可復原，持久化失敗可回復；已下架、查無物件、網路失敗分別呈現。 |
 | AC-07 | 0／1／多筆價格紀錄、同時間多筆、null、0 分母、跨午夜 UTC、百分比 -0.05 均正確呈現；DateOnly 不位移日期。 |
-| AC-08 | 排行不逐卡請求詳情；大降價標成歷史事件價，可能下架與缺少日期的限制可見；不以現價或今日優惠誤導。 |
+| AC-08 | 排行不逐卡請求詳情；大降價標成歷史事件價，可能下架與事件日期與當前狀態可辨識；不以現價或今日優惠誤導。 |
 | AC-09 | 區域 0 筆、資料不足、單點趨勢及相同價格分箱可讀；圖表以文字／紀錄列提供等價資訊。 |
 | AC-10 | 無網路、逾時、401、403、404、429、5xx、非 JSON 錯誤及失效圖片都有可恢復狀態，沒有永久 spinner 或無限重試。 |
-| AC-11 | API proxy 圖片可附自身 token，第三方請求絕不含 token；非法 scheme 無法開啟；APK／log 不含私密憑證。 |
+| AC-11 | 只有 Supabase 自有 origin 的資料請求附 token，第三方圖片／刊登請求絕不含 token；非法 scheme 無法開啟；APK／log 不含私密憑證。 |
 | AC-12 | 360dp 手機寬、200% 字級、TalkBack、橫向、鍵盤開啟、系統返回及手勢列皆可操作，必要資訊不被裁切。 |
-| AC-13 | 整個瀏覽流程對 HouseLens 業務 API 只發出允許的 GET；Auth token 交換等 POST 不屬於房源寫入。公網無法觸發爬取、刪除或改設定。 |
+| AC-13 | 所有房源操作為 Supabase SELECT；Auth token 交換等 POST 不屬於房源寫入。以 authenticated／anon 驗證房源、歷史與成員表不可新增、更新或刪除。 |
 | AC-14 | 重複從背景返回、旋轉、程序重建與 OAuth 回呼皆不重複導航，不遺失已持久化收藏，不重新要求已有效登入。 |
 
-效能目標：在選定的一台實體 Android 手機、API RTT 約 100ms、下行 10Mbps、首屏 20 筆且每筆歷史約 100 筆的基準資料下，首屏可讀內容 P95 ≤ 3 秒（圖片可稍後）、已載入頁返回回應 ≤ 300ms；60Hz 捲動基準至少 95% frame 在 16.7ms 內，無 ANR。此為設計目標，需記錄測試機型、網路與樣本量，不能當作已量測數字。API／完整歷史回應若先成為瓶頸，列出量測證據後再縮小傳輸契約，不先另建同步系統。
+效能目標：在選定的一台實體 Android 手機、資料服務 RTT 約 100ms、下行 10Mbps、首屏 20 筆且每筆歷史約 100 筆的基準資料下，首屏可讀內容 P95 ≤ 3 秒（圖片可稍後）、已載入頁返回回應 ≤ 300ms；60Hz 捲動基準至少 95% frame 在 16.7ms 內，無 ANR。此為設計目標，需記錄測試機型、網路與樣本量，不能當作已量測數字。資料查詢／歷史回應若先成為瓶頸，列出量測證據後再縮小傳輸契約，不先另建同步系統。
 
-驗證分為：DTO／格式與狀態轉移單元測試、模擬 HTTP 的錯誤／競態測試、Compose 主要流程與無障礙測試、後端授權／分頁／驗證整合測試，以及真機 Google 登入／外網／返回／流暢度驗證。後端測試採獨立測試環境，不能寫入或清空共用房源庫。
+驗證分為：DTO／格式與狀態轉移單元測試、模擬 HTTP 的錯誤／競態測試、Compose 主要流程與無障礙測試、SQL RLS／view 與資料分頁整合測試，以及真機 Google 登入／外網／返回／流暢度驗證。後端測試採獨立測試環境，不能寫入或清空共用房源庫。
 
 ## 12. 交付界線與參考
 
-本次交付只有這份 spec。下一階段若要求實作，先依本文件形成可執行計畫，將 App、API 授權／公開部署、必要 Web 整合列成清楚的工作項目。規格審閱不等於已購買主機、完成 Google 設定或 App 已可安裝。
+規格已隨使用者最新方向更新，Native 實作繼續進行；App 的 UI、Supabase 權限與實際連線分別驗證，不把設計或模擬測試當成可交付成品。
 
 ### 專案依據
 
@@ -371,7 +333,7 @@ HTTP／圖片／Auth 套件採必要的成熟方案；圖表須支援觸控及�
 - [區域分析規則](../backend/src/HouseLens.Application/Analysis/DistrictAnalyticsService.cs)、[大降價資料計算](../backend/src/HouseLens.Application/Analysis/BigDropQueryService.cs)
 - [圖片代理](../backend/src/HouseLens.Api/Endpoints/ProxyEndpoints.cs)、[最近輪次](../backend/src/HouseLens.Api/Endpoints/CrawlRunEndpoints.cs)
 - [API 啟動／現有授權缺口](../backend/src/HouseLens.Api/Program.cs)、[PostgreSQL 設定使用方式](../backend/src/HouseLens.Infrastructure/DependencyInjection.cs)
-- [資料模型](../docs/er-model.md)、[先前共用架構設計](../docs/superpowers/specs/2026-10-31-android-shared-data-design.md)、[交接背景](../handoff/1.md)
+- [資料模型](../docs/er-model.md)、[先前共用架構設計](../docs/superpowers/specs/2026-10-31-android-shared-data-design.md)、[原始交接背景](F:/SourceCode/HouseLens/handoff/1.md)
 - [Android Compose 官方介紹](https://developer.android.com/compose)、[Capacitor 官方介紹](https://capacitorjs.com/docs)
 
-現況調查是靜態程式閱讀，未啟動網站做視覺驗證，未連線測試 Supabase，未測試正式 API／Google 登入或 Android 真機。所有已知限制已在對應章節保留，不將設計目標寫成現成功能。
+現況調查包含靜態程式閱讀及 Supabase 唯讀結構／權限查詢；未啟動網站做視覺驗證，未變更遠端權限、未測試 Google 登入或 Android 真機。所有已知限制已在對應章節保留，不將設計目標寫成現成功能。

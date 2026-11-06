@@ -1,0 +1,7 @@
+.gradle/
+**/build/
+local.properties
+supabase.local.properties
+*.jks
+*.keystore
+.artifacts/
