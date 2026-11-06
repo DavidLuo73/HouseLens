@@ -27,17 +27,7 @@ public static class PropertiesEndpoints
         int page = 1,
         int pageSize = 20)
     {
-        var offset = ((long)page - 1) * pageSize;
-        if (page < 1 || pageSize is < 1 or > 100 || offset > int.MaxValue ||
-            minPrice < 0 || maxPrice < 0 || minPrice > maxPrice ||
-            !new[] { "active", "delisted" }.Contains(status, StringComparer.OrdinalIgnoreCase) ||
-            !new[] { "score", "unitPrice", "priceDrop", "postedDate" }.Contains(sortBy, StringComparer.OrdinalIgnoreCase) ||
-            sourceSite?.Any(s => !Enum.GetNames<SourceSite>().Contains(s, StringComparer.OrdinalIgnoreCase)) == true)
-            return Results.Problem(statusCode: StatusCodes.Status400BadRequest,
-                title: "Invalid property query", detail: "Check pagination, price range, status, sort order and source names.");
-
-        var statusEnum = status.Equals("delisted", StringComparison.OrdinalIgnoreCase)
-            ? PropertyStatus.Delisted : PropertyStatus.Active;
+        var statusEnum = status.ToLower() == "delisted" ? PropertyStatus.Delisted : PropertyStatus.Active;
 
         var query = db.Properties
             .Where(p => p.Status == statusEnum)
@@ -48,8 +38,12 @@ public static class PropertiesEndpoints
 
         if (sourceSite is { Length: > 0 })
         {
-            var sites = sourceSite.Select(s => Enum.Parse<SourceSite>(s, ignoreCase: true)).ToHashSet();
-            query = query.Where(p => p.Listings.Any(l => sites.Contains(l.SourceSite)));
+            var sites = sourceSite
+                .Select(s => Enum.TryParse<SourceSite>(s, true, out var v) ? (SourceSite?)v : null)
+                .OfType<SourceSite>()
+                .ToHashSet();
+            if (sites.Count > 0)
+                query = query.Where(p => p.Listings.Any(l => sites.Contains(l.SourceSite)));
         }
 
         if (minPrice.HasValue)
@@ -69,7 +63,7 @@ public static class PropertiesEndpoints
             query = query.Where(p => latestDropped.Contains(p.Id));
         }
 
-        var ordered = sortBy.ToLowerInvariant() switch
+        query = sortBy.ToLower() switch
         {
             "unitprice" => query.OrderBy(p => p.CurrentUnitPrice.HasValue).ThenBy(p => p.CurrentUnitPrice),
             "pricedrop" => query.OrderBy(p => p.CurrentTotalPrice),
@@ -79,8 +73,8 @@ public static class PropertiesEndpoints
 
         var total = await query.CountAsync();
 
-        var items = await ordered.ThenBy(p => p.Id)
-            .Skip((int)offset)
+        var items = await query
+            .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .AsSplitQuery()
             .Select(p => new
