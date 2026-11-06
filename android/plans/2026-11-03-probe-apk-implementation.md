@@ -14,7 +14,7 @@
 
 ## Global Constraints
 
-- 更新：2026-11-06；狀態：使用者已選 Native 與逐 Task 暫停／review，Task1–11已完成實作、測試與review，停點等待繼續Task12；Task12–14未開始，尚無七站真機成功證據。
+- 更新：2026-11-06；狀態：使用者已選 Native 與逐 Task 暫停／review，Task1–12已完成實作、測試與review，停點等待繼續Task13；Task13–14未開始，尚無七站真機成功證據。
 - 所有 Android plan、tasks、驗證紀錄都放在 `F:\SourceCode\HouseLens\android\` 下；不修改 Web／後端程式或正式資料庫。
 - 裝置：Samsung S25+、One UI 9.0、Android 17。使用者可安裝及操作，**不開 USB 偵錯**；不可把 adb／connectedAndroidTest 列成使用者驗收前提。
 - Kotlin＋Jetpack Compose；`minSdk=26`、`compileSdk/targetSdk=37`。API 26 是工程基線，不表示已驗證 Android 8；真機結論限本 S25+ 組合。
@@ -319,12 +319,12 @@ Task11結果見 [執行紀錄](../tasks/task11.md)：22項來源測試及既有1
 
 **Interfaces:** `ProbeRunner.start(query: ProbeQuery, mode: RunMode): Boolean`（忙碌false）、`resume(runId: String): Boolean`、`cancel()`、`val state: StateFlow<RunRecord?>`；constructor接store、來源map、兩個transport與可替換clock/delay；Service local binder供Activity讀狀態與操作，WebView只attach同一實例。resume只接受同程序且WebView仍保留的WAITING_FOR_USER作業；程序死亡或session失效時false並提示重新開始，保留舊run供匯出。背景測試一旦需人工介入，本次不能改判為無人值守通過。
 
-- [ ] **Step 1 — 寫Runner紅測試。** Fake transports依序回傳filtered→valid→END，最後只計有效唯一ID；second start=false、不建立第二run；取消等待／請求不再發頁；晚到回應無效；存檔失敗FAIL；cap未盡TRUNCATED；驗證頁WAITING_FOR_USER且無自動重試；沒有terminal marker的舊run為INTERRUPTED。用coroutines-test虛擬時間，不真的sleep10分鐘。
-- [ ] **Step 2 — 跑 RED。** `./gradlew.bat :app:testDebugUnitTest --tests '*ProbeRunnerTest' --tests '*ProbeRecoveryTest'`。
-- [ ] **Step 3 — 實作流程。** 只有可見Activity的使用者點擊可啟動服務；兩種transport皆先呼叫checkRobots。FOREGROUND至多3頁作初測，未到末頁只能記樣本完成／TRUNCATED，不冒充完整掃描；FULL使用每站上限。B1/B2先抓第1頁，待收到背景／螢幕關閉事件後，分別在+60/+300/+540秒發後續頁，至600秒收尾。待測頁不足→INCONCLUSIVE，不循環重抓湊時間。每成功解析／落盤一頁才推進，來源驗證與未知結構採Task2決策。WAITING_FOR_USER停止網路工作並釋放wake lock，service最多保留5分鐘讓使用者回到同一WebView操作；按繼續才啟動新段。逾時保存checkpoint、結束service與WebView，結果為INTERRUPTED／challenge_wait_timeout。重開時若session失效明示重新開始，不承諾程序死亡後自動續跑。
-- [ ] **Step 4 — 接Android生命週期。** manifest加入FOREGROUND_SERVICE、FOREGROUND_SERVICE_DATA_SYNC、POST_NOTIFICATIONS、ACCESS_NETWORK_STATE、WAKE_LOCK；service exported=false、type=dataSync、START_NOT_STICKY；及時startForeground，通知含返回／取消。Activity stop不取消工作，不持有Activity引用。RUNNING使用有逾時的PARTIAL_WAKE_LOCK：B1/B2總時限15分鐘（含準備與10分鐘觀察），其他單站至多90分鐘；Runner也以相同界限停止並記TRUNCATED，結束／等待／取消一律finally釋放。這是避免CPU休眠的候選實作，不豁免Doze，必須記錄耗電。SCREEN_ON/OFF與Activity lifecycle、isInteractive、elapsedRealtime記事件；每次start重讀初態。`onTimeout`取消並立即stopSelf，資料依既有checkpoint重建，不在callback等待長IO。renderer gone、磁碟錯誤、系統啟動拒絕各有固定reason。
-- [ ] **Step 5 — 補恢復／系統分支測試並跑 GREEN。** 注入timeout／renderer failure→不得COMPLETED；elapsedRealtime跨程序不拼接背景成功；取消遺留IO不改新run；等待5分鐘必收尾，所有停止路徑釋放wake lock。七站循序模式是單一明確按鈕啟動的測試集合，遇人工驗證暫停集合，不是衝突作業排隊。自動休眠／強制停止真機仍等Task14。
-- [ ] **Step 6 — 提交。** `feat(android): run observable foreground-service probes`。
+- [x] **Step 1 — 寫Runner紅測試。** Fake transports依序回傳filtered→valid→END，最後只計有效唯一ID；second start=false、不建立第二run；取消等待／請求不再發頁；晚到回應無效；存檔失敗FAIL；cap未盡TRUNCATED；驗證頁WAITING_FOR_USER且無自動重試；沒有terminal marker的舊run為INTERRUPTED。用coroutines-test虛擬時間，不真的sleep10分鐘。
+- [x] **Step 2 — 跑 RED。** `./gradlew.bat :app:testDebugUnitTest --tests '*ProbeRunnerTest' --tests '*ProbeRecoveryTest'`。
+- [x] **Step 3 — 實作流程。** 只有可見Activity的使用者點擊可啟動服務；兩種transport皆先呼叫checkRobots。FOREGROUND至多3頁作初測，未到末頁只能記樣本完成／TRUNCATED，不冒充完整掃描；FULL使用每站上限。B1/B2先抓第1頁，待收到背景／螢幕關閉事件後，分別在+60/+300/+540秒發後續頁，至600秒收尾。待測頁不足→INCONCLUSIVE，不循環重抓湊時間。每成功解析／落盤一頁才推進，來源驗證與未知結構採Task2決策。WAITING_FOR_USER停止網路工作並釋放wake lock，service最多保留5分鐘讓使用者回到同一WebView操作；按繼續才啟動新段。逾時保存checkpoint、結束service與WebView，結果為INTERRUPTED／challenge_wait_timeout。重開時若session失效明示重新開始，不承諾程序死亡後自動續跑。
+- [x] **Step 4 — 接Android生命週期。** manifest加入FOREGROUND_SERVICE、FOREGROUND_SERVICE_DATA_SYNC、POST_NOTIFICATIONS、ACCESS_NETWORK_STATE、WAKE_LOCK；service exported=false、type=dataSync、START_NOT_STICKY；及時startForeground，通知含返回／取消。Activity stop不取消工作，不持有Activity引用。RUNNING使用有逾時的PARTIAL_WAKE_LOCK：B1/B2總時限15分鐘（含準備與10分鐘觀察），其他單站至多90分鐘；Runner也以相同界限停止並記TRUNCATED，結束／等待／取消一律finally釋放。這是避免CPU休眠的候選實作，不豁免Doze，必須記錄耗電。SCREEN_ON/OFF與Activity lifecycle、isInteractive、elapsedRealtime記事件；每次start重讀初態。`onTimeout`取消並立即stopSelf，資料依既有checkpoint重建，不在callback等待長IO。renderer gone、磁碟錯誤、系統啟動拒絕各有固定reason。
+- [x] **Step 5 — 補恢復／系統分支測試並跑 GREEN。** 注入timeout／renderer failure→不得COMPLETED；elapsedRealtime跨程序不拼接背景成功；取消遺留IO不改新run；等待5分鐘必收尾，所有停止路徑釋放wake lock。七站循序模式是單一明確按鈕啟動的測試集合，遇人工驗證暫停集合，不是衝突作業排隊。自動休眠／強制停止真機仍等Task14。
+- [x] **Step 6 — 提交。** `feat(android): run observable foreground-service probes`。
 
 ### Task 13: 操作畫面、無 adb 自檢與 APK 交付
 

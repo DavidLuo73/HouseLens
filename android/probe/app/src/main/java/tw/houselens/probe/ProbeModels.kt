@@ -108,6 +108,7 @@ data class ProbeEvent(
     val reason: ProbeReason?,
     val evidenceSource: EvidenceSource,
     val newRawCount: Int? = null,
+    val batteryPercent: Int? = null,
 )
 
 data class DeviceSnapshot(

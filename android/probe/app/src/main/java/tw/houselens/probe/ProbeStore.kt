@@ -86,7 +86,7 @@ class ProbeStore(
         writing(event.runId) { appendLine(event) }
     }
 
-    @Synchronized fun finish(runId: String, state: RunState) {
+    @Synchronized fun finish(runId: String, state: RunState, reason: ProbeReason? = null, batteryPercent: Int? = null) {
         require(state in terminalKinds) { "non_terminal_state" }
         val record = load(runId)
         check(record.processId == processId) { "foreign_process" }
@@ -97,7 +97,7 @@ class ProbeStore(
         check(runId !in failedWrites || state == RunState.FAILED) { "previous_write_failed" }
         check(!record.eventTailIncomplete || state == RunState.FAILED) { "incomplete_evidence" }
         val event = ProbeEvent(runId, processId, record.query.site, null, terminalKinds.getValue(state),
-            utcNow(), elapsedNow(), null, null, null, null, null, record.evidenceSource)
+            utcNow(), elapsedNow(), null, null, null, null, reason, record.evidenceSource, batteryPercent = batteryPercent)
         validateEvent(event, record)
         writing(runId) { atomic(File(directory(runId), "terminal.json"), eventJson(event)) }
     }
@@ -177,6 +177,8 @@ class ProbeStore(
             uniqueListings: ${keys.size}
             background: ${backgroundVerdict(record.events, record.mode)}
             incompleteEventTail: ${record.eventTailIncomplete}
+            batteryStartPercent: ${record.deviceSnapshot.batteryPercent}
+            batteryEndPercent: ${record.events.lastOrNull { it.kind in terminalKinds.values }?.batteryPercent}
             query: ${queryJson(record.query)}
             device: ${deviceJson(record.deviceSnapshot)}
         """.trimIndent()
@@ -227,6 +229,7 @@ class ProbeStore(
         require(event.pageIndex == null || event.pageIndex in 0 until 100)
         require(event.navigationId == null || event.navigationId >= 0)
         require(listOf(event.rawCount, event.acceptedCount, event.newRawCount).all { it == null || it >= 0 })
+        require(event.batteryPercent == null || event.batteryPercent in 0..100)
         if (event.kind in setOf(ProbeEventKind.REQUEST_STARTED, ProbeEventKind.RESPONSE_RECEIVED,
                 ProbeEventKind.PAGE_PARSED, ProbeEventKind.PAGE_SAVED)) require(event.pageIndex != null && event.navigationId != null)
         if (event.kind in setOf(ProbeEventKind.PAGE_PARSED, ProbeEventKind.PAGE_SAVED)) {

@@ -4,7 +4,7 @@
 
 ## 下一輪從這裡開始
 
-**Task 11 實作、測試與獨立 review 已完成，停在使用者指定的逐 Task 停點；Task 12 尚未開始。** 等使用者說「繼續」，再依 [驗證 APK 實作計畫](../plans/2026-11-03-probe-apk-implementation.md) 執行 Task 12：單一作業、背景服務與中斷收尾。不要重做 Task1–11 或重問執行方式。
+**Task 12 實作、測試與獨立 review 已完成，停在使用者指定的逐 Task 停點；Task 13 尚未開始。** 等使用者說「繼續」，再依 [驗證 APK 實作計畫](../plans/2026-11-03-probe-apk-implementation.md) 執行 Task 13：操作畫面、無 adb 自檢與 APK 交付。不要重做 Task1–12 或重問執行方式。
 
 所有 Android 程式碼必須寫在 **`F:\SourceCode\HouseLens\android\`** 下（使用者本輪再次明確指定），含工程、任務及驗證紀錄。工程位於 `android/probe/`。
 
@@ -20,6 +20,7 @@
 ## 必讀入口
 
 - [驗證 APK 實作計畫](../plans/2026-11-03-probe-apk-implementation.md)：14個Task、共用介面、fixture及驗證步驟。
+- [Task12 執行紀錄](../tasks/task12.md)：Runner／Service／生命週期、取消／存檔競態、elapsed期限、review與203項測試；末段含Task13接線契約。
 - [Task11 執行紀錄](../tasks/task11.md)：台灣房屋建坪／現價、未知欄位、空頁／全過濾頁、review修正及175項測試。
 - [Task10 執行紀錄](../tasks/task10.md)：中信POST／envelope／現價、全過濾頁／跨區、review修正及153項測試。
 - [Task9 執行紀錄](../tasks/task9.md)：信義HTTP／SSR、原始20卡分頁、圖片解碼／影片／fallback、review修正及137項測試。
@@ -51,7 +52,8 @@
 | Task9 | **完成**：信義adapter／三份合成樣本／17項來源測試，未接UI、未實站驗證 |
 | Task10 | **完成**：中信adapter／三份合成JSON／16項來源測試，未接UI、未實站驗證 |
 | Task11 | **完成**：台灣房屋adapter／三份合成HTML／22項來源測試，未接UI、未實站驗證 |
-| Task12–13 | **未開始**：目前手機畫面仍不能抓取、保存或匯出 |
+| Task12 | **完成**：單作業Runner、dataSync服務、生命週期／wake lock／取消與恢復，尚未接操作UI |
+| Task13 | **未開始**：目前手機畫面仍不能啟動抓取、保存或匯出 |
 | Task14 | **未開始**：尚無手機安裝、七站或背景成功證據 |
 | Web／Supabase／正式App | 未修改或部署 |
 
@@ -200,6 +202,22 @@ APK：`android/validation/builds/task1/HouseLens-probe.apk`（0.1.0／versionCod
 - 現價直接驗既有住宅 `.mt-auto` 容器或降價卡末端直接欄位的完整文字，允許數字／單位拆標籤，拒絕負號／待更新／錯誤單位／空白。**未知價格版型或容器同時含多個金額會保守INVALID**；不得改回最後一個成功解析金額，需取得實站DOM後補selector。程式已註明shortcut。
 - Store save/load/export實測通過；fixture均SIMULATED／networkObserved=false。未跑實站、WebView、adb／手機／背景或未修改的Node橋接。圖片／空頁／小數條件與目前網站結構仍待實站確認；Task1留存APK未覆蓋，當前UI仍只有版本與未開始。
 - 全部命令已結束，無阻礙；context實際百分比不可見。下一步Task12先核對Store／Report／transport接線契約，寫Runner／Recovery紅測試：單作業、filtered→valid→END、取消／晚到回應、存檔失敗、頁限／challenge及舊程序恢復，再接服務與生命週期。依使用者要求此處停下。
+
+## Task12 最新結果與下一步
+
+- 新增 `ProbeRunner.kt`、`ProbeService.kt`、`DeviceSnapshot.kt`、`ProbeRunnerTest.kt`、`ProbeRecoveryTest.kt`；修改manifest、MainActivity生命週期、WebView存活／renderer callback、Store terminal reason／電量，以及Models／JSON選填電量欄位。沒有新增依賴、調整SDK、修改來源adapter／後端或正式資料。
+- 最終命令（repo root）：`./android/probe/gradlew.bat -p android/probe :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --offline --console plain --no-daemon '-Pkotlin.compiler.execution.strategy=in-process'` → **exit0／BUILD SUCCESSFUL，203 tests／0失敗／0錯誤，lint0 errors／5個既有鎖版新版提示**。Runner27＋Recovery1＋既有175；最終為`validation/builds/task12/final-current.log`與`build-info.json`，不能誤用中間紅燈log。
+- Runner main-confined、Store IO串行；start忙碌false，取消後必須等舊capture／commit／事件／terminal收尾才釋放。filtered→valid→END按raw推進；FORE最多3頁，FULL來源cap；網路錯誤／renderer／解析／磁碟／系統拒絕均固定reason，不能將晚到回應算入新run。
+- B1/B2先第1頁，首次符合背景條件後+60/+300/+540秒取頁，+600秒評估；不足新頁／缺網路證據／未滿600秒為INCONCLUSIVE。COMPLETED只是這個觀察流程完成，不代表完整搜尋；完整輪次用FULL。所有測試均虛擬時間，不是真機背景證據。
+- WAITING不自動重試、不持wake lock，最多5分鐘elapsed；只接受同run／程序／存活browser session。人工解驗證後重新導航同頁，會用新navigationId，原run的背景判讀仍FAILED。HTTP challenge不提供假WebView續跑；session失效需重新開始。休眠時callback可能延遲，但恢復或resume後不得用過期等待繼續。
+- Service使用dataSync／START_NOT_STICKY，只有可見Activity點擊可start；通知有返回／取消。onTimeout立即取消、釋放lock與stopSelf，不等待IO。背景15分鐘／其他90分鐘，Runner與wake lock共用截止，且每個網路／磁碟suspension後核對elapsed，避免uptime計時晚醒後補發。
+- 每run重讀裝置／網路／電量／省電／螢幕初態；只記系統非識別資訊。processId與Store同程序單例（初始化同步）；不另建writer。terminal原子保存停止原因及結束電量，export列起訖百分比；舊JSON沒有batteryPercent仍可讀。百分比差不是校準耗電量，真機仍需記充電情境。
+- 獨立review分Runner與Service。已修：立即取消卡槽、集合初態已背景未排程、空末頁／提前返回誤COMPLETED、commit期間漏生命週期造成假PASS（含同毫秒）、elapsed跨期限仍發capture／第二個robots、人工等待過期仍resume、服務升前景拒絕未立即停止、多Activity舊onStop拔掉新WebView。邏輯問題皆有RED→GREEN；原生兩項以靜態review／編譯／lint覆核，沒有假稱真機已測。兩位reviewer最終沒有必修遺留。
+- **保守邊界**：頁提交期間的前背景／螢幕變化直接FAILED／EVIDENCE_LOST，避免未知事件先後造成假PASS；需重跑取得乾淨觀察區間。磁碟連terminal也不能保存時，UI state為FAILED／STORAGE_ERROR，不得提示「已保存」。
+- **Task13入口**：Activity bind取得LocalBinder（state/busy/start/startCollection/resume/cancel/attach/detach）；bind本身不啟動採集或WebView。現有MainActivity已接onStart/onStop。真正容器接線時補identity-matched `detach(container)`；重建attach同一session，不能新建第二個WebView。Store export／load在IO；不要在UI另外建立Store。
+- 七站集合只由明確按鈕啟動，固定591→樂屋→永慶→住商→信義→中信→台灣房屋；WAITING暫停集合，取消／失敗／中斷停止集合；衝突不排隊。Task13負責畫面、結果／歷史、通知拒絕提示、App內取消、主動匯出、圖片限制、本機自檢與新版本APK打包。
+- 未跑實站／WebView原生callback／手機／adb／背景；未重跑未改動的Node橋接。Task1留存APK未覆蓋，當前UI仍只有版本與未開始。沒有任何七站或背景真機成功結論。
+- 所有命令已結束，無阻礙；context實際百分比不可見。本輪依逐Task要求停下，下一步Task13先寫輸入／匯出紅測試，再接binder與自檢。
 
 ## 工具鏈與接續注意事項
 

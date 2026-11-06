@@ -81,12 +81,14 @@ internal fun eventJson(e: ProbeEvent) = buildJsonObject {
     put("kind", e.kind.name); put("utc", e.utc); put("elapsedMs", e.elapsedMs); put("navigationId", e.navigationId)
     put("rawCount", e.rawCount); put("acceptedCount", e.acceptedCount); put("networkObserved", e.networkObserved)
     put("reason", e.reason?.name); put("evidenceSource", e.evidenceSource.name); put("newRawCount", e.newRawCount)
+    put("batteryPercent", e.batteryPercent)
 }
 
 internal fun eventFromJson(o: JsonObject) = ProbeEvent(o.text("runId"), o.text("processId"), Site.valueOf(o.text("site")),
     o.optionalNumber("pageIndex"), ProbeEventKind.valueOf(o.text("kind")), o.text("utc"), o.getValue("elapsedMs").jsonPrimitive.long,
     o.optionalLong("navigationId"), o.optionalNumber("rawCount"), o.optionalNumber("acceptedCount"), o.flag("networkObserved"),
-    o.optionalText("reason")?.let(ProbeReason::valueOf), EvidenceSource.valueOf(o.text("evidenceSource")), o.optionalNumber("newRawCount"))
+    o.optionalText("reason")?.let(ProbeReason::valueOf), EvidenceSource.valueOf(o.text("evidenceSource")), o.optionalNumber("newRawCount"),
+    if ("batteryPercent" in o) o.optionalNumber("batteryPercent") else null)
 
 internal fun sampleJson(pages: Map<Int, PageResult>) = buildJsonObject {
     put("pages", JsonArray(pages.map { (index, page) -> buildJsonObject {

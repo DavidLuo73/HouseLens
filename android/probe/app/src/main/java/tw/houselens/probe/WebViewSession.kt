@@ -18,7 +18,8 @@ import kotlin.coroutines.resumeWithException
 
 /** Owned by the service; the Activity only lends a container. All lifecycle calls are on main. */
 @SuppressLint("SetJavaScriptEnabled")
-class WebViewSession(context: Context, private val pacer: RequestPacer, private val selfCheck: Boolean = false) : PageTransport {
+class WebViewSession(context: Context, private val pacer: RequestPacer, private val selfCheck: Boolean = false,
+    private val onRendererGone: () -> Unit = {}) : PageTransport {
     private val app = context.applicationContext
     private val view: WebView
     private var script: ScriptHandler? = null
@@ -27,6 +28,7 @@ class WebViewSession(context: Context, private val pacer: RequestPacer, private 
     private var evaluation: CancellableContinuation<String>? = null
     private var failure: TransportException? = null
     private var destroyed = false
+    val isAvailable: Boolean get() { mainThread(); return !destroyed }
     private var navigationId = -1L
     private var documentUrl = ""
     private var statusCode: Int? = null
@@ -134,6 +136,7 @@ class WebViewSession(context: Context, private val pacer: RequestPacer, private 
                 fail(ProbeReason.RENDERER_GONE)
                 if (selfCheck) ServiceWorkerController.getInstance().setServiceWorkerClient(null)
                 detach(); view.destroy(); destroyed = true
+                onRendererGone()
                 return true
             }
         }

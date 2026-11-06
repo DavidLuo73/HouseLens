@@ -19,6 +19,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 
 class MainActivity : ComponentActivity() {
+    override fun onStart() { super.onStart(); ProbeService.activityStarted() }
+    override fun onStop() { ProbeService.activityStopped(); super.onStop() }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
