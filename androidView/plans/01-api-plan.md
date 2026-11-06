@@ -48,20 +48,20 @@ Auth 設定鍵：`Auth:Authority`、`Auth:Audience=authenticated`、`Auth:Approv
 
 **Interfaces:** Consumes 現有 `GetProperties` 的 query 與 DbContext；Produces 相同 JSON，非法 query 回 400 ProblemDetails，合法排序最後加 `Id` 升冪。`priceDrop` 仍是總價升冪、`unitPrice` null 在前、`postedDate` 是 FirstSeenAt、`priceDropped=false` 不篩選。
 
-- [ ] **Step 1: 寫失敗測試。** 在 `PropertyQueryValidationTests` 使用既有 factory；Theory 的 query 包含 page 0／-1、pageSize 0／101、負價、最低大於最高、空／未知 status 與 sortBy、`sourceSite=0`／999／空／混合合法與未知值、最大 int page。下面是測試的核心斷言；各 theory 使用完整 query 字串。
+- [x] **Step 1: 寫失敗測試。** 在 `PropertyQueryValidationTests` 使用既有 factory；Theory 的 query 包含 page 0／-1、pageSize 0／101、負價、最低大於最高、空／未知 status 與 sortBy、`sourceSite=0`／999／空／混合合法與未知值、最大 int page。下面是測試的核心斷言；各 theory 使用完整 query 字串。
   ```csharp
   using var client = factory.CreateClient();
   var response = await client.GetAsync("/api/properties?" + query);
   response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
   ```
   另測 `page=1&pageSize=100&minPrice=0&maxPrice=0`、合法大小寫與 repeated keys 為 200。`PropertyPaginationTests` 為四種排序各建立獨立區名、六個固定 UUID、相同排序值且亂序插入；讀三頁（每頁 2 筆）後再讀一次：`ids.Should().Equal(expectedIds)`、`ids.Distinct().Should().HaveCount(6)`，避免 theory 共用 DB 互相污染。
-- [ ] **Step 2: 確認 RED。** 執行下列命令，預期因非法值未回 400／缺唯一次排序而測試失敗，不能把缺 DB 連線當作 RED。
+- [x] **Step 2: 確認 RED。** 執行下列命令，預期因非法值未回 400／缺唯一次排序而測試失敗，不能把缺 DB 連線當作 RED。
   ```powershell
   dotnet test backend/tests/HouseLens.IntegrationTests/HouseLens.IntegrationTests.csproj --filter "FullyQualifiedName~PropertyQueryValidationTests|FullyQualifiedName~PropertyPaginationTests"
   ```
-- [ ] **Step 3: 最小修改原端點。** 保留原簽名，查詢前驗證上述值，平台依 enum 名稱比對而非允許數字；用 long 計 offset，超出 int Skip 範圍回 400。每種既有排序加 `ThenBy(p => p.Id)`；不把查詢搬到未被使用的 `Application/Queries/PropertyQueryService.cs`。
-- [ ] **Step 4: 驗證 GREEN 與回歸。** 執行 `dotnet test backend/tests/HouseLens.IntegrationTests/HouseLens.IntegrationTests.csproj --filter "FullyQualifiedName~Property"`，全部 PASS，完整歷史與原排序語意測試不可刪改成較弱斷言。
-- [ ] **Step 5: 提交。** 只 stage 本任務 Files 的變更；`git commit -m "fix: validate property queries and stabilize pagination"`。
+- [x] **Step 3: 最小修改原端點。** 保留原簽名，查詢前驗證上述值，平台依 enum 名稱比對而非允許數字；用 long 計 offset，超出 int Skip 範圍回 400。每種既有排序加 `ThenBy(p => p.Id)`；不把查詢搬到未被使用的 `Application/Queries/PropertyQueryService.cs`。
+- [x] **Step 4: 驗證 GREEN 與回歸。** 執行 `dotnet test backend/tests/HouseLens.IntegrationTests/HouseLens.IntegrationTests.csproj --filter "FullyQualifiedName~Property"`，全部 PASS，完整歷史與原排序語意測試不可刪改成較弱斷言。
+- [x] **Step 5: 提交。** 只 stage 本任務 Files 的變更；`git commit -m "fix: validate property queries and stabilize pagination"`。
 
 ### Task A2: 公開唯讀模式與核准成員授權
 
