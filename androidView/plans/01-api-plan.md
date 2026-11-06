@@ -76,17 +76,17 @@ Auth 設定鍵：`Auth:Authority`、`Auth:Audience=authenticated`、`Auth:Approv
 - `ConfigEndpoints.MapDistrictOptionsEndpoint(this IEndpointRouteBuilder app): IEndpointRouteBuilder` 只映射原 GetDistricts；原 `MapConfigEndpoints` 呼叫它，不能重複映射。
 - Private fixture 明示 `Api:Mode=PrivateManagement`；Public fixture 採真實 JwtBearer，`TestJwtIssuer` 只在測試組件提供簽章 token 與假的 OIDC/JWKS HTTP handler，不啟動第二個測試網站。
 
-- [x] **Step 1: 加入測試與必要 JwtBearer 套件。** `ApiAuthorizationTests` 對全部公開資料 GET 驗證匿名 401、合法未核准 sub 403、核准 sub 可到 handler；錯誤 issuer／audience／過期／偽簽章 token 為 401。圖片以假上游／預填 cache 測試，不能連外取圖。
+- [ ] **Step 1: 加入測試與必要 JwtBearer 套件。** `ApiAuthorizationTests` 對全部公開資料 GET 驗證匿名 401、合法未核准 sub 403、核准 sub 可到 handler；錯誤 issuer／audience／過期／偽簽章 token 為 401。圖片以假上游／預填 cache 測試，不能連外取圖。
   ```csharp
   response.StatusCode.Should().Be(HttpStatusCode.Unauthorized); // 無 token
   denied.StatusCode.Should().Be(HttpStatusCode.Forbidden);      // 有效、未核准
   allowed.StatusCode.Should().Be(HttpStatusCode.OK);            // 已配置測試資料
   ```
   增加 `RemovedMember_IsRejectedWithSameToken`、`SigningKeyRotation_RefreshesJwks`（沿用 framework backchannel/configuration manager、調整測試 refresh interval，不 sleep）、`CachedImage_StillRequiresMembership`。`PublicRouteTests` 先以 EndpointDataSource 斷言沒有管理／寫入／SSE endpoint，通過後才做對應 HTTP 404／405 驗證，防止未完成的模式切換意外執行 crawler。私人既有 `ScoringEndpointTests` 仍成功。Startup 測試覆蓋無效模式、公開缺 Auth 與私人 non-loopback URL 拒絕，含 URL／Kestrel endpoint 設定覆寫路徑。
-- [x] **Step 2: 確認 RED。** `dotnet test backend/tests/HouseLens.IntegrationTests/HouseLens.IntegrationTests.csproj --filter "FullyQualifiedName~ApiAuthorizationTests|FullyQualifiedName~PublicRouteTests"`；預期目前匿名 GET 可通過、管理路由仍存在。
-- [x] **Step 3: 實作標準 JWT 與模式組裝。** Authority 為 `https://<project-ref>.supabase.co/auth/v1`，`MapInboundClaims=false`，驗 issuer／audience／signature／lifetime；policy 要求 `sub` 為核准 UUID。使用標準 discovery／JWKS refresh，不自己快取金鑰或寫驗章。公開 endpoints 掛 `app.MapGroup("").RequireAuthorization("ApprovedMember")`；只掛共同契約中的 mappings。私人模式保留 crawler registrations／完整 config／admin／SSE／Seed；公開模式不註冊 crawler、不執行 Seed（Seed 會 migration／寫資料）。health 明確匿名。Development launch profile 加模式與 loopback，production 預設不降級成匿名。
-- [x] **Step 4: 驗證 GREEN。** 重跑 Step 2，然後 `dotnet test backend/HouseLens.slnx --filter "Category!=Live"`；新授權測試與既有匿名私人管理測試全部 PASS。只使用獨立測試 DB。
-- [x] **Step 5: 提交。** stage 本任務精確檔案；`git commit -m "feat: expose authenticated read-only API mode"`。
+- [ ] **Step 2: 確認 RED。** `dotnet test backend/tests/HouseLens.IntegrationTests/HouseLens.IntegrationTests.csproj --filter "FullyQualifiedName~ApiAuthorizationTests|FullyQualifiedName~PublicRouteTests"`；預期目前匿名 GET 可通過、管理路由仍存在。
+- [ ] **Step 3: 實作標準 JWT 與模式組裝。** Authority 為 `https://<project-ref>.supabase.co/auth/v1`，`MapInboundClaims=false`，驗 issuer／audience／signature／lifetime；policy 要求 `sub` 為核准 UUID。使用標準 discovery／JWKS refresh，不自己快取金鑰或寫驗章。公開 endpoints 掛 `app.MapGroup("").RequireAuthorization("ApprovedMember")`；只掛共同契約中的 mappings。私人模式保留 crawler registrations／完整 config／admin／SSE／Seed；公開模式不註冊 crawler、不執行 Seed（Seed 會 migration／寫資料）。health 明確匿名。Development launch profile 加模式與 loopback，production 預設不降級成匿名。
+- [ ] **Step 4: 驗證 GREEN。** 重跑 Step 2，然後 `dotnet test backend/HouseLens.slnx --filter "Category!=Live"`；新授權測試與既有匿名私人管理測試全部 PASS。只使用獨立測試 DB。
+- [ ] **Step 5: 提交。** stage 本任務精確檔案；`git commit -m "feat: expose authenticated read-only API mode"`。
 
 ### Task A3: 可驗證的 HTTPS 部署入口
 
