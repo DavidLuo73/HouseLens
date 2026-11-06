@@ -12,7 +12,7 @@ public static class ConfigEndpoints
         app.MapPut("/api/config", PutConfig);
 
         // District price config CRUD
-        app.MapGet("/api/config/districts", GetDistricts);
+        app.MapDistrictOptionsEndpoint();
         app.MapPost("/api/config/districts", CreateDistrict);
         app.MapPut("/api/config/districts/{id:int}", UpdateDistrict);
         app.MapDelete("/api/config/districts/{id:int}", DeleteDistrict);
@@ -22,6 +22,12 @@ public static class ConfigEndpoints
         app.MapGet("/api/config/platform-filters", GetPlatformFilters);
         app.MapPut("/api/config/platform-filters/{sourceSite}", UpsertPlatformFilter);
 
+        return app;
+    }
+
+    public static IEndpointRouteBuilder MapDistrictOptionsEndpoint(this IEndpointRouteBuilder app)
+    {
+        app.MapGet("/api/config/districts", GetDistricts);
         return app;
     }
 
