@@ -75,7 +75,8 @@
   window.__houseLensSnapshot = () => {
     const body = document.documentElement?.outerHTML || '';
     const result = envelope('dom', location.href, null, 'text/html', body);
-    result.ready = document.readyState === 'complete';
+    result.ready = document.readyState === 'complete' &&
+      (!config.selfCheck || document.documentElement?.dataset.selfcheckReady === 'true');
     const message = JSON.stringify(result);
     return encoder.encode(message).length <= limit ? message :
       JSON.stringify(envelope('oversize', location.href, null, '', ''));

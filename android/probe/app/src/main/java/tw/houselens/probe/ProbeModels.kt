@@ -137,4 +137,5 @@ data class RunRecord(
     val savedPageIndices: Set<Int> = emptySet(),
     val events: List<ProbeEvent> = emptyList(),
     val eventTailIncomplete: Boolean = false,
+    val appVersion: String? = null,
 )

@@ -4,7 +4,7 @@
 
 ## 下一輪從這裡開始
 
-**Task 12 實作、測試與獨立 review 已完成，停在使用者指定的逐 Task 停點；Task 13 尚未開始。** 等使用者說「繼續」，再依 [驗證 APK 實作計畫](../plans/2026-11-03-probe-apk-implementation.md) 執行 Task 13：操作畫面、無 adb 自檢與 APK 交付。不要重做 Task1–12 或重問執行方式。
+**Task 13 實作、測試、獨立 review 與 APK 交付已完成，停在使用者指定的逐 Task 停點；Task 14 尚未開始。** 等使用者說「繼續」，再依 [驗證 APK 實作計畫](../plans/2026-11-03-probe-apk-implementation.md) 執行 Task 14：先由使用者安裝／回報本機自檢，再逐站真機驗證。不要重做 Task1–13 或重問執行方式。
 
 所有 Android 程式碼必須寫在 **`F:\SourceCode\HouseLens\android\`** 下（使用者本輪再次明確指定），含工程、任務及驗證紀錄。工程位於 `android/probe/`。
 
@@ -20,6 +20,8 @@
 ## 必讀入口
 
 - [驗證 APK 實作計畫](../plans/2026-11-03-probe-apk-implementation.md)：14個Task、共用介面、fixture及驗證步驟。
+- [Task13 執行紀錄](../tasks/task13.md)：操作畫面、歷史／匯出、自檢、212項測試、review與APK交付。`validation/builds/task13/HouseLens-probe.apk`（0.2.0／code2）。
+- [安裝與操作說明](../validation/README.md)：無USB安裝、本機自檢、結果／圖片／匯出與回報。
 - [Task12 執行紀錄](../tasks/task12.md)：Runner／Service／生命週期、取消／存檔競態、elapsed期限、review與203項測試；末段含Task13接線契約。
 - [Task11 執行紀錄](../tasks/task11.md)：台灣房屋建坪／現價、未知欄位、空頁／全過濾頁、review修正及175項測試。
 - [Task10 執行紀錄](../tasks/task10.md)：中信POST／envelope／現價、全過濾頁／跨區、review修正及153項測試。
@@ -43,23 +45,23 @@
 | 需求／驗證方案／14 Task計畫 | 已完成規劃，採Native逐Task執行 |
 | Task1 | **完成**：Gradle工程、模型、最小畫面、測試、lint、APK、獨立review與修正 |
 | Task2 | **完成**：查詢驗證、共同排除理由、分頁決策與15個規則測試 |
-| Task3 | **完成**：本機Store／JSON、恢復／匯出與背景證據判讀；尚未接UI |
-| Task4 | **完成**：HTTP／WebView候選與橋接邊界，未接UI；本機頁尚未在WebView實跑 |
-| Task5 | **完成**：591 adapter／合成樣本／20項來源測試，未接UI、未實站驗證 |
-| Task6 | **完成**：樂屋adapter／三份合成樣本／15項來源測試，未接UI、未實站驗證 |
-| Task7 | **完成**：永慶adapter／三份合成樣本／16項來源測試，未接UI、未實站驗證 |
-| Task8 | **完成**：住商adapter／三份合成樣本／17項來源測試，未接UI、未實站驗證 |
-| Task9 | **完成**：信義adapter／三份合成樣本／17項來源測試，未接UI、未實站驗證 |
-| Task10 | **完成**：中信adapter／三份合成JSON／16項來源測試，未接UI、未實站驗證 |
-| Task11 | **完成**：台灣房屋adapter／三份合成HTML／22項來源測試，未接UI、未實站驗證 |
-| Task12 | **完成**：單作業Runner、dataSync服務、生命週期／wake lock／取消與恢復，尚未接操作UI |
-| Task13 | **未開始**：目前手機畫面仍不能啟動抓取、保存或匯出 |
+| Task3 | **完成**：本機Store／JSON、恢復／匯出與背景證據判讀；已由Task13接UI |
+| Task4 | **完成**：HTTP／WebView候選與橋接邊界，已由Task13接UI；本機頁尚未在WebView實跑 |
+| Task5 | **完成**：591 adapter／合成樣本／20項來源測試，已由Task13接UI、未實站驗證 |
+| Task6 | **完成**：樂屋adapter／三份合成樣本／15項來源測試，已由Task13接UI、未實站驗證 |
+| Task7 | **完成**：永慶adapter／三份合成樣本／16項來源測試，已由Task13接UI、未實站驗證 |
+| Task8 | **完成**：住商adapter／三份合成樣本／17項來源測試，已由Task13接UI、未實站驗證 |
+| Task9 | **完成**：信義adapter／三份合成樣本／17項來源測試，已由Task13接UI、未實站驗證 |
+| Task10 | **完成**：中信adapter／三份合成JSON／16項來源測試，已由Task13接UI、未實站驗證 |
+| Task11 | **完成**：台灣房屋adapter／三份合成HTML／22項來源測試，已由Task13接UI、未實站驗證 |
+| Task12 | **完成**：單作業Runner、dataSync服務、生命週期／wake lock／取消與恢復，已由Task13接操作UI |
+| Task13 | **完成**：操作UI／歷史／縮圖／主動匯出／本機自檢，0.2.0 APK已簽章驗證；尚未在手機實跑 |
 | Task14 | **未開始**：尚無手機安裝、七站或背景成功證據 |
 | Web／Supabase／正式App | 未修改或部署 |
 
 Task1 主要檔案：`probe/` 內的Gradle配置／wrapper、manifest／resources（含備份規則）、`ProbeModels.kt`、`MainActivity.kt`、`ProbeModelsTest.kt`；外層新增 `.gitignore`、`validation/.gitignore`、`tasks/task1.md`，同步計畫與入口。
 
-APK：`android/validation/builds/task1/HouseLens-probe.apk`（0.1.0／versionCode1）。只顯示版本與「尚未開始驗證」。簽章已用 apksigner verify 驗證，SHA256及工具鏈在同目錄 `build-info.json`。APK／logs／build-info均忽略，不入Git。
+目前交付 APK：`android/validation/builds/task13/HouseLens-probe.apk`（**0.2.0／versionCode2**）。具操作／採集／歷史／自檢／匯出功能。SHA-256：`110E1E31CECDFB43E665595A8C3A448A189C7770C8A3670B94C8C21558AAEE18`。apksigner驗證成功，與Task1同簽章；build-info.json含工具鏈、憑證、原始碼hash。Task1的0.1.0舊APK仍保留；產物均忽略、不入Git。
 
 ## Task1 歷史驗證與 review
 
@@ -218,6 +220,20 @@ APK：`android/validation/builds/task1/HouseLens-probe.apk`（0.1.0／versionCod
 - 七站集合只由明確按鈕啟動，固定591→樂屋→永慶→住商→信義→中信→台灣房屋；WAITING暫停集合，取消／失敗／中斷停止集合；衝突不排隊。Task13負責畫面、結果／歷史、通知拒絕提示、App內取消、主動匯出、圖片限制、本機自檢與新版本APK打包。
 - 未跑實站／WebView原生callback／手機／adb／背景；未重跑未改動的Node橋接。Task1留存APK未覆蓋，當前UI仍只有版本與未開始。沒有任何七站或背景真機成功結論。
 - 所有命令已結束，無阻礙；context實際百分比不可見。本輪依逐Task要求停下，下一步Task13先寫輸入／匯出紅測試，再接binder與自檢。
+
+## Task13 最新結果與下一步
+
+- 主代理完成操作UI、輸入／七站預驗、單站／集合／取消／resume、通知拒絕提示、結果／未知欄位、歷史／縮圖、CreateDocument主動ZIP、本機WebView自檢。新增檔案與完整契約見Task13紀錄。沿既有Store單例與IO，不加依賴、不改SDK、來源parser、Web／後端／Supabase。
+- 最終完整 `:app:testDebugUnitTest :app:lintDebug :app:assembleDebug --offline --console plain --no-daemon -Pkotlin.compiler.execution.strategy=in-process` **exit0／BUILD SUCCESSFUL，212 tests／0失敗／0錯誤，lint0 errors／5個既有新版提示**；`validation/builds/task13/final.log`。Node正式橋接資產PASS（bridge-final.log），依賴解析exit0（dependencies.log）。簽章驗證exit0，同Task1憑證。
+- 版本0.2.0／code2，已打包 `validation/builds/task13/HouseLens-probe.apk`；SHA、簽章、SDK／依賴／git基底及每檔source hash在build-info。未提交APK、logs、私鑰或既有無關未追蹤文件。
+- RunRecord新增可空appVersion；Runner保存當次版本，JSON舊紀錄缺值仍可讀，但顯示UNKNOWN，不能用目前版本補造。匯出另外記exportedWith。歷史load／loadPage／export走IO。UI背景新頁摘要也拒絕重用page/nav或EVIDENCE_LOST，不能只數PAGE_SAVED。
+- WebView仍由Service持有；容器detach檢查identity，同容器attach不重新移除。Service本機忙碌槽讓selfcheck／圖片／匯出與LIVE互斥。通知返回沿CLEAR_TOP／SINGLE_TOP。沒有新增排隊／清除資料功能。
+- 自檢只用本機assets，fetch／XHR、iframe送出後拒絕、延遲舊ID重放後拒絕均需marker，ready等完成再capture；WebView全程60秒上限。舊ID重放不等於真實跨導航晚回應已測。TIMEOUT／RENDERER_GONE固定注入走native收尾，標SIMULATED，不能冒充系統真機證據。
+- 自檢另建立LOCAL_SELF_CHECK的LOCAL1／798.00萬／28.50坪樣本，測保存／重讀／ZIP，可從歷史主動匯出。自檢項目結果留畫面供回報；不計入LIVE背景通過。
+- 縮圖只能明確點擊單張，HTTP沿白名單／Referer／8MiB限制，bitmap先驗尺寸與5000萬像素上限，再縮採樣最長邊512。圖片結果留本次畫面供回報，失敗不影響房源或匯出。
+- Review兩份已完成。修正選擇器返回早於binder連接時遺失匯出、旋轉取消本機作業後提示遺失；重建會提示檢查／刪除不完整ZIP再手動重試，不宣稱續傳。歷史版本測試改用不同的0.1.7及精確標題；自查背景新頁重用nav問題以RED→GREEN修正。原生生命週期只有編譯／lint／靜態review，沒有裝置證據。
+- **Task14入口**：使用者說繼續後先請安裝0.2.0並回報版本、裝置／WebView、本機自檢、歷史重讀與ZIP；取得實際結果才填驗證summary。之後依既定順序一次一站前景，再做B1／B2／FULL。不要因本機測試或自檢PASS就勾七站／背景成功。全部14 Task完成後仍需獨立整體review。
+- 尚未跑手機／adb／模擬器／實站／背景；原生WebView、Compose排版／大字體、通知拒絕、picker／旋轉、圖片、更新保留資料均待Task14。所有命令已結束，無阻礙；context實際百分比不可見。本輪依逐Task停點，等待使用者繼續。
 
 ## 工具鏈與接續注意事項
 

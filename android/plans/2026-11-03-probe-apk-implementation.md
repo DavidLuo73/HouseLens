@@ -14,7 +14,7 @@
 
 ## Global Constraints
 
-- 更新：2026-11-06；狀態：使用者已選 Native 與逐 Task 暫停／review，Task1–12已完成實作、測試與review，停點等待繼續Task13；Task13–14未開始，尚無七站真機成功證據。
+- 更新：2026-11-06；狀態：使用者已選 Native 與逐 Task 暫停／review，Task1–13已完成實作、測試、review與APK交付，停點等待繼續Task14；Task14未開始，尚無七站真機成功證據。
 - 所有 Android plan、tasks、驗證紀錄都放在 `F:\SourceCode\HouseLens\android\` 下；不修改 Web／後端程式或正式資料庫。
 - 裝置：Samsung S25+、One UI 9.0、Android 17。使用者可安裝及操作，**不開 USB 偵錯**；不可把 adb／connectedAndroidTest 列成使用者驗收前提。
 - Kotlin＋Jetpack Compose；`minSdk=26`、`compileSdk/targetSdk=37`。API 26 是工程基線，不表示已驗證 Android 8；真機結論限本 S25+ 組合。
@@ -332,11 +332,11 @@ Task11結果見 [執行紀錄](../tasks/task11.md)：22項來源測試及既有1
 
 **Interfaces:** `ProbeScreen(state: RunRecord?, onStart: (ProbeQuery,RunMode)->Unit, onCancel: ()->Unit, onResume: (String)->Unit, onExport: (String)->Unit)`；`suspend fun ProbeSelfCheck.run(): List<Pair<String,Boolean>>` 只跑固定本機樣本並把證據來源標LOCAL_SELF_CHECK，使用非阻塞callback等待與有限timeout。實際畫面由MainActivity提供本機檢查及WebView容器。
 
-- [ ] **Step 1 — 寫輸入／匯出測試與RED。** 欄位只接受有限數值／已支援代碼，無任意網址。預設新北中和、總價2000萬、最小20坪、R1,R2／住宅1，其餘不限；可選永和／新店並改測試條件，不做設定CRUD。`./gradlew.bat :app:testDebugUnitTest --tests '*ProbeInputTest' --tests '*ProbeExportTest'`；拒絕負值、超長代碼、未知站區；匯出包含版本／模式／未測狀態而無祕密字串。
-- [ ] **Step 2 — 實作繁中畫面。** 顯示站、區、條件摘要、模式、開始／取消、忙碌提示、網站驗證區、結果列表與未知欄位。結果區包含runId／版本、有效頁／筆數、背景內成功頁數、停止原因。通知拒絕時有說明與App內取消；字體放大仍可滾動、按鈕有文字標籤。提供來源縮圖預覽及圖片成功／失敗結果，不做圖庫。
-- [ ] **Step 3 — 接主動匯出與本機自檢。** 用ActivityResultContracts.CreateDocument建立zip，不要求儲存空間廣泛權限／自動上傳。以Task4本機HTTPS頁測fetch/XHR、iframe拒絕、舊頁回應；自檢iframe與回應均由本機asset handler提供，不連真實測試網域。頁面列出各項pass/fail，使用者可直接回報。timeout／renderer等人工注入結果標SIMULATED；不得出現在LIVE通過計數。
-- [ ] **Step 4 — 建置與打包。** `./gradlew.bat :app:testDebugUnitTest :app:lintDebug :app:assembleDebug`全PASS；`./gradlew.bat :app:dependencies --configuration debugRuntimeClasspath`保存實際解析版本摘要。本次給使用者的是自含式簽署測試APK，不需USB；debuggable不等於要求開USB偵錯。同一試驗簽章保存在未追蹤的本機安全位置，遞增versionCode；記錄憑證SHA-256，不交出私鑰。用SDK的apksigner驗證APK，PowerShell `Get-FileHash -Algorithm SHA256`記hash。
-- [ ] **Step 5 — 寫交付紀錄與提交。** 放 `android/validation/builds/<version>/HouseLens-probe.apk`、`build-info.json`；build-info含SDK／依賴實際解析版本、簽章指紋、git commit＋未提交內容狀態／source hash。P/.gitignore不覆蓋外層產物，新增 `android/validation/.gitignore` 忽略APK、私有raw匯出／builds，審查過的摘要才納入版控。README寫側載、通知、無USB操作、每步預期畫面、卸載會刪資料、如何回報／匯出。提交 `feat(android): deliver self-contained probe APK workflow`，不得stage APK或簽章。
+- [x] **Step 1 — 寫輸入／匯出測試與RED。** 欄位只接受有限數值／已支援代碼，無任意網址。預設新北中和、總價2000萬、最小20坪、R1,R2／住宅1，其餘不限；可選永和／新店並改測試條件，不做設定CRUD。`./gradlew.bat :app:testDebugUnitTest --tests '*ProbeInputTest' --tests '*ProbeExportTest'`；拒絕負值、超長代碼、未知站區；匯出包含版本／模式／未測狀態而無祕密字串。
+- [x] **Step 2 — 實作繁中畫面。** 顯示站、區、條件摘要、模式、開始／取消、忙碌提示、網站驗證區、結果列表與未知欄位。結果區包含runId／版本、有效頁／筆數、背景內成功頁數、停止原因。通知拒絕時有說明與App內取消；字體放大仍可滾動、按鈕有文字標籤。提供來源縮圖預覽及圖片成功／失敗結果，不做圖庫。
+- [x] **Step 3 — 接主動匯出與本機自檢。** 用ActivityResultContracts.CreateDocument建立zip，不要求儲存空間廣泛權限／自動上傳。以Task4本機HTTPS頁測fetch/XHR、iframe拒絕、舊頁回應；自檢iframe與回應均由本機asset handler提供，不連真實測試網域。頁面列出各項pass/fail，使用者可直接回報。timeout／renderer等人工注入結果標SIMULATED；不得出現在LIVE通過計數。
+- [x] **Step 4 — 建置與打包。** `./gradlew.bat :app:testDebugUnitTest :app:lintDebug :app:assembleDebug`全PASS；`./gradlew.bat :app:dependencies --configuration debugRuntimeClasspath`保存實際解析版本摘要。本次給使用者的是自含式簽署測試APK，不需USB；debuggable不等於要求開USB偵錯。同一試驗簽章保存在未追蹤的本機安全位置，遞增versionCode；記錄憑證SHA-256，不交出私鑰。用SDK的apksigner驗證APK，PowerShell `Get-FileHash -Algorithm SHA256`記hash。
+- [x] **Step 5 — 寫交付紀錄與提交。** 放 `android/validation/builds/<version>/HouseLens-probe.apk`、`build-info.json`；build-info含SDK／依賴實際解析版本、簽章指紋、git commit＋未提交內容狀態／source hash。P/.gitignore不覆蓋外層產物，新增 `android/validation/.gitignore` 忽略APK、私有raw匯出／builds，審查過的摘要才納入版控。README寫側載、通知、無USB操作、每步預期畫面、卸載會刪資料、如何回報／匯出。提交 `feat(android): deliver self-contained probe APK workflow`，不得stage APK或簽章。
 
 ### Task 14: 使用者真機驗證與結論
 
@@ -369,4 +369,4 @@ Task11結果見 [執行紀錄](../tasks/task11.md)：22項來源測試及既有1
 
 ## 執行交接
 
-使用者已選Native，不再詢問執行方式。Task1–10完成後，等待使用者繼續Task11，主代理依序實作，每Task結束暫停並review，直接覆寫 `android/handoff/handoff.md` 後等待繼續；context超過60%也先暫停覆寫同檔更新摘要。詳細停點、不可見context讀數的限制與目前進度見 [交接文件](../handoff/handoff.md)。全部實作完成後仍需獨立review；Task14的真機證據須由使用者實際操作回報。
+使用者已選Native，不再詢問執行方式。Task1–13完成後，等待使用者繼續Task14，主代理依序實作，每Task結束暫停並review，直接覆寫 `android/handoff/handoff.md` 後等待繼續；context超過60%也先暫停覆寫同檔更新摘要。詳細停點、不可見context讀數的限制與目前進度見 [交接文件](../handoff/handoff.md)。全部實作完成後仍需獨立review；Task14的真機證據須由使用者實際操作回報。

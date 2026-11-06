@@ -59,7 +59,8 @@ class ProbeRunner(
         if (busy) return false
         validateQuery(query)
         sources.getValue(query.site).request(query, 0)
-        val record = RunRecord(UUID.randomUUID().toString(), processId, query, mode, RunState.RUNNING, snapshot(), evidenceSource)
+        val record = RunRecord(UUID.randomUUID().toString(), processId, query, mode, RunState.RUNNING, snapshot(), evidenceSource,
+            appVersion = BuildConfig.VERSION_NAME)
         val work = Work(record, elapsedNow() + if (mode.isTimedProbe()) 900_000 else 5_400_000)
         active = work
         mutableState.value = record

@@ -1,5 +1,5 @@
 <resources>
     <string name="app_name">HouseLens 驗證</string>
-    <string name="probe_version">版本 %1$s</string>
+    <string name="probe_version">HouseLens 驗證 %1$s</string>
     <string name="not_started">尚未開始驗證</string>
 </resources>

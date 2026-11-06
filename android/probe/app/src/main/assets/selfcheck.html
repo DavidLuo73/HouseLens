@@ -1,21 +1,28 @@
 <!doctype html>
 <html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <title>HouseLens 本機橋接檢查</title>
-<h1>本機橋接檢查</h1><p>僅使用 App 內建 HTTPS 資產；結果不能當作實站或背景證據。</p>
-<button id="late">排定延遲回應（請切下一次本機導航）</button><pre id="result"></pre>
-<iframe src="/probe/frame" title="拒絕 iframe 訊息檢查"></iframe>
+<h1>本機橋接檢查</h1><p>僅使用 App 內建 HTTPS 資產；不作為實站或背景證據。</p>
+<pre id="result"></pre><iframe src="/probe/frame" title="拒絕 iframe 訊息檢查"></iframe>
 <script>
-const output = document.querySelector('#result');
-fetch('/probe/fetch').then(r => r.json()).then(() => output.textContent += 'fetch 完成\n');
-const xhr = new XMLHttpRequest(); xhr.open('GET', '/probe/xhr');
-xhr.onload = () => output.textContent += 'XHR 完成\n'; xhr.send();
-document.querySelector('#late').onclick = () => {
-  fetch('/probe/late').then(r => r.json()).then(() => output.textContent += '延遲回應完成\n');
-  document.documentElement.dataset.lateStarted = 'true';
-};
-// Task13 supplies the preceding navigation ID when testing rejection in the next document.
-const oldId = new URL(location.href).searchParams.get('previousNavigationId');
-if (oldId !== null) setTimeout(() => HouseLensBridge.postMessage(JSON.stringify({kind:'json',
-  url:location.origin+'/probe/stale', documentUrl:location.href, navigationId:Number(oldId),
-  status:200, contentType:'application/json', body:'{"stale":true}', networkObserved:false})), 500);
+const root = document.documentElement;
+const params = new URL(location.href).searchParams;
+const checks = [fetch('/probe/fetch').then(r => r.json()), new Promise((resolve, reject) => {
+  const xhr = new XMLHttpRequest(); xhr.open('GET', '/probe/xhr');
+  xhr.onload = resolve; xhr.onerror = reject; xhr.send();
+})];
+const oldId = params.get('previousNavigationId');
+if (oldId !== null) checks.push(fetch('/probe/late').then(r => r.json()).then(() => {
+  HouseLensBridge.postMessage(JSON.stringify({kind:'json',url:location.origin+'/probe/stale',
+    documentUrl:location.href,navigationId:Number(oldId),status:200,contentType:'application/json',
+    body:'{"stale":true}',networkObserved:false}));
+  root.dataset.staleSent = 'true';
+}));
+Promise.all(checks).then(() => {
+  const poll = setInterval(() => {
+    if (root.dataset.frameSent !== 'true') return;
+    clearInterval(poll);
+    if (!params.has('neverReady')) root.dataset.selfcheckReady = 'true';
+    document.querySelector('#result').textContent = '本機樣本已送出，原生程式核對結果。';
+  }, 50);
+});
 </script></html>

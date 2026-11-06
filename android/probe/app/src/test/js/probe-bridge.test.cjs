@@ -53,5 +53,13 @@ vm.runInContext(source.replace('__PROBE_CONFIG__', JSON.stringify({navigationId:
   assert.equal(messages[5].networkObserved, false);
   context.document.documentElement.outerHTML = 'x'.repeat(2097153);
   assert.equal(JSON.parse(context.__houseLensSnapshot()).kind, 'oversize');
-  console.log('probe-bridge: fetch, XHR, stale ID, exact host, cache evidence and size checks passed');
+  const local = {...context, location: {href: 'https://appassets.androidplatform.net/assets/selfcheck.html'},
+    document: {readyState:'complete', documentElement:{outerHTML:'<html></html>', dataset:{}}}};
+  local.window = local; local.top = local;
+  vm.createContext(local);
+  vm.runInContext(source.replace('__PROBE_CONFIG__', JSON.stringify({navigationId:2, selfCheck:true})), local);
+  assert.equal(JSON.parse(local.__houseLensSnapshot()).ready, false, 'local checks must finish before capture');
+  local.document.documentElement.dataset.selfcheckReady = 'true';
+  assert.equal(JSON.parse(local.__houseLensSnapshot()).ready, true);
+  console.log('probe-bridge: fetch, XHR, stale ID, exact host, cache evidence, size and selfcheck readiness passed');
 })().catch(e => { console.error(e); process.exitCode = 1; });

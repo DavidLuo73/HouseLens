@@ -53,7 +53,7 @@ class WebViewSession(context: Context, private val pacer: RequestPacer, private 
                         override fun read(buffer: ByteArray, offset: Int, length: Int): Int { waitOnce(); return super.read(buffer, offset, length) }
                     }
                 }
-                "frame" -> localResponse("text/html", "<script>const p=JSON.parse(parent.__houseLensSnapshot()); if(window.HouseLensBridge) HouseLensBridge.postMessage(JSON.stringify({kind:'json',url:location.origin+'/probe/frame',documentUrl:p.documentUrl,navigationId:p.navigationId,status:200,contentType:'application/json',body:'{\"frame\":true}',networkObserved:false}));</script>")
+                "frame" -> localResponse("text/html", "<script>const p=JSON.parse(parent.__houseLensSnapshot()); if(window.HouseLensBridge) { HouseLensBridge.postMessage(JSON.stringify({kind:'json',url:location.origin+'/probe/frame',documentUrl:p.documentUrl,navigationId:p.navigationId,status:200,contentType:'application/json',body:'{\"frame\":true}',networkObserved:false})); parent.document.documentElement.dataset.frameSent='true'; }</script>")
                 else -> localResponse("text/plain", "missing", 404)
             }
         }).build() else null
@@ -133,10 +133,7 @@ class WebViewSession(context: Context, private val pacer: RequestPacer, private 
                 }
             }
             override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
-                fail(ProbeReason.RENDERER_GONE)
-                if (selfCheck) ServiceWorkerController.getInstance().setServiceWorkerClient(null)
-                detach(); view.destroy(); destroyed = true
-                onRendererGone()
+                rendererGone()
                 return true
             }
         }
@@ -215,9 +212,34 @@ class WebViewSession(context: Context, private val pacer: RequestPacer, private 
         }
     }
 
+    internal suspend fun checkInjectedFailure(reason: ProbeReason): Boolean = supervisorScope {
+        check(selfCheck && reason in setOf(ProbeReason.TIMEOUT, ProbeReason.RENDERER_GONE))
+        val job = async { capture(PageRequest("https://$SELF_CHECK_HOST/assets/selfcheck.html?neverReady=1", browser = true), 3) }
+        try {
+            withTimeout(10_000) {
+                while (pending == null) delay(10)
+                if (reason == ProbeReason.RENDERER_GONE) rendererGone() else fail(reason)
+                try { job.await(); false } catch (e: TransportException) {
+                    e.reason == reason && (reason != ProbeReason.RENDERER_GONE || !isAvailable)
+                }
+            }
+        } finally { job.cancelAndJoin() }
+    }
+
+    private fun rendererGone() {
+        fail(ProbeReason.RENDERER_GONE)
+        if (selfCheck) ServiceWorkerController.getInstance().setServiceWorkerClient(null)
+        detach(); view.destroy(); destroyed = true
+        onRendererGone()
+    }
+
     override fun cancel() { mainThread(); activeJob?.cancel(); if (!destroyed) view.stopLoading() }
-    fun attach(container: ViewGroup) { mainThread(); check(!destroyed); detach(); container.addView(view, ViewGroup.LayoutParams(-1, -1)) }
+    fun attach(container: ViewGroup) {
+        mainThread(); check(!destroyed)
+        if (view.parent !== container) { detach(); container.addView(view, ViewGroup.LayoutParams(-1, -1)) }
+    }
     fun detach() { mainThread(); (view.parent as? ViewGroup)?.removeView(view) }
+    fun detach(container: ViewGroup) { mainThread(); if (view.parent === container) detach() }
     fun clearSession() { mainThread(); check(activeJob == null && !destroyed); view.clearCache(true); view.clearHistory() }
     fun destroy() {
         mainThread(); if (destroyed) return

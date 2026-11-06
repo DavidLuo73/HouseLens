@@ -21,6 +21,8 @@ class ProbeService : Service() {
     private var receiverRegistered = false
     private val remaining = ArrayDeque<ProbeQuery>()
     private var collectionMode = RunMode.FULL
+    private var localOwner: Any? = null
+    private val occupied = kotlinx.coroutines.flow.MutableStateFlow(false)
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.action == Intent.ACTION_SCREEN_ON || intent.action == Intent.ACTION_SCREEN_OFF) updateEnvironment()
@@ -29,7 +31,16 @@ class ProbeService : Service() {
 
     inner class LocalBinder : Binder() {
         val state get() = runner.state
-        val busy get() = runner.busy || remaining.isNotEmpty()
+        val busy get() = runner.busy || remaining.isNotEmpty() || localOwner != null
+        val busyState: kotlinx.coroutines.flow.StateFlow<Boolean> get() = occupied
+        fun reserveLocal(owner: Any): Boolean {
+            if (busy) return false
+            localOwner = owner; occupied.value = true
+            return true
+        }
+        fun releaseLocal(owner: Any) {
+            if (localOwner === owner) { localOwner = null; occupied.value = runner.busy || remaining.isNotEmpty() }
+        }
         fun start(query: ProbeQuery, mode: RunMode): Boolean {
             if (busy || visibleActivities == 0) return false
             return startVisible(query, mode)
@@ -49,7 +60,7 @@ class ProbeService : Service() {
             current.attach(container)
             return true
         }
-        fun detach() { session?.detach() }
+        fun detach(container: ViewGroup) { session?.detach(container) }
     }
 
     override fun onCreate() {
@@ -86,6 +97,7 @@ class ProbeService : Service() {
         validateQuery(query)
         sources.getValue(query.site).request(query, 0)
         updateEnvironment()
+        occupied.value = true
         try {
             startForegroundService(Intent(this, ProbeService::class.java))
             promote()
@@ -108,7 +120,8 @@ class ProbeService : Service() {
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(NotificationChannel(CHANNEL, "房源驗證進度", NotificationManager.IMPORTANCE_LOW))
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        val back = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), flags)
+        val back = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP), flags)
         val cancel = PendingIntent.getService(this, 1, Intent(this, ProbeService::class.java).setAction(CANCEL), flags)
         val notification = Notification.Builder(this, CHANNEL).setSmallIcon(R.drawable.ic_probe)
             .setContentTitle("HouseLens 房源驗證").setContentText("驗證進行中；返回 App 查看進度或處理網站驗證")
@@ -129,6 +142,7 @@ class ProbeService : Service() {
             runner.start(remaining.removeFirst(), collectionMode)
         } else {
             remaining.clear()
+            occupied.value = localOwner != null
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
         }
@@ -163,10 +177,12 @@ class ProbeService : Service() {
         private var current: ProbeService? = null
         private var visibleActivities = 0
         val siteOrder = listOf(Site.F591, Site.Rakuya, Site.Yungching, Site.HBHousing, Site.Sinyi, Site.CtHouse, Site.TwHouse)
-        private val sources = listOf(F591Source, RakuyaSource, YungchingSource, HBHousingSource,
-            SinyiSource, CtHouseSource, TwHouseSource).associateBy { it.site }
+        private val sources = probeSources
         @Synchronized fun store(context: Context): ProbeStore = sharedStore ?: ProbeStore(File(context.applicationContext.filesDir, "runs"), processId)
             .also { sharedStore = it }
+        internal fun selfCheckRecord(context: Context) = RunRecord(UUID.randomUUID().toString(), processId,
+            ProbeInput(siteCode = Site.CtHouse.code).query(), RunMode.FOREGROUND, RunState.RUNNING,
+            readDeviceSnapshot(context), EvidenceSource.LOCAL_SELF_CHECK, appVersion = BuildConfig.VERSION_NAME)
         fun activityStarted() { visibleActivities++; current?.updateEnvironment() }
         fun activityStopped() {
             visibleActivities = (visibleActivities - 1).coerceAtLeast(0)

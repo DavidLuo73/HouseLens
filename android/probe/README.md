@@ -1,6 +1,6 @@
 # HouseLens 驗證 APK
 
-獨立單一 module 工程。Task 1 只顯示版本與「尚未開始驗證」；沒有採集、儲存或匯出功能。完整操作流程留 Task 13，真機驗證留 Task 14。
+獨立單一 module 工程。Task13 提供來源／條件、採集／取消、結果／歷史、縮圖、本機自檢與主動 ZIP 匯出；手機驗證留 Task14。交付與操作見 [驗證說明](../validation/README.md)。
 
 ## 本機建置
 

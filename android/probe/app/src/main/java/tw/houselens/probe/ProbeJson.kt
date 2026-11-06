@@ -41,13 +41,15 @@ internal fun recordJson(r: RunRecord) = buildJsonObject {
     put("schemaVersion", 1); put("runId", r.runId); put("processId", r.processId)
     put("query", queryJson(r.query)); put("mode", r.mode.name); put("state", r.state.name)
     put("device", deviceJson(r.deviceSnapshot)); put("evidenceSource", r.evidenceSource.name)
+    put("appVersion", r.appVersion)
 }
 
 internal fun recordFromJson(o: JsonObject): RunRecord {
     require(o.number("schemaVersion") == 1)
     return RunRecord(o.text("runId"), o.text("processId"), queryFromJson(o.getValue("query").jsonObject),
         RunMode.valueOf(o.text("mode")), RunState.valueOf(o.text("state")), deviceFromJson(o.getValue("device").jsonObject),
-        EvidenceSource.valueOf(o.text("evidenceSource")))
+        EvidenceSource.valueOf(o.text("evidenceSource")),
+        appVersion = if ("appVersion" in o) o.optionalText("appVersion") else null)
 }
 
 private fun listingJson(p: ProbeListing) = buildJsonObject {

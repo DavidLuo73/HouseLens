@@ -161,13 +161,21 @@ class ProbeStore(
         return metadata.copy(state = state, savedPageIndices = indices.toSet(), events = events, eventTailIncomplete = incomplete)
     }
 
+    @Synchronized fun runIds(): List<String> {
+        if (!root.exists()) return emptyList()
+        return (root.listFiles() ?: throw IOException("runs_unreadable"))
+            .filter { it.isDirectory && runCatching { uuid(it.name) }.isSuccess }
+            .sortedByDescending { it.lastModified() }.map { it.name }
+    }
+
     @Synchronized fun export(runId: String, output: OutputStream) {
         val record = load(runId)
         if (runId in failedWrites && record.state != RunState.FAILED) throw IOException("previous_write_failed")
         val pages = record.savedPageIndices.associateWith { loadPage(runId, it) }
         val keys = pages.values.flatMap { it.listings }.map { it.sourceListingKey }.toSet()
         val report = """
-            # HouseLens probe ${BuildConfig.VERSION_NAME}
+            # HouseLens probe ${record.appVersion ?: "UNKNOWN"}
+            exportedWith: ${BuildConfig.VERSION_NAME}
             runId: ${record.runId}
             site: ${record.query.site}
             mode: ${record.mode}
