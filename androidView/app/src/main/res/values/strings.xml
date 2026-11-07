@@ -14,4 +14,5 @@
     <string name="auth_local_data">收藏僅存於這部裝置；清除 App 資料或解除安裝會移除收藏。</string>
     <string name="auth_version">版本 %1$s</string>
     <string name="auth_browser_error">無法開啟登入瀏覽器，請稍後重試。</string>
+    <string name="auth_cleanup_error">登入資料清除失敗，請重試。若持續失敗，請至系統設定清除 App 資料（會移除本機收藏）。</string>
 </resources>

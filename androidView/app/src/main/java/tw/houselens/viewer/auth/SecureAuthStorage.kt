@@ -87,10 +87,17 @@ class SecureAuthStorage(context: Context, projectUrl: String) : ViewerAuthStorag
     }
     override suspend fun erase() {
         locked {
-            file.delete()
-            if (file.baseFile.exists()) throw AuthStorageException()
-            keys().deleteEntry(alias)
-            verifierReady.cancel()
+            try {
+                file.delete()
+                if (file.baseFile.exists() || File(file.baseFile.path + ".bak").exists() ||
+                    File(file.baseFile.path + ".new").exists()) throw AuthStorageException()
+            } finally {
+                try {
+                    keys().deleteEntry(alias)
+                } finally {
+                    verifierReady.cancel()
+                }
+            }
         }
     }
     private suspend fun update(change: (AuthRecord) -> AuthRecord) { locked { write(change(read())) } }

@@ -51,6 +51,36 @@ class SecureAuthStorageTest {
             assertEquals("saved-id",favorite.readText())
         } finally { store.erase(); favorite.delete() }
     }
+    @Test fun deletion_failure_still_destroys_key_and_prevents_ciphertext_restore() = runBlocking {
+        val store = SecureAuthStorage(context, project)
+        store.erase()
+        val suffix = MessageDigest.getInstance("SHA-256").digest(project.toByteArray()).joinToString("") { "%02x".format(it) }
+        val alias = "viewer-auth-$suffix"
+        val file = File(context.noBackupFilesDir, "$alias.bin")
+        val blocker = File(file, "retained-ciphertext")
+        try {
+            store.saveSession(session)
+            val encrypted = file.readBytes()
+            assertTrue(file.delete())
+            assertTrue(file.mkdir())
+            blocker.writeBytes(encrypted)
+            val failure = runCatching { store.erase() }.exceptionOrNull()
+            assertTrue(failure is AuthStorageException)
+            val keys = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+            assertFalse("File deletion failure must still destroy the session key", keys.containsAlias(alias))
+            assertTrue(blocker.delete())
+            assertTrue(file.delete())
+            file.writeBytes(encrypted)
+            try {
+                SecureAuthStorage(context, project).loadSession()
+                fail("Retained ciphertext must not restore a signed-out session")
+            } catch (_: AuthStorageException) {}
+        } finally {
+            blocker.delete()
+            if (file.isDirectory) file.delete()
+            store.erase()
+        }
+    }
     @Test fun corrupted_ciphertext_is_detected() = runBlocking {
         val store=SecureAuthStorage(context,project)
         store.erase()

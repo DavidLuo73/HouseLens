@@ -46,6 +46,12 @@ fun AuthScreen(state: AuthState, busy: Boolean, error: String?, onLogin: () -> U
                 }
                 TextButton(onClick = onSignOut, enabled = !busy) { Text(stringResource(R.string.auth_sign_out)) }
             }
+            AuthState.StorageError -> {
+                Text(stringResource(R.string.auth_cleanup_error))
+                Button(onClick = onSignOut, enabled = !busy, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Text(stringResource(R.string.auth_retry))
+                }
+            }
             is AuthState.Authorized -> {
                 Text(state.email)
                 Text(stringResource(R.string.auth_approved))

@@ -210,6 +210,23 @@ class SessionControllerTest {
             assertNull(storage.loadSession())
         } finally { sdk.close() }
     }
+    @Test fun deletion_failure_clears_sdk_and_reports_retryable_storage_error_without_throwing() = runTest {
+        val storage = object : MemoryAuthStorage(session()) {
+            override suspend fun erase() { throw AuthStorageException() }
+        }
+        val sdk = client(storage)
+        val controller = SessionController(sdk, storage, {})
+        try {
+            controller.restore()
+            val previousVersion = controller.version
+            val failure = runCatching { controller.signOut() }.exceptionOrNull()
+            assertNull("Cleanup errors must not escape into Activity or graph coroutines", failure)
+            assertEquals(AuthState.StorageError, controller.state.value)
+            assertNull(sdk.auth.currentSessionOrNull())
+            assertFalse(sdk.auth.isAutoRefreshRunning)
+            assertTrue(controller.version > previousVersion)
+        } finally { sdk.close() }
+    }
     @Test fun corrupted_storage_resets_to_login() = runTest {
         val storage = object : MemoryAuthStorage() {
             override suspend fun loadSession(): UserSession? = throw AuthStorageException()

@@ -2,7 +2,9 @@ package tw.houselens.viewer.auth
 
 import android.net.Uri
 import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.annotations.SupabaseInternal
 import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.auth.providers.Google
 import io.github.jan.supabase.auth.user.UserSession
 import io.github.jan.supabase.exceptions.RestException
@@ -29,6 +31,7 @@ sealed interface AuthState {
     data class Denied(val email: String?) : AuthState
     data class Authorized(val owner: OwnerKey, val email: String) : AuthState
     data object ConnectionError : AuthState
+    data object StorageError : AuthState
 }
 
 class SessionController(
@@ -67,6 +70,7 @@ class SessionController(
 
     suspend fun startGoogleLogin(): Uri = oauthMutex.withLock {
         invalidate(AuthState.SignedOut)
+        if (mutableState.value == AuthState.StorageError) throw AuthStorageException()
         val expected = version
         try {
             val url = stateMutex.withLock {
@@ -186,6 +190,7 @@ class SessionController(
         }
     }
 
+    @OptIn(SupabaseInternal::class)
     private suspend fun invalidate(next: AuthState, expected: Long? = null) = withContext(NonCancellable) {
         stateMutex.withLock {
             if (expected != null) ensureCurrent(expected)
@@ -193,15 +198,21 @@ class SessionController(
                 ?: client.auth.currentUserOrNull()?.id?.let { OwnerKey(projectUrl, it) }
             version++
             mutableState.value = AuthState.Checking
+            var cleanupFailed = false
             try {
                 onInvalidated(owner)
+            } catch (_: Exception) {
+                cleanupFailed = true
             } finally {
                 try {
                     storage.erase()
-                    client.auth.clearSession()
+                } catch (_: Exception) {
+                    cleanupFailed = true
                 } finally {
-                    storage.erase()
-                    mutableState.value = next
+                    // SDK clearSession touches storage first; clear memory even when that storage fails.
+                    client.auth.stopAutoRefreshForCurrentSession()
+                    client.auth.setSessionStatus(SessionStatus.NotAuthenticated(true))
+                    mutableState.value = if (cleanupFailed) AuthState.StorageError else next
                 }
             }
         }
