@@ -148,7 +148,7 @@ B2完成（423c653、2229e6f），登入控制器／callback／UI接線及清理
 - `FindViewModel(owner, api, favorites, preferences, savedStateHandle)`，`state: StateFlow<FindState>`、`apply(query: PropertyQuery)`、`refresh()`、`loadNext()`、`setDistrictFromAnalytics(name: String)`、`undoDistrictChange()`。FindState 欄位為 query、items、total、loadedPage、initialLoading、refreshing、appending、error、appendError、districtChoices、optionsError、fetchedAt。
 - `FindScreen(viewModel, onOpen: (String, Boolean) -> Unit)`；`FilterSheet(initial: PropertyQuery, choices: List<DistrictChoice>, onApply: (PropertyQuery) -> Unit, onDismiss: () -> Unit)`；事件由已套用 query 推導，不同時維護兩份 filter 真相。
 
-- [ ] **Step 1: 寫失敗測試。** controlled FakeApi 先送慢 A 再快 B，只能留下 B；取消草稿／草稿重設不呼叫 API，套用／移除 chip 回 page=1，reset 回 spec 預設。測全平台 chips、同名區、無效價格、options 失敗不擋全清單、三頁重複 ID 去重／loadNext 去重入、append 失敗保留資料、刷新成功才丟後頁、重建 preferences 只保存套用條件。
+- [x] **Step 1: 寫失敗測試。** controlled FakeApi 先送慢 A 再快 B，只能留下 B；取消草稿／草稿重設不呼叫 API，套用／移除 chip 回 page=1，reset 回 spec 預設。測全平台 chips、同名區、無效價格、options 失敗不擋全清單、三頁重複 ID 去重／loadNext 去重入、append 失敗保留資料、刷新成功才丟後頁、重建 preferences 只保存套用條件。
   ```kotlin
   assertEquals(newQuery, vm.state.value.query)
   assertEquals(expectedIds, vm.state.value.items.map { it.id })
@@ -156,11 +156,11 @@ B2完成（423c653、2229e6f），登入控制器／callback／UI接線及清理
   assertEquals(previousItems, vm.state.value.items) // 刷新失敗後
   ```
   Compose 測 360dp／200% 字級時面板可捲到套用、有48dp操作區、愛心／歷史／正文分離、空結果能清條件。區域跳轉覆寫 query 的同時保存單次 undo，復原後回原條件。
-- [ ] **Step 2: 確認 RED。** `./gradlew.bat :app:testDebugUnitTest --tests "tw.houselens.viewer.find.*"`，以及指定 `tw.houselens.viewer.find` 的 connectedDebugAndroidTest → FAIL。
-- [ ] **Step 3: 實作查詢與篩選狀態。** query 改動用 generation 或取消 job 排除舊結果；pageSize 固定 20、延伸頁按 ID 去重、最多一個 append 請求。僅成功提交時持久化條件，保留新請求前的可讀內容；loading／空／error／appendError 分開。依 spec 四個排序文案與真實 API 值，不自行按單頁重排。重啟第一頁；SavedStateHandle 保留 query／返回目標，只有資料存在時恢復 scroll。
-- [ ] **Step 4: 完成找房 UI。** 上方摘要、篩選、chips、結果／排序與 LazyColumn；使用 B3 卡片／收藏。保留骨架比例、圖片失敗占位、手動載入更多及下拉更新；選單關閉不提交。無 keyword、房數、面積區間假控制項。加入本次 fetchedAt 文字與錯誤重試，不把 fetchedAt 稱為房源更新。
-- [ ] **Step 5: 驗證 GREEN。** 重跑 Step 2；真機／模擬器檢查鍵盤與系統 insets，列表不橫向溢出。此任務交付可獨立測試的 FindScreen；正式詳情導覽由 B5 接，不新增臨時詳情頁。
-- [ ] **Step 6: 提交。** `git commit -m "feat: add property browsing and draft filters"`。
+- [x] **Step 2: 確認 RED。** `./gradlew.bat :app:testDebugUnitTest --tests "tw.houselens.viewer.find.*"`，以及指定 `tw.houselens.viewer.find` 的 connectedDebugAndroidTest → FAIL。
+- [x] **Step 3: 實作查詢與篩選狀態。** query 改動用 generation 或取消 job 排除舊結果；pageSize 固定 20、延伸頁按 ID 去重、最多一個 append 請求。僅成功提交時持久化條件，保留新請求前的可讀內容；loading／空／error／appendError 分開。依 spec 四個排序文案與真實 API 值，不自行按單頁重排。重啟第一頁；SavedStateHandle 保留 query／返回目標，只有資料存在時恢復 scroll。
+- [x] **Step 4: 完成找房 UI。** 上方摘要、篩選、chips、結果／排序與 LazyColumn；使用 B3 卡片／收藏。保留骨架比例、圖片失敗占位、手動載入更多及下拉更新；選單關閉不提交。無 keyword、房數、面積區間假控制項。加入本次 fetchedAt 文字與錯誤重試，不把 fetchedAt 稱為房源更新。
+- [x] **Step 5: 驗證 GREEN。** 重跑 Step 2；真機／模擬器檢查鍵盤與系統 insets，列表不橫向溢出。此任務交付可獨立測試的 FindScreen；正式詳情導覽由 B5 接，不新增臨時詳情頁。
+- [x] **Step 6: 提交。** `git commit -m "feat: add property browsing and draft filters"`。
 
 ### Task B5: 詳情、價格歷史與正式返回流程
 
@@ -229,6 +229,7 @@ B2完成（423c653、2229e6f），登入控制器／callback／UI接線及清理
 - [Coil network](https://coil-kt.github.io/coil/network/)：只加入一種 network adapter；HTTP client 的 header 與 redirect 規則須在圖片管線同樣適用。
 
 以上是後續實作／驗收步驟；本次未安裝套件、建置、登入或真機量測。此計畫不承諾未驗證的依賴組合或效能已可用。
+
 
 
 
