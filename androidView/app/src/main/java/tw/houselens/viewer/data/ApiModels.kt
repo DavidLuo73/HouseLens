@@ -60,7 +60,7 @@ data class TopItemDto(
 )
 @Serializable
 data class DropDto(
-    val id: String, val newPrice: BigDecimal, val dropPercent: BigDecimal,
+    val id: String, val newPrice: BigDecimal, val dropPercent: BigDecimal?,
     val capturedAt: String, val status: Int, val title: String = "", val district: String = "",
     val address: String? = null, val originalPrice: BigDecimal? = null, val dropAmount: BigDecimal? = null
 )

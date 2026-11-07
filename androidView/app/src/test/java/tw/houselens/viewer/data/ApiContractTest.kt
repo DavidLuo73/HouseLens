@@ -116,6 +116,32 @@ class ApiContractTest {
         assertFalse(data.districtOptions().single().isEnabled)
         assertFalse(data.latestRun()!!.sources.single().success)
     }
+    @Test fun top_includes_empty_districts_with_only_district_projection() = runTest {
+        val data=api { r -> when(r.url.pathSegments.last()) {
+            "viewer_top_properties" -> json("""[{"district":"中正區","rank":1,"id":"p","totalPrice":800,"score":0.9}]""")
+            "viewer_district_stats" -> {
+                assertEquals("district",r.url.parameters["select"])
+                json("""[{"district":"中正區"},{"district":"空區"}]""")
+            }
+            else -> error("Unexpected card detail read")
+        } }
+        val groups=data.topRated()
+        assertEquals(listOf("中正區","空區"),groups.map { it.district })
+        assertTrue(groups.last().items.isEmpty())
+        assertEquals(2,requests.count { !it.url.encodedPath.endsWith("ViewerMembers") })
+    }
+    @Test fun drops_preserve_unknown_percent_and_native_page_order() = runTest {
+        val data=api { r ->
+            assertEquals("20",r.url.parameters["limit"])
+            assertEquals("20",r.url.parameters["offset"])
+            assertEquals("eq.中正區",r.url.parameters["district"])
+            assertEquals("dropPercent.desc.nullslast,id.asc.nullslast",r.url.parameters["order"])
+            json("""[{"id":"a","newPrice":800,"dropPercent":0.3,"capturedAt":"2026-01-01T00:00:00Z","status":1},{"id":"b","newPrice":900,"dropPercent":0.3,"capturedAt":"2026-01-01T00:00:00Z","status":0},{"id":"c","newPrice":950,"dropPercent":0.2,"capturedAt":"2026-01-01T00:00:00Z","status":0},{"id":"z","newPrice":1000,"dropPercent":null,"capturedAt":"2026-01-01T00:00:00Z","status":1}]""",24)
+        }
+        val page=data.bigDrops(2,"中正區")
+        assertEquals(listOf("a","b","c","z"),page.items.map { it.id })
+        assertNull(page.items.last().dropPercent)
+    }
     @Test fun missing_membership_denies_before_loading_data() = runTest {
         var denied=0
         val client=createViewerClient("https://project.supabase.co","sb_publishable_test",MockEngine {

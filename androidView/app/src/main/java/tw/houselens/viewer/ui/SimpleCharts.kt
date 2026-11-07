@@ -51,3 +51,15 @@ fun TimePriceChart(points:List<ChartPoint>,onSelected:(List<Int>)->Unit) {
         positions.forEach { drawCircle(Color(0xFFE31C5F),4.dp.toPx(),it) }
     }
 }
+@Composable
+fun PriceBucketChart(buckets:List<tw.houselens.viewer.data.PriceBucketDto>) {
+    if(buckets.isEmpty()) { androidx.compose.material3.Text("尚無價格分布資料");return }
+    val max=buckets.maxOf { it.count }.coerceAtLeast(1)
+    Canvas(Modifier.fillMaxWidth().height(180.dp).semantics { contentDescription="價格分布，共 ${buckets.size} 個伺服器分箱；筆數請閱讀下方資料列" }) {
+        val cell=size.width/buckets.size
+        buckets.forEachIndexed { index,bucket ->
+            val height=size.height*(bucket.count.toFloat()/max)
+            drawRect(Color(0xFFE31C5F),Offset(index*cell+cell*0.1f,size.height-height),androidx.compose.ui.geometry.Size(cell*0.8f,height))
+        }
+    }
+}

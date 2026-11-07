@@ -146,7 +146,7 @@ class FindViewModel(
     @Synchronized fun setDistrictFromAnalytics(name: String) {
         if(name.isBlank()) return
         val previous=state.value.query
-        apply(previous.copy(districts=listOf(name)))
+        apply(PropertyQuery(districts=listOf(name)))
         districtUndo=previous;mutableState.update { it.copy(canUndoDistrict=true) }
     }
     @Synchronized fun undoDistrictChange() {

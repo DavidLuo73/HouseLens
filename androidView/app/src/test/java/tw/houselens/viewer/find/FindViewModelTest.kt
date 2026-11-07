@@ -91,10 +91,10 @@ class FindViewModelTest {
         assertEquals("所有同名行政區",vm.state.value.districtChoices.first { it.name=="中正區" }.cityLabel)
         assertTrue(vm.state.value.districtChoices.any { it.name=="大安區" })
     } }
-    @Test fun analytics_overwrites_only_districts_and_undo_restores_once() = runBlocking { fixture { _,vm,_,_,_ ->
-        val q=PropertyQuery(sourceSites=listOf(3),districts=listOf("大安區"),sortBy="newest")
+    @Test fun analytics_resets_other_filters_and_undo_restores_once() = runBlocking { fixture { _,vm,_,_,_ ->
+        val q=PropertyQuery(sourceSites=listOf(3),districts=listOf("大安區"),sortBy="newest",status=1,minPrice=BigDecimal("900"),hasParking=true,priceDropped=true)
         vm.apply(q);waitFor { vm.state.value.resultQuery==q }
-        vm.setDistrictFromAnalytics("中正區");assertEquals(q.copy(districts=listOf("中正區")),vm.state.value.query)
+        vm.setDistrictFromAnalytics("中正區");assertEquals(PropertyQuery(districts=listOf("中正區")),vm.state.value.query)
         vm.undoDistrictChange();assertEquals(q,vm.state.value.query);assertFalse(vm.state.value.canUndoDistrict)
         vm.undoDistrictChange();assertEquals(q,vm.state.value.query)
     } }

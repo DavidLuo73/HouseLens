@@ -190,9 +190,13 @@ class SupabaseHouseLensData(
     }
 
     override suspend fun topRated(): List<TopGroupDto> = read {
-        client.from("viewer_top_properties").select {
+        val ranked = client.from("viewer_top_properties").select {
             order("district", Order.ASCENDING); order("rank", Order.ASCENDING)
-        }.decodeList<TopItemDto>().groupBy { it.district }.map { (district, items) -> TopGroupDto(district, items) }
+        }.decodeList<TopItemDto>().groupBy { it.district }
+        val districts = client.from("viewer_district_stats").select(Columns.list("district")) {
+            order("district", Order.ASCENDING)
+        }.decodeList<DistrictStatsDto>().map { it.district }
+        (ranked.keys + districts).sorted().map { TopGroupDto(it, ranked[it].orEmpty()) }
     }
     override suspend fun bigDrops(page: Int, district: String?): DropPage {
         require(page > 0) { "Page must be positive" }

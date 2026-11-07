@@ -74,4 +74,36 @@ class NavigationTest {
         compose.onNodeWithText("已登出").assertExists()
         compose.runOnIdle { assertTrue(graph.signedOut);assertFalse(graph.session.scope.coroutineContext[kotlinx.coroutines.Job]!!.isActive) }
     }
+    @Test fun four_tabs_keep_explore_position_and_district_browse_can_undo()=fixture { graph,_ ->
+        compose.onNodeWithText("找房",useUnmergedTree=true).assertExists()
+        compose.onNodeWithText("精選",useUnmergedTree=true).performClick()
+        compose.onNodeWithTag("explore-top-list").performScrollToNode(hasText("精選房源 3"))
+        compose.onNodeWithText("精選房源 3").assertIsDisplayed()
+        compose.onNodeWithText("收藏",useUnmergedTree=true).performClick()
+        compose.onNodeWithText("精選",useUnmergedTree=true).performClick()
+        compose.onNodeWithText("精選房源 3").assertIsDisplayed()
+        compose.onNodeWithText("精選房源 3").performClick()
+        compose.onNodeWithText("返回").performClick()
+        compose.onNodeWithText("精選房源 3").assertIsDisplayed()
+        compose.onNodeWithText("區域",useUnmergedTree=true).performClick()
+        compose.onNodeWithTag("district-list").performScrollToNode(hasText("查看本區房源"))
+        compose.onNodeWithText("查看本區房源").performClick()
+        compose.waitUntil(5000) { graph.requests.lastOrNull()?.districts==listOf("中正區") }
+        compose.onNodeWithText("復原行政區變更").performScrollTo().performClick()
+        compose.waitUntil(5000) { graph.requests.lastOrNull()?.districts==emptyList<String>() }
+        compose.onNodeWithText("區域",useUnmergedTree=true).performClick()
+        compose.onNodeWithText("查看本區房源").assertIsDisplayed()
+        captureScreenshot("b6-four-tabs-360-font200.png")
+    }
+    @Test fun live_account_shows_source_failure_and_refreshes_only_on_request()=fixture { graph,_ ->
+        compose.onNodeWithText("帳號").performClick()
+        compose.onNodeWithText("資料狀態").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("信義房屋：失敗（0 筆）").performScrollTo().assertIsDisplayed()
+        compose.runOnIdle { assertEquals(1,graph.latestRequests) }
+        captureScreenshot("b6-account-status-360-font200.png")
+        compose.onNodeWithText("更新資料狀態").performScrollTo().performClick()
+        compose.waitUntil(5000) { graph.latestRequests==2 }
+        compose.onNodeWithText("返回").performClick()
+        compose.runOnIdle { assertEquals(2,graph.latestRequests) }
+    }
 }
