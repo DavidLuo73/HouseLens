@@ -9,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.contentDescription
@@ -46,7 +47,7 @@ fun FindScreen(viewModel: FindViewModel,onOpen: (String,Boolean) -> Unit) {
     fun open(id: String,history: Boolean) { viewModel.rememberTarget(id,history);onOpen(id,history) }
     Scaffold { padding ->
         PullToRefreshBox(isRefreshing=state.refreshing,onRefresh=viewModel::refresh,modifier=Modifier.fillMaxSize().padding(padding)) {
-            LazyColumn(state=list,contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(16.dp),modifier=Modifier.fillMaxSize()) {
+            LazyColumn(state=list,contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(16.dp),modifier=Modifier.fillMaxSize().testTag("find-list")) {
                 item {
                     Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
                         Text("HouseLens",style=MaterialTheme.typography.headlineSmall)

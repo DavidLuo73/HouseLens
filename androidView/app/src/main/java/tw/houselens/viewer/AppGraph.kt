@@ -16,7 +16,13 @@ import tw.houselens.viewer.saved.*
 import tw.houselens.viewer.find.*
 import androidx.lifecycle.SavedStateHandle
 
-class AppGraph(private val context: Context) {
+interface AppGraph {
+    fun authorizedSession(owner: OwnerKey): SessionResources?
+    fun accountEmail(owner: OwnerKey): String?
+    suspend fun signOut()
+}
+
+class DefaultAppGraph(private val context: Context) : AppGraph {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val storage = SecureAuthStorage(context, BuildConfig.SUPABASE_URL)
     private val client = createViewerClient(BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_PUBLISHABLE_KEY, storage = storage)
@@ -52,7 +58,10 @@ class AppGraph(private val context: Context) {
         } else if (callback != null) scope.launch { sessions.handleCallback(callback) }
     }
 
-    @Synchronized fun authorizedSession(owner: OwnerKey): SessionResources? {
+    override fun accountEmail(owner: OwnerKey) = (sessions.state.value as? AuthState.Authorized)?.takeIf { it.owner == owner }?.email
+    override suspend fun signOut() = sessions.signOut()
+
+    @Synchronized override fun authorizedSession(owner: OwnerKey): SessionResources? {
         val current = sessions.state.value as? AuthState.Authorized ?: return null
         if (current.owner != owner) return null
         val version = sessions.version
@@ -69,8 +78,9 @@ class AppGraph(private val context: Context) {
 }
 
 @OptIn(coil3.annotation.ExperimentalCoilApi::class)
-class SessionResources(context: Context, val owner: OwnerKey, val version: Long, val data: HouseLensData, private val favorites: FavoriteStore, private val filterPreferences: FilterPreferences) {
+class SessionResources(context: Context, val owner: OwnerKey, val version: Long, val data: HouseLensData, val favorites: FavoriteStore, private val filterPreferences: FilterPreferences) : androidx.lifecycle.ViewModelStoreOwner {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    override val viewModelStore = androidx.lifecycle.ViewModelStore()
     val saved = SavedViewModel(owner, data, favorites, scope)
     fun find(savedStateHandle: SavedStateHandle) = FindViewModel(owner, data, favorites, filterPreferences, savedStateHandle, scope)
     private val imageClient = createImageClient()
@@ -80,6 +90,7 @@ class SessionResources(context: Context, val owner: OwnerKey, val version: Long,
     }.memoryCache(null).diskCache(null).build()
 
     fun close() {
+        viewModelStore.clear()
         scope.cancel()
         imageLoader.shutdown()
         imageClient.close()

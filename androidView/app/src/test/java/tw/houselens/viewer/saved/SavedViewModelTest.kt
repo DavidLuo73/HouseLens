@@ -203,4 +203,20 @@ class SavedViewModelTest {
             assertEquals(2,seen.count { it=="1" });assertEquals(7,seen.size)
         } finally { release.complete(Unit);scope.coroutineContext[Job]!!.cancelAndJoin();directory.deleteRecursively() }
     }
+    @Test fun returning_from_detail_retains_loaded_summaries_until_explicit_retry() = runBlocking {
+        val directory=Files.createTempDirectory("saved-return").toFile()
+        val scope=CoroutineScope(coroutineContext+SupervisorJob())
+        try {
+            val store=FavoriteStore(directory,scope)
+            store.put(owner,FavoriteEntry("1",1,null))
+            var reads=0
+            val vm=SavedViewModel(owner,SummaryApi { reads++;property(it) },store,scope)
+            waitFor { vm.state.value.entries.size==1 }
+            vm.refreshVisible(listOf("1"));waitFor { vm.state.value.statuses["1"]==RefreshStatus.UPDATED }
+            vm.refreshVisible(emptyList());vm.refreshVisible(listOf("1"));yield()
+            assertEquals("Returning to the retained list must not fetch again",1,reads)
+            assertEquals("房源 1",vm.state.value.entries.single().snapshot!!.title)
+            vm.retry("1");yield();assertEquals(2,reads)
+        } finally { scope.coroutineContext[Job]!!.cancelAndJoin();directory.deleteRecursively() }
+    }
 }

@@ -41,7 +41,7 @@ class SavedViewModel(
     fun refreshVisible(ids: List<String>) {
         val savedIds = state.value.entries.map { it.id }.toSet()
         visibleIds = ids.filter { it in savedIds }.toSet()
-        refresh(visibleIds)
+        refresh(visibleIds.filter { state.value.statuses[it] == null })
     }
     fun retry(id: String) {
         if (id in visibleIds) refresh(listOf(id))

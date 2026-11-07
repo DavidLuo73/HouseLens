@@ -17,6 +17,7 @@ import kotlinx.coroutines.launch
 import tw.houselens.viewer.auth.AuthScreen
 import tw.houselens.viewer.auth.AuthState
 import tw.houselens.viewer.ui.HouseLensTheme
+import tw.houselens.viewer.ui.HouseLensNav
 import tw.houselens.viewer.ui.LocalPropertyImageLoader
 
 class MainActivity : ComponentActivity() {
@@ -60,7 +61,7 @@ class MainActivity : ComponentActivity() {
                         key(authorized.owner, graph.sessions.version) {
                             val session = remember { graph.authorizedSession(authorized.owner) }
                             if (session != null) CompositionLocalProvider(LocalPropertyImageLoader provides session.imageLoader) {
-                                AuthScreen(state, busy, error, login, {}, signOut)
+                                HouseLensNav(graph, authorized.owner)
                             }
                         }
                     } else AuthScreen(state, busy, error, login, {
