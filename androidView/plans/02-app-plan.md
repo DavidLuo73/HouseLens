@@ -197,18 +197,18 @@ B2完成（423c653、2229e6f），登入控制器／callback／UI接線及清理
 - `DistrictsViewModel(api)` → `state: StateFlow<DistrictsState>`、`refresh()`、`selectDistrict(name: String)`；state 保存 stats、selectedDistrict、loading、error。
 - `ExploreScreen(viewModel, onOpen: (String, Boolean) -> Unit)`；`DistrictsScreen(viewModel, onBrowseDistrict: (String) -> Unit)`。`PriceBucketDto(range: String, count: Int)` 定義於 B1 的 ApiModels，`PriceBucketChart` 只畫其伺服器分箱，不重算。
 
-- [ ] **Step 1: 寫失敗測試。** 精選 fixture 驗證 Top 5 原順序、null 單價、空區；drop 依降幅降冪、ID tie-break，newPrice 保留為事件價，保留真實capturedAt／status，事件價不冒充現價。計數 `assertEquals(0, fake.detailRequests.size)`，證明不逐卡查詳情。區域測0筆顯示「—」、insufficientData說明、DateOnly不位移、單點／同價分布、同名區限制；全部精選與區域卡可進詳情／找房。
+- [x] **Step 1: 寫失敗測試。** 精選 fixture 驗證 Top 5 原順序、null 單價、空區；drop 依降幅降冪、ID tie-break，newPrice 保留為事件價，保留真實capturedAt／status，事件價不冒充現價。計數 `assertEquals(0, fake.detailRequests.size)`，證明不逐卡查詳情。區域測0筆顯示「—」、insufficientData說明、DateOnly不位移、單點／同價分布、同名區限制；全部精選與區域卡可進詳情／找房。
   ```kotlin
   assertEquals(expectedDropIds, vm.state.value.visibleDrops.map { it.id })
   assertEquals(listOf("中正區"), mergedChoices.map { it.name })
   assertEquals("2026-11-07", trendDateLabel) // DateOnly 原值
   ```
   補 latestRun null→「尚無紀錄」、completed且某來源失敗→明示該來源失敗，不呈現全平台已同步。
-- [ ] **Step 2: 確認 RED。** `./gradlew.bat :app:testDebugUnitTest --tests "tw.houselens.viewer.explore.*" --tests "tw.houselens.viewer.districts.*"`，以及這兩個 package instrumentation → FAIL。
-- [ ] **Step 3: 實作精簡卡片與區域圖。** 沒圖片欄位就不補 N+1；大降價固定歷史事件說明。區域標「刊登資料分析，非實價登錄」，分布採 Canvas 柱＋文字列、趨勢共用 B5 折線；不同日期按 epochDay 表示，非UTC轉日。無資料／錯誤／刷新各自可恢復。大降價以20筆原生分頁，切地區回第1頁並傳入district；資料狀態僅開頁／手動刷新讀 latest，不 SSE／背景輪詢；不顯示原始伺服器 exception。
-- [ ] **Step 4: 完成四個主入口。** 加 explore／districts routes，最終順序找房、精選、收藏、區域；各 tab 保留位置。查看本區房源使用 B4 `setDistrictFromAnalytics`，重設其他條件、提供 `undoDistrictChange`；不混用找房與精選的地區狀態。
-- [ ] **Step 5: 驗證 GREEN。** 重跑 Step 2；NavigationTest 擴充四 tab 與區域跳轉還原，再 `./gradlew.bat :app:testDebugUnitTest :app:lintDebug :app:assembleDebug` 全部成功。
-- [ ] **Step 6: 提交。** `git commit -m "feat: complete curated and district browsing"`。
+- [x] **Step 2: 確認 RED。** `./gradlew.bat :app:testDebugUnitTest --tests "tw.houselens.viewer.explore.*" --tests "tw.houselens.viewer.districts.*"`，以及這兩個 package instrumentation → FAIL。
+- [x] **Step 3: 實作精簡卡片與區域圖。** 沒圖片欄位就不補 N+1；大降價固定歷史事件說明。區域標「刊登資料分析，非實價登錄」，分布採 Canvas 柱＋文字列、趨勢共用 B5 折線；不同日期按 epochDay 表示，非UTC轉日。無資料／錯誤／刷新各自可恢復。大降價以20筆原生分頁，切地區回第1頁並傳入district；資料狀態僅開頁／手動刷新讀 latest，不 SSE／背景輪詢；不顯示原始伺服器 exception。
+- [x] **Step 4: 完成四個主入口。** 加 explore／districts routes，最終順序找房、精選、收藏、區域；各 tab 保留位置。查看本區房源使用 B4 `setDistrictFromAnalytics`，重設其他條件、提供 `undoDistrictChange`；不混用找房與精選的地區狀態。
+- [x] **Step 5: 驗證 GREEN。** 重跑 Step 2；NavigationTest 擴充四 tab 與區域跳轉還原，再 `./gradlew.bat :app:testDebugUnitTest :app:lintDebug :app:assembleDebug` 全部成功。
+- [x] **Step 6: 提交。** `git commit -m "feat: complete curated and district browsing"`。
 **續作裁定（B5完成後）：**
 - 空排行行政區須可呈現。現有topRated只group已回傳TopItem，B6允許最小修改data/SupabaseHouseLensData.kt及其ApiContractTest：額外對viewer_district_stats只SELECT district，與排行group聯集，補空TopGroupDto；不下載完整stats／歷史、不做逐卡查詢，保留既有介面。
 - 帳號資料狀態須接入目前真正的HouseLensNav account目的地；可重用AuthScreen.kt中的帳號呈現，但不可只放在未被掛載的Authorized分支。
@@ -234,6 +234,7 @@ B2完成（423c653、2229e6f），登入控制器／callback／UI接線及清理
 - [Coil network](https://coil-kt.github.io/coil/network/)：只加入一種 network adapter；HTTP client 的 header 與 redirect 規則須在圖片管線同樣適用。
 
 以上是後續實作／驗收步驟；本次未安裝套件、建置、登入或真機量測。此計畫不承諾未驗證的依賴組合或效能已可用。
+
 
 
 

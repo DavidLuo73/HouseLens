@@ -36,7 +36,7 @@ SQL 介面由 spec §8 定義：ViewerMembers(UserId UUID primary key references
 
 - viewer_properties：id/title/city/district/address/areaPing/floor/ageYears/hasParking/currentTotalPrice/currentUnitPrice/status/score/isNew/firstSeenAt/lastSeenAt/imageUrl/listingUrl/sourceSites/int[]/latestChangeFlag/latestChangePercent/latestIsBigDrop/hasPriceDrop。主刊登依 Listing.Id，最近歷史依 CapturedAt、Id；不塞完整歷史。
 - viewer_top_properties：district、rank、id/title/totalPrice/unitPrice/ageYears/hasParking/score；active且score存在，依區名排名並以ID解同分，rank≤5。
-- viewer_big_drops：id/title/district/address/originalPrice/newPrice/dropAmount/dropPercent/capturedAt/status；每房源最後一次 IsBigDrop 觀測，事件價與現價分開。比例為小數，除數為0／未知時 originalPrice／dropAmount 回 null，不造數字。
+- viewer_big_drops：id/title/district/address/originalPrice/newPrice/dropAmount/dropPercent/capturedAt/status；每房源最後一次 IsBigDrop 觀測，事件價與現價分開。比例為小數；ChangePercent未知時dropPercent保留null（B6 DTO已可空），除數為0／未知時originalPrice／dropAmount回null，不造數字。
 - viewer_district_stats：district/propertyCount/avgUnitPrice/minTotalPrice/maxTotalPrice/priceBuckets(range,count)/trend(date,avgUnitPrice)/insufficientData；沿用既有網站樣本與分箱／趨勢語意，空資料以旗標及null表示。
 
 ### Task S1: 可測的唯讀權限與查詢 views
@@ -61,4 +61,5 @@ SQL 介面由 spec §8 定義：ViewerMembers(UserId UUID primary key references
 - [ ] **Step 2: 安全套用與設定。** 只在S1通過且正式變更範圍可檢閱後套用；將houselens加入Data API exposed schemas、Google provider及精確callback allowlist，維運者核對Google身分後加入ViewerMembers。不得自動核准任意Google帳號。
 - [ ] **Step 3: 真實驗證。** App／REST以匿名、未核准、核准三種身分確認隔離；撤銷名單後下一次畫面刷新拒絕。寫入拒絕先在隔離測試庫證明，不向正式房源試寫／刪除。B7驗證外出與電腦關機仍能讀Supabase。
 - [ ] **Step 4: 提交文件。** `git commit -m "docs: document Supabase viewer setup and verification"`；未完成的Dashboard／Google設定明列，不宣稱上線。
+
 
