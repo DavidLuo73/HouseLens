@@ -20,6 +20,8 @@ import java.time.format.DateTimeFormatter
 import java.time.Duration
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 @OptIn(SupabaseInternal::class)
 fun createViewerClient(url: String, key: String, engine: HttpClientEngine? = null): SupabaseClient {
@@ -66,17 +68,37 @@ class SupabaseHouseLensData(
     private val onForbidden: suspend () -> Unit,
     private val sessionVersion: () -> Long
 ) : HouseLensData {
+    private val refreshMutex = Mutex()
+    @Volatile private var refreshGeneration = 0L
     private suspend fun <T> read(block: suspend () -> T): T {
         val version = sessionVersion()
+        val initialRefresh = refreshGeneration
         fun ensureCurrent() {
             if (version != sessionVersion()) throw CancellationException("Session changed")
         }
         try {
-            val members = client.from("ViewerMembers").select(Columns.list("UserId")) { limit(1) }
-                .decodeList<kotlinx.serialization.json.JsonObject>()
-            ensureCurrent()
-            if (members.isEmpty()) throw ApiException(403, null, "此帳號尚未獲得使用權限")
-            return block().also { ensureCurrent() }
+            repeat(2) { attempt ->
+                ensureCurrent()
+                try {
+                    val members = client.from("ViewerMembers").select(Columns.list("UserId")) { limit(1) }
+                        .decodeList<kotlinx.serialization.json.JsonObject>()
+                    ensureCurrent()
+                    if (members.isEmpty()) throw ApiException(403, null, "此帳號尚未獲得使用權限")
+                    return block().also { ensureCurrent() }
+                } catch (e: RestException) {
+                    ensureCurrent()
+                    if (e.statusCode != 401 || attempt == 1) throw e
+                    refreshMutex.withLock {
+                        ensureCurrent()
+                        if (refreshGeneration == initialRefresh) {
+                            refreshSession()
+                            ensureCurrent()
+                            refreshGeneration++
+                        }
+                    }
+                }
+            }
+            error("Unreachable retry state")
         } catch (e: CancellationException) {
             throw e
         } catch (e: RestException) {
