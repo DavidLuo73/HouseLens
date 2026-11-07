@@ -69,7 +69,8 @@ class NavigationTest {
         compose.onNodeWithText("帳號").performClick()
         compose.onNodeWithText("member@example.com").assertExists()
         compose.onNodeWithText("收藏僅儲存在此裝置、此帳號，不跨裝置同步").assertExists()
-        compose.onNodeWithText("登出").performClick()
+        compose.onNodeWithText("清除 App 資料或解除安裝會移除收藏",substring=true).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("登出").performScrollTo().performClick()
         compose.onNodeWithText("已登出").assertExists()
         compose.runOnIdle { assertTrue(graph.signedOut);assertFalse(graph.session.scope.coroutineContext[kotlinx.coroutines.Job]!!.isActive) }
     }

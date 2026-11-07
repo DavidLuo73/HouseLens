@@ -3,12 +3,14 @@ package tw.houselens.viewer.ui
 import android.net.Uri
 import tw.houselens.viewer.AppGraph
 import tw.houselens.viewer.BuildConfig
+import tw.houselens.viewer.R
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.*
 import androidx.lifecycle.viewmodel.compose.*
@@ -59,6 +61,7 @@ fun HouseLensNav(graph:AppGraph,owner:OwnerKey) {
                                 Text(graph.accountEmail(owner).orEmpty())
                                 Text("版本 ${BuildConfig.VERSION_NAME}")
                                 Text("收藏僅儲存在此裝置、此帳號，不跨裝置同步")
+                                Text(stringResource(R.string.auth_local_data))
                                 Button(onClick={ scope.launch { graph.signOut() } },modifier=Modifier.heightIn(min=48.dp)) { Text("登出") }
                             }
                         }
