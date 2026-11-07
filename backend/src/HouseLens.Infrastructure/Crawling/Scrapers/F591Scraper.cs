@@ -232,7 +232,11 @@ public class F591Scraper(HttpFetcher fetcher, ILogger<F591Scraper> logger) : ISo
                     Timeout = 30_000,
                 });
 
-                var (listings, total) = ExtractFromCaptured(capturedResponses, regionId, sectionId, city);
+                // 591 列表頁已改為 Nuxt SSR，物件資料內嵌在 window.__NUXT__ 的 pinia store，
+                // 不再另外呼叫 BFF 列表 API；store 讀不到時才退回攔截 BFF 回應（舊版頁面）
+                var (listings, total) = await ExtractFromNuxtStoreAsync(page, district, city);
+                if (total is null)
+                    (listings, total) = ExtractFromCaptured(capturedResponses, regionId, sectionId, city);
                 if (total.HasValue) totalCount = total;
 
                 // 591 對「無符合結果」不會回空頁，而是改顯示「為您推薦」的物件（多半超出條件），
@@ -280,6 +284,74 @@ public class F591Scraper(HttpFetcher fetcher, ILogger<F591Scraper> logger) : ISo
 
         // 頁內已按行政區/價格/屋齡過濾並去重，這裡直接回傳
         return all;
+    }
+
+    /// <summary>
+    /// 在頁面內讀取 Nuxt SSR 狀態 window.__NUXT__.pinia["sale-list"]，
+    /// 輸出 { total, isRecommend, list } JSON 字串；store 不存在時回傳 null。
+    /// pinia state 序列化後欄位可能是 ref 物件（_value），需先解開。
+    /// </summary>
+    private const string NuxtSaleListScript = """
+        () => {
+          const st = window.__NUXT__?.pinia?.['sale-list'];
+          if (!st) return null;
+          const un = v => (v && typeof v === 'object' && '_value' in v) ? v._value : v;
+          return JSON.stringify({
+            total: un(st.wareTotal) ?? null,
+            isRecommend: !!un(st.isRecommendWare),
+            list: un(st.wareList) ?? null,
+          });
+        }
+        """;
+
+    private async Task<(List<PropertyDto> Listings, int? Total)> ExtractFromNuxtStoreAsync(
+        IPage page, string district, string city)
+    {
+        try
+        {
+            var json = await page.EvaluateAsync<string?>(NuxtSaleListScript);
+            if (json is null)
+                logger.LogWarning("591 {District}: Nuxt sale-list store not found, falling back to BFF/HTML", district);
+            return ParseNuxtSaleList(json, city);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning("591 {District}: failed to read Nuxt sale-list store: {Msg}", district, ex.Message);
+            return ([], null);
+        }
+    }
+
+    /// <summary>
+    /// 解析 <see cref="NuxtSaleListScript"/> 輸出的 JSON（wareList 欄位與舊版 BFF house_list 相同）。
+    /// 條件無符合物件時，591 會把「為您推薦」物件放進 wareList，wareTotal 也變成推薦物件數，
+    /// 只能以 isRecommendWare=true 判斷 → 回傳 total=0、不回傳任何物件。
+    /// store 不存在或結構無法辨識 → total=null（由呼叫端改用備援解析）。
+    /// </summary>
+    public static (List<PropertyDto> Listings, int? Total) ParseNuxtSaleList(string? json, string city)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return ([], null);
+
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+        if (root.ValueKind != JsonValueKind.Object) return ([], null);
+
+        if (root.TryGetProperty("isRecommend", out var rec) && rec.ValueKind == JsonValueKind.True)
+            return ([], 0);
+
+        var total = TryGetTotal(root);
+        if (total is null) return ([], null);
+
+        var listings = new List<PropertyDto>();
+        if (root.TryGetProperty("list", out var list) && list.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in list.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.Object) continue;
+                var dto = ParseJsonListing(item, city);
+                if (dto is not null) listings.Add(dto);
+            }
+        }
+        return (listings, total);
     }
 
     /// <summary>
@@ -481,10 +553,10 @@ public class F591Scraper(HttpFetcher fetcher, ILogger<F591Scraper> logger) : ISo
         // showarea 是含坪數的顯示字串，area 是原始數字
         var areaPing = GetJsonDecimal(item, "area", "showarea", "building_size");
         var floor = GetJsonString(item, "floor", "floorStr", "floor_str");
-        // houseage 是591 BFF 的屋齡欄位（年）
-        var ageText = GetJsonString(item, "houseage", "age", "ageText", "age_str");
+        // houseage 是591 的屋齡欄位（年）；Nuxt store 版為數字，舊 BFF 版為字串
+        var ageText = GetJsonStringOrNumber(item, "houseage", "age", "ageText", "age_str", "showhouseage");
         var ageYears = ageText is not null ? ParseIntFromText(ageText) : null;
-        var hasParking = GetJsonBool(item, "hasParking", "parking", "has_parking");
+        var hasParking = GetJsonBool(item, "hasParking", "parking", "has_parking", "has_carport");
         // unitprice 在 591 BFF 也是萬/坪
         var unitPriceFromApi = GetJsonDecimal(item, "unitprice");
         var unitPrice = unitPriceFromApi > 0 ? (decimal?)unitPriceFromApi
