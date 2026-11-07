@@ -142,4 +142,34 @@ class SavedViewModelTest {
             assertTrue(store.observe(owner).first().isEmpty())
         } finally { scope.cancel();directory.deleteRecursively() }
     }
+    @Test fun scrolling_skips_obsolete_queued_requests_but_allows_them_when_visible_again() = runBlocking {
+        val directory=Files.createTempDirectory("saved-scroll").toFile()
+        val scope=CoroutineScope(coroutineContext + SupervisorJob())
+        val started=CompletableDeferred<Unit>();val release=CompletableDeferred<Unit>()
+        val seen=mutableListOf<String>()
+        try {
+            val store=FavoriteStore(directory,scope)
+            (1..9).forEach { store.put(owner,FavoriteEntry("$it",it.toLong(),null)) }
+            val vm=SavedViewModel(owner,SummaryApi { id ->
+                seen += id
+                if(id in listOf("1","2","3")) {
+                    if(seen.size==3) started.complete(Unit)
+                    release.await()
+                }
+                property(id)
+            },store,scope)
+            waitFor { vm.state.value.entries.size==9 }
+            vm.refreshVisible(listOf("1","2","3","4","5","6"))
+            withTimeout(5000) { started.await() }
+            assertEquals(listOf("1","2","3"),seen)
+            vm.refreshVisible(listOf("7","8","9"))
+            release.complete(Unit)
+            waitFor { listOf("7","8","9").all { vm.state.value.statuses[it]==RefreshStatus.UPDATED } }
+            assertEquals(setOf("1","2","3","7","8","9"),seen.toSet())
+            vm.refreshVisible(listOf("4","5","6"))
+            waitFor { listOf("4","5","6").all { vm.state.value.statuses[it]==RefreshStatus.UPDATED } }
+            assertEquals(9,seen.size)
+            assertEquals(setOf("1","2","3","4","5","6","7","8","9"),seen.toSet())
+        } finally { release.complete(Unit);scope.coroutineContext[Job]!!.cancelAndJoin();directory.deleteRecursively() }
+    }
 }

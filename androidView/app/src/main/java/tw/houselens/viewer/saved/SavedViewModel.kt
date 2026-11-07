@@ -25,6 +25,7 @@ class SavedViewModel(
     private val mutableState = MutableStateFlow(SavedState())
     val state: StateFlow<SavedState> = mutableState.asStateFlow()
     private val requests = Semaphore(3)
+    @Volatile private var visibleIds = emptySet<String>()
     private val inFlight = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
     private val removing = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
     init {
@@ -39,11 +40,13 @@ class SavedViewModel(
     }
     fun refreshVisible(ids: List<String>) {
         val savedIds = state.value.entries.map { it.id }.toSet()
-        ids.distinct().filter { it in savedIds && inFlight.add(it) }.forEach { id ->
+        visibleIds = ids.filter { it in savedIds }.toSet()
+        visibleIds.filter { inFlight.add(it) }.forEach { id ->
             workScope.launch {
                 try {
                     val generation = store.generation(owner)
                     requests.withPermit {
+                        if (id !in visibleIds) return@withPermit
                         val property = try { api.property(id) }
                         catch (e: CancellationException) { throw e }
                         catch (_: Exception) {
