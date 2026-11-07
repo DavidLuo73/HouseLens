@@ -13,6 +13,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextOverflow
 import coil3.ImageLoader
 import coil3.compose.SubcomposeAsyncImage
 import tw.houselens.viewer.data.formatDrop
@@ -39,15 +40,22 @@ fun PropertyCard(snapshot: PropertySnapshot, saved: Boolean, onOpen: () -> Unit,
             }
         }
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(snapshot.title.ifBlank { "未提供標題" }, style = MaterialTheme.typography.titleMedium)
             Text("${snapshot.city}${snapshot.district}", style = MaterialTheme.typography.bodyMedium)
+            Text(snapshot.score?.let { "系統評分 ${it.multiply(java.math.BigDecimal(5)).setScale(1,java.math.RoundingMode.HALF_UP).toPlainString()}" } ?: "尚無評分",style=MaterialTheme.typography.bodyMedium)
+            Text(snapshot.title.ifBlank { "未提供標題" }, style = MaterialTheme.typography.titleMedium,maxLines=2,overflow=TextOverflow.Ellipsis)
             Text("${snapshot.currentTotalPrice.stripTrailingZeros().toPlainString()} 萬",fontSize = 26.sp)
             Text("單價 ${snapshot.currentUnitPrice?.stripTrailingZeros()?.toPlainString() ?: "—"} 萬／坪",style = MaterialTheme.typography.bodyMedium)
             Text("${snapshot.areaPing?.stripTrailingZeros()?.toPlainString() ?: "—"} 坪 · 屋齡 ${snapshot.ageYears?.let { "$it 年" } ?: "—"} · ${snapshot.floor ?: "樓層 —"}",style = MaterialTheme.typography.bodyMedium)
-            Text("${if(snapshot.hasParking) "有車位" else "無車位"} · 評分 ${snapshot.score?.stripTrailingZeros()?.toPlainString() ?: "—"}",style = MaterialTheme.typography.bodyMedium)
-            if(snapshot.status == 1) Text("已下架")
-            if(snapshot.isNew) Text("新上架")
-            if(snapshot.latestIsBigDrop || snapshot.hasPriceDrop) Text("▼ ${if(snapshot.latestIsBigDrop) "大降價" else "曾降價"}", color = Color(0xFFC13515))
+            Text(if(snapshot.hasParking) "有車位" else "未標示車位",style=MaterialTheme.typography.bodyMedium)
+            if(snapshot.sourceSites.isNotEmpty()) Text(snapshot.sourceSites.joinToString("、") {
+                listOf("591","樂屋網","信義房屋","永慶房屋","好房網","住商不動產","中信房屋").getOrElse(it) { "來源 $it" }
+            },style=MaterialTheme.typography.bodyMedium)
+            when {
+                snapshot.status==1 -> Text("已下架")
+                snapshot.latestIsBigDrop -> Text("▼ 大降價",color=Color(0xFFC13515))
+                snapshot.isNew -> Text("新上架")
+            }
+            if(snapshot.hasPriceDrop && !snapshot.latestIsBigDrop) Text("▼ 曾有降價紀錄",color=Color(0xFFC13515))
             if(snapshot.latestChangePercent != null) Text("價格變動 ${formatDrop(snapshot.latestChangePercent)}",
                 color = when(snapshot.latestChangePercent.signum()) {
                     -1 -> Color(0xFFC13515); 1 -> Color(0xFF008A05); else -> MaterialTheme.colorScheme.onSurface

@@ -13,12 +13,15 @@ import kotlinx.serialization.json.JsonObject
 import tw.houselens.viewer.auth.*
 import tw.houselens.viewer.data.*
 import tw.houselens.viewer.saved.*
+import tw.houselens.viewer.find.*
+import androidx.lifecycle.SavedStateHandle
 
 class AppGraph(private val context: Context) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val storage = SecureAuthStorage(context, BuildConfig.SUPABASE_URL)
     private val client = createViewerClient(BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_PUBLISHABLE_KEY, storage = storage)
     val favorites = FavoriteStore(java.io.File(context.filesDir, "favorites"), scope)
+    private val filterPreferences = FilterPreferences(java.io.File(context.filesDir, "filters"), scope)
     private var resources: SessionResources? = null
     private var initialized = false
     val sessions = SessionController(client, storage, { token -> verifyMembership(token) }, { owner ->
@@ -61,14 +64,15 @@ class AppGraph(private val context: Context) {
                     sessions.accessToken()
                     Unit
                 }
-            ), favorites).also { resources = it }
+            ), favorites, filterPreferences).also { resources = it }
     }
 }
 
 @OptIn(coil3.annotation.ExperimentalCoilApi::class)
-class SessionResources(context: Context, val owner: OwnerKey, val version: Long, val data: HouseLensData, favorites: FavoriteStore) {
+class SessionResources(context: Context, val owner: OwnerKey, val version: Long, val data: HouseLensData, private val favorites: FavoriteStore, private val filterPreferences: FilterPreferences) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     val saved = SavedViewModel(owner, data, favorites, scope)
+    fun find(savedStateHandle: SavedStateHandle) = FindViewModel(owner, data, favorites, filterPreferences, savedStateHandle, scope)
     private val imageClient = createImageClient()
     // Keep images uncached so a late response cannot refill another session's cache.
     val imageLoader = ImageLoader.Builder(context).components {

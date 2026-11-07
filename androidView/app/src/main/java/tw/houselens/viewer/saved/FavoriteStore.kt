@@ -21,11 +21,11 @@ import tw.houselens.viewer.data.PropertyDto
     val hasParking: Boolean = false, val score: BigDecimal? = null, val status: Int = 0,
     val imageUrl: String? = null, val isNew: Boolean = false, val hasPriceDrop: Boolean = false,
     val latestChangeFlag: Int? = null, val latestChangePercent: BigDecimal? = null,
-    val latestIsBigDrop: Boolean = false
+    val latestIsBigDrop: Boolean = false, val sourceSites: List<Int> = emptyList()
 )
 fun PropertyDto.toSnapshot() = PropertySnapshot(id,title,city,district,currentTotalPrice,currentUnitPrice,
     areaPing,ageYears,floor,hasParking,score,status,imageUrl,isNew,hasPriceDrop,latestChangeFlag,
-    latestChangePercent,latestIsBigDrop)
+    latestChangePercent,latestIsBigDrop,sourceSites)
 @Serializable data class FavoriteEntry(val id: String, val savedAtEpochMillis: Long, val snapshot: PropertySnapshot?)
 class FavoriteStore(private val directory: File, private val scope: CoroutineScope) {
     private val stores = mutableMapOf<String, androidx.datastore.core.DataStore<List<FavoriteEntry>>>()
@@ -50,6 +50,7 @@ class FavoriteStore(private val directory: File, private val scope: CoroutineSco
         entries.sortedByDescending { it.savedAtEpochMillis }
     }
     suspend fun put(owner: OwnerKey, entry: FavoriteEntry) = writes.withLock {
+        kotlinx.coroutines.currentCoroutineContext().ensureActive()
         require(entry.id.isNotBlank() && (entry.snapshot == null || entry.snapshot.id == entry.id))
         data(owner).updateData { entries -> entries.filterNot { it.id == entry.id } + entry }
         Unit
