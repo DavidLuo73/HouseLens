@@ -4,6 +4,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.res.painterResource
+import tw.houselens.viewer.R
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -36,7 +39,10 @@ fun PriceHistory(details:PropertyDetails,initiallyExpanded:Boolean) {
     var count by rememberSaveable(details.property.id) { mutableIntStateOf(20) }
     var selected by remember(ordered) { mutableStateOf(emptyList<Int>()) }
     Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
-        Text("系統擷取價格紀錄",style=MaterialTheme.typography.titleLarge)
+        Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+            Icon(painterResource(R.drawable.ic_history),contentDescription=null,modifier=Modifier.size(24.dp))
+            Text("系統擷取價格紀錄",style=MaterialTheme.typography.titleLarge)
+        }
         Text("可能包含不同平台的觀測價格",style=MaterialTheme.typography.bodyMedium)
         if(ordered.isEmpty()) Text("尚無價格紀錄") else {
             if(ordered.size==1) Text(recordText(ordered.single()))
@@ -45,7 +51,7 @@ fun PriceHistory(details:PropertyDetails,initiallyExpanded:Boolean) {
             Text("最高 ${stats.high?.stripTrailingZeros()?.toPlainString()} 萬 · 最低 ${stats.low?.stripTrailingZeros()?.toPlainString()} 萬")
             Text(if(stats.change!=null) "期間觀測價格變動 ${formatDrop(stats.change)}" else "無法判定期間變動（單筆、零基準或同時間多筆）")
             if(ordered.groupBy { OffsetDateTime.parse(it.capturedAt).toInstant() }.any { it.value.size>1 }) Text("同時間多筆觀測依原順序列出，無法判定先後；圖上不連接該時間的觀測")
-            TextButton(onClick={ expanded=!expanded },modifier=Modifier.heightIn(min=48.dp)) { Text(if(expanded) "收合紀錄（${count.coerceAtMost(newest.size)}／${newest.size}）" else "展開紀錄（${count.coerceAtMost(newest.size)}／${newest.size}）") }
+            TextButton(onClick={ expanded=!expanded },modifier=Modifier.heightIn(min=48.dp)) { Icon(painterResource(if(expanded) R.drawable.ic_chevron_up else R.drawable.ic_chevron_down),contentDescription=null,modifier=Modifier.size(20.dp));Spacer(Modifier.width(8.dp));Text(if(expanded) "收合紀錄（${count.coerceAtMost(newest.size)}／${newest.size}）" else "展開紀錄（${count.coerceAtMost(newest.size)}／${newest.size}）") }
             if(expanded) {
                 newest.take(count).forEach { entry -> Text(recordText(entry),modifier=Modifier.fillMaxWidth().padding(vertical=8.dp).testTag("history-${entry.id}")) }
                 if(count<newest.size) TextButton(onClick={ count+=20 },modifier=Modifier.heightIn(min=48.dp)) { Text("顯示更多") }

@@ -7,6 +7,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
+import androidx.compose.ui.res.painterResource
+import tw.houselens.viewer.R
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
@@ -46,13 +49,13 @@ import tw.houselens.viewer.data.*
     item {
      Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
       Box {
-       TextButton(onClick={ menu=true },modifier=Modifier.heightIn(min=48.dp)) { Text("行政區：${district ?: "全部"}") }
+       TextButton(onClick={ menu=true },modifier=Modifier.heightIn(min=48.dp)) { Icon(painterResource(R.drawable.ic_district),contentDescription=null,modifier=Modifier.size(20.dp));Spacer(Modifier.width(8.dp));Text("行政區：${district ?: "全部"}") }
        DropdownMenu(expanded=menu,onDismissRequest={ menu=false }) {
         DropdownMenuItem(text={ Text("全部") },onClick={ menu=false;viewModel.selectDistrict(null) })
         (state.top.groups.map { it.district }+listOfNotNull(district)).distinct().forEach { name -> DropdownMenuItem(text={ Text(name) },onClick={ menu=false;viewModel.selectDistrict(name) }) }
        }
       }
-      TextButton(onClick=viewModel::refresh,enabled=!loading,modifier=Modifier.heightIn(min=48.dp)) { Text("重新整理精選") }
+      TextButton(onClick=viewModel::refresh,enabled=!loading,modifier=Modifier.heightIn(min=48.dp)) { Icon(painterResource(R.drawable.ic_refresh),contentDescription=null,modifier=Modifier.size(20.dp));Spacer(Modifier.width(8.dp));Text("重新整理精選") }
       Text("依行政區名稱統計，同名區可能包含不同縣市",style=MaterialTheme.typography.bodyMedium)
       if(!top) Text("曾出現的大降價紀錄；可能包含已下架物件，最新售價與狀態請查看詳情。")
       if(hasData && (loading || error!=null || (!top && state.drops.district!=state.drops.resultDistrict))) Text("保留上次結果（舊資料）",modifier=Modifier.semantics { liveRegion=LiveRegionMode.Polite })
@@ -79,8 +82,11 @@ import tw.houselens.viewer.data.*
          Text("單價 ${property.unitPrice?.stripTrailingZeros()?.toPlainString() ?: "—"} 萬／坪")
          Text("屋齡 ${property.ageYears?.let { "$it 年" } ?: "—"}")
          Text(if(property.hasParking) "有車位" else "未標示車位")
-         Text("系統評分 ${property.score.multiply(java.math.BigDecimal(5)).setScale(1,java.math.RoundingMode.HALF_UP).toPlainString()}")
-         TextButton(onClick={ onOpen(property.id,true) },modifier=Modifier.heightIn(min=48.dp)) { Text("價格歷史") }
+         Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+          Icon(painterResource(R.drawable.ic_star_filled),contentDescription=null,modifier=Modifier.size(20.dp),tint=Color(0xFFFF385C))
+          Text("系統評分 ${property.score.multiply(java.math.BigDecimal(5)).setScale(1,java.math.RoundingMode.HALF_UP).toPlainString()}")
+         }
+         TextButton(onClick={ onOpen(property.id,true) },modifier=Modifier.heightIn(min=48.dp)) { Icon(painterResource(R.drawable.ic_history),contentDescription=null,modifier=Modifier.size(20.dp));Spacer(Modifier.width(8.dp));Text("價格歷史") }
         }
        }
       }
@@ -98,7 +104,7 @@ import tw.houselens.viewer.data.*
         Text("${event.dropPercent?.let { "降幅 ${formatDrop(it.abs().negate())}" } ?: "降幅未提供"} · 降額 ${event.dropAmount?.stripTrailingZeros()?.toPlainString() ?: "—"} 萬",color=Color(0xFFC13515))
         Text("觀測：${formatTaipeiTime(event.capturedAt)}")
         Text("目前狀態：${statusLabel(event.status)}")
-        TextButton(onClick={ onOpen(event.id,true) },modifier=Modifier.heightIn(min=48.dp)) { Text("價格歷史") }
+        TextButton(onClick={ onOpen(event.id,true) },modifier=Modifier.heightIn(min=48.dp)) { Icon(painterResource(R.drawable.ic_history),contentDescription=null,modifier=Modifier.size(20.dp));Spacer(Modifier.width(8.dp));Text("價格歷史") }
        }
       }
      }

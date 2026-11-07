@@ -8,6 +8,10 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
+import androidx.compose.ui.res.painterResource
+import tw.houselens.viewer.R
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -50,9 +54,12 @@ fun FindScreen(viewModel: FindViewModel,onOpen: (String,Boolean) -> Unit) {
             LazyColumn(state=list,contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(16.dp),modifier=Modifier.fillMaxSize().testTag("find-list")) {
                 item {
                     Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                        Text("HouseLens",style=MaterialTheme.typography.headlineSmall)
+                        Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                            Icon(painterResource(R.drawable.ic_house),contentDescription=null,modifier=Modifier.size(28.dp),tint=Color.Unspecified)
+                            Text("HouseLens",style=MaterialTheme.typography.headlineSmall)
+                        }
                         Text(state.query.districts.joinToString("、").ifEmpty { "全部行政區" })
-                        Button(onClick={ filters=true },modifier=Modifier.sizeIn(minWidth=48.dp,minHeight=48.dp)) { Text("篩選") }
+                        Button(onClick={ filters=true },modifier=Modifier.sizeIn(minWidth=48.dp,minHeight=48.dp)) { Icon(painterResource(R.drawable.ic_filter),contentDescription=null,modifier=Modifier.size(20.dp));Spacer(Modifier.width(8.dp));Text("篩選") }
                         FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                             queryChips(state.query).forEach { chip ->
                                 InputChip(selected=true,onClick={ viewModel.apply(chip.removed) },label={ Text("${chip.label} ×") },modifier=Modifier.sizeIn(minWidth=48.dp,minHeight=48.dp).semantics { contentDescription="移除${chip.label}條件" })
@@ -67,12 +74,12 @@ fun FindScreen(viewModel: FindViewModel,onOpen: (String,Boolean) -> Unit) {
                         val pending=state.items.isNotEmpty() && (state.resultQuery!=state.query || state.refreshing || state.error!=null)
                         Text(if(pending) "保留上次結果（舊資料），等待目前條件的新結果" else "共 ${state.total} 筆",modifier=Modifier.semantics { liveRegion=LiveRegionMode.Polite })
                         Box {
-                            TextButton(onClick={ sorts=true },modifier=Modifier.sizeIn(minWidth=48.dp,minHeight=48.dp)) { Text(sortLabels.getValue(state.query.sortBy)) }
+                            TextButton(onClick={ sorts=true },modifier=Modifier.sizeIn(minWidth=48.dp,minHeight=48.dp)) { Icon(painterResource(R.drawable.ic_sort),contentDescription=null,modifier=Modifier.size(20.dp));Spacer(Modifier.width(8.dp));Text(sortLabels.getValue(state.query.sortBy)) }
                             DropdownMenu(expanded=sorts,onDismissRequest={ sorts=false }) {
                                 sortLabels.forEach { (value,label) -> DropdownMenuItem(text={ Text(label) },onClick={ sorts=false;viewModel.apply(state.query.copy(sortBy=value)) }) }
                             }
                         }
-                        TextButton(onClick=viewModel::refresh,modifier=Modifier.sizeIn(minWidth=48.dp,minHeight=48.dp)) { Text("重新整理") }
+                        TextButton(onClick=viewModel::refresh,modifier=Modifier.sizeIn(minWidth=48.dp,minHeight=48.dp)) { Icon(painterResource(R.drawable.ic_refresh),contentDescription=null,modifier=Modifier.size(20.dp));Spacer(Modifier.width(8.dp));Text("重新整理") }
                         if(state.restored) Text("已恢復條件，列表從第一頁重新載入")
                         if(state.storageError!=null) Text(state.storageError!!,color=MaterialTheme.colorScheme.error)
                         if(state.error!=null) {

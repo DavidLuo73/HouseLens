@@ -39,7 +39,7 @@ class FindScreenTest {
         compose.setContent {
             val density=LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density,2f)) { HouseLensTheme {
-                Box(Modifier.width(360.dp)) { FilterSheet(PropertyQuery(districts=listOf("原區")),listOf(DistrictChoice("中正區","所有同名行政區")),{ applied=it },{ dismissed++ }) }
+                Box(Modifier.width(360.dp)) { FilterSheet(PropertyQuery(districts=listOf("原區"),sortBy="priceDesc"),listOf(DistrictChoice("中正區","所有同名行政區")),{ applied=it },{ dismissed++ }) }
             } }
         }
         compose.onNodeWithText("中正區（所有同名行政區）").performScrollTo().performClick()
@@ -50,7 +50,7 @@ class FindScreenTest {
         compose.onNodeWithText("重設").performClick()
         compose.runOnIdle { assertNull(applied) }
         compose.onNodeWithText("套用").assertHeightIsAtLeast(48.dp).performClick()
-        compose.runOnIdle { assertEquals(PropertyQuery(),applied);assertEquals(0,dismissed) }
+        compose.runOnIdle { assertEquals(PropertyQuery(),applied);assertEquals("unitPrice",applied!!.sortBy);assertEquals(0,dismissed) }
         screenshot("b4-filter-360-font200.png")
     }
     @Test fun closing_filter_never_applies_and_all_platforms_can_be_selected() {
@@ -91,7 +91,7 @@ class FindScreenTest {
             compose.onNodeWithText("重設").performClick()
             compose.onNodeWithText("關閉篩選").performScrollTo().performClick()
             compose.runOnIdle { assertEquals(1,requests) }
-            compose.onNodeWithContentDescription("加入收藏").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
+            compose.onNodeWithContentDescription("加入收藏").performScrollTo().assertIsDisplayed().assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp).performClick()
             compose.waitUntil(5000) { "1" in vm.state.value.favoriteIds }
             compose.runOnIdle { assertNull(open) }
             compose.onNodeWithText("價格歷史").performScrollTo().performClick()

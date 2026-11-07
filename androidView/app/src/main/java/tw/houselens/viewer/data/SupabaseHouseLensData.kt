@@ -87,7 +87,9 @@ class SupabaseHouseLensData(private val client: SupabaseClient) : HouseLensData 
                         order("currentTotalPrice", Order.ASCENDING)
                     }
                     "price" -> order("currentTotalPrice", Order.ASCENDING)
+                    "priceDesc" -> order("currentTotalPrice", Order.DESCENDING)
                     "unitPrice" -> order("currentUnitPrice", Order.ASCENDING, nullsFirst = true)
+                    "unitPriceDesc" -> order("currentUnitPrice", Order.DESCENDING, nullsFirst = true)
                     "newest" -> order("firstSeenAt", Order.DESCENDING)
                 }
                 order("id", Order.ASCENDING)

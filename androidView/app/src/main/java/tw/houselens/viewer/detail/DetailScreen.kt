@@ -13,6 +13,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.painterResource
+import tw.houselens.viewer.R
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -51,13 +54,13 @@ fun DetailScreen(viewModel:DetailViewModel,initiallyExpanded:Boolean,onBack:()->
     }
     Scaffold(topBar={
         Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal=8.dp),horizontalArrangement=Arrangement.SpaceBetween) {
-            TextButton(onClick=onBack,modifier=Modifier.heightIn(min=48.dp)) { Text("返回") }
-            TextButton(onClick=viewModel::toggleFavorite,enabled=!state.saving && (state.saved || details!=null),modifier=Modifier.heightIn(min=48.dp)) { Text(if(state.saved) "取消收藏" else "加入收藏") }
+            TextButton(onClick=onBack,modifier=Modifier.heightIn(min=48.dp)) { Icon(painterResource(R.drawable.ic_back),contentDescription=null,modifier=Modifier.size(20.dp));Spacer(Modifier.width(8.dp));Text("返回") }
+            TextButton(onClick=viewModel::toggleFavorite,enabled=!state.saving && (state.saved || details!=null),modifier=Modifier.heightIn(min=48.dp)) { Icon(painterResource(if(state.saved) R.drawable.ic_heart_filled else R.drawable.ic_heart),contentDescription=null,modifier=Modifier.size(20.dp));Spacer(Modifier.width(8.dp));Text(if(state.saved) "取消收藏" else "加入收藏") }
         }
     },bottomBar={
         Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp)) {
             if(valid.isEmpty()) Text("沒有可開啟的來源網址",style=MaterialTheme.typography.bodyMedium)
-            Button(onClick={ if(sources.size>1) chooseSource=true else valid.firstOrNull()?.let(::open) },enabled=valid.isNotEmpty(),modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) { Text("查看原始刊登") }
+            Button(onClick={ if(sources.size>1) chooseSource=true else valid.firstOrNull()?.let(::open) },enabled=valid.isNotEmpty(),modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) { Icon(painterResource(R.drawable.ic_external),contentDescription=null,modifier=Modifier.size(20.dp));Spacer(Modifier.width(8.dp));Text("查看原始刊登") }
         }
     }) { padding ->
         LazyColumn(state=list,contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(16.dp),modifier=Modifier.fillMaxSize().padding(padding).testTag("detail-list")) {
@@ -101,20 +104,23 @@ fun DetailScreen(viewModel:DetailViewModel,initiallyExpanded:Boolean,onBack:()->
                     Text("首見：${property.firstSeenAt?.let(::formatTaipeiTime) ?: "—"}")
                     Text("最後觀測：${property.lastSeenAt?.let(::formatTaipeiTime) ?: "—"}")
                 } }
-                item { Text(property.score?.let { "系統評分 ${it.multiply(java.math.BigDecimal(5)).setScale(1,java.math.RoundingMode.HALF_UP).toPlainString()}" } ?: "尚無評分",style=MaterialTheme.typography.titleLarge) }
+                item { Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                    if(property.score!=null) Icon(painterResource(R.drawable.ic_star_filled),contentDescription=null,modifier=Modifier.size(24.dp),tint=Color(0xFFFF385C))
+                    Text(property.score?.let { "系統評分 ${it.multiply(java.math.BigDecimal(5)).setScale(1,java.math.RoundingMode.HALF_UP).toPlainString()}" } ?: "尚無評分",style=MaterialTheme.typography.titleLarge)
+                } }
                 item { PriceHistory(details,initiallyExpanded) }
                 item { Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
                     Text("來源與時間",style=MaterialTheme.typography.titleLarge)
                     sources.forEach { source ->
-                        TextButton(onClick={ open(source) },enabled=externalListingUrl(source.url)!=null,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) { Text(sourceLabel(source)) }
+                        TextButton(onClick={ open(source) },enabled=externalListingUrl(source.url)!=null,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) { Icon(painterResource(R.drawable.ic_external),contentDescription=null,modifier=Modifier.size(20.dp));Spacer(Modifier.width(8.dp));Text(sourceLabel(source)) }
                         source.postedDate?.let { Text("來源刊登日期：${formatDateOnly(it)}") }
                     }
                     if(sources.isEmpty()) Text("沒有來源資料")
                     state.fetchedAt?.let { Text("本次取得資料時間：${formatTaipeiTime(it)}") }
-                    TextButton(onClick=viewModel::refresh,enabled=!state.loading,modifier=Modifier.heightIn(min=48.dp)) { Text("重新整理詳情") }
+                    TextButton(onClick=viewModel::refresh,enabled=!state.loading,modifier=Modifier.heightIn(min=48.dp)) { Icon(painterResource(R.drawable.ic_refresh),contentDescription=null,modifier=Modifier.size(20.dp));Spacer(Modifier.width(8.dp));Text("重新整理詳情") }
                 } }
             }
         }
     }
-    if(chooseSource) AlertDialog(onDismissRequest={ chooseSource=false },title={ Text("選擇原始刊登") },text={ Column(Modifier.verticalScroll(rememberScrollState())) { sources.forEach { source -> TextButton(onClick={ open(source) },enabled=externalListingUrl(source.url)!=null,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) { Text(sourceLabel(source)) } } } },confirmButton={ TextButton(onClick={ chooseSource=false }) { Text("關閉") } })
+    if(chooseSource) AlertDialog(onDismissRequest={ chooseSource=false },title={ Text("選擇原始刊登") },text={ Column(Modifier.verticalScroll(rememberScrollState())) { sources.forEach { source -> TextButton(onClick={ open(source) },enabled=externalListingUrl(source.url)!=null,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) { Icon(painterResource(R.drawable.ic_external),contentDescription=null,modifier=Modifier.size(20.dp));Spacer(Modifier.width(8.dp));Text(sourceLabel(source)) } } } },confirmButton={ TextButton(onClick={ chooseSource=false }) { Text("關閉") } })
 }

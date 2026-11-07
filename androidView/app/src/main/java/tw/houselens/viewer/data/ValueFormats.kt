@@ -26,7 +26,7 @@ fun validateQuery(query: PropertyQuery): String? = when {
     query.minPrice != null && query.maxPrice != null && query.minPrice > query.maxPrice -> "最低總價不能高於最高總價"
     query.status !in 0..1 -> "不支援的房源狀態"
     query.sourceSites.any { it !in 0..6 } -> "不支援的平台"
-    query.sortBy !in setOf("score", "price", "unitPrice", "newest") -> "不支援的排序"
+    query.sortBy !in setOf("score", "price", "priceDesc", "unitPrice", "unitPriceDesc", "newest") -> "不支援的排序"
     else -> null
 }
 fun mergeDistrictOptions(config: List<DistrictOptionDto>, stats: List<DistrictStatsDto>): List<DistrictChoice> {

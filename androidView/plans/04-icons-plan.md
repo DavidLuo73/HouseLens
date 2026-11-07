@@ -14,6 +14,10 @@
 
 User requested:「參考一下網站版本的icon，並且調整app也加入icon，希望色系UI/UX相同，並且能夠時尚一點的icon，幫我配置進去」. Scope is app icon/visual consistency; no new browsing/auth/server feature.
 
+## Completed delivery
+
+The icon work was reviewed, signed as v0.1.1 and installed as a same-key update on S25+. All 21 vector/adaptive resources and UI consumers are included in the local v0.1.5 source commit. Later releases fix filter-sheet boundary gestures and add price sorting with unit-price ascending as the default. See ../handoff.md for release hashes, current delivery, verification evidence and preserved intermittent UI-test failures. Full B7 manual/performance acceptance remains open. The original implementation brief below is historical; do not repeat its completed work or use its old version as the latest release.
+
 ## Authority and current state
 
 Worktree C:/Users/David/.codex/worktrees/9611/HouseLens; feature/android-viewer; HEAD aee821c plus fully tested anonymous-v1 WIP. Preserve everything. v0.1.0 signed APK is already installed on S25+ with REAL Find count687 verified. Existing phone app may now contain user favorites: NEVER run connectedDebugAndroidTest against that physical package or uninstall/clear it. Emulator5580 remains isolated test target. Update phone later with same signing identity and install-r only.

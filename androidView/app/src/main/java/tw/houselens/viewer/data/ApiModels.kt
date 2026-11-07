@@ -102,5 +102,5 @@ data class PropertyQuery(
     val districts: List<String> = emptyList(), val sourceSites: List<Int> = emptyList(),
     val minPrice: BigDecimal? = null, val maxPrice: BigDecimal? = null,
     val hasParking: Boolean? = null, val priceDropped: Boolean = false,
-    val status: Int = 0, val sortBy: String = "score"
+    val status: Int = 0, val sortBy: String = "unitPrice"
 )

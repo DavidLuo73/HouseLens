@@ -40,15 +40,25 @@ class ApiContractTest {
         assertTrue(r.url.parameters["district"]!!.contains("中正區"))
         assertEquals("eq.false", r.url.parameters["hasParking"])
         assertEquals("eq.true", r.url.parameters["hasPriceDrop"])
-        assertEquals("score.desc.nullslast,currentTotalPrice.asc.nullslast,id.asc.nullslast", r.url.parameters["order"])
+        assertEquals("currentUnitPrice.asc.nullsfirst,id.asc.nullslast", r.url.parameters["order"])
         assertEquals(41, page.total)
         assertEquals(BigDecimal("9007199254740993.01"),page.items.single().currentTotalPrice)
     }
     @Test fun all_sorts_and_invalid_page() = runTest {
         val data=api { json("[]") }
-        mapOf("price" to "currentTotalPrice.asc", "unitPrice" to "currentUnitPrice.asc.nullsfirst", "newest" to "firstSeenAt.desc").forEach { (sort, expected) ->
-            data.properties(PropertyQuery(sortBy=sort),1)
-            assertTrue(requests.last().url.parameters["order"]!!.startsWith(expected))
+        mapOf(
+            "score" to "score.desc.nullslast,currentTotalPrice.asc.nullslast,id.asc.nullslast",
+            "price" to "currentTotalPrice.asc.nullslast,id.asc.nullslast",
+            "priceDesc" to "currentTotalPrice.desc.nullslast,id.asc.nullslast",
+            "unitPrice" to "currentUnitPrice.asc.nullsfirst,id.asc.nullslast",
+            "unitPriceDesc" to "currentUnitPrice.desc.nullsfirst,id.asc.nullslast",
+            "newest" to "firstSeenAt.desc.nullslast,id.asc.nullslast"
+        ).forEach { (sort, expected) ->
+            for (page in 1..2) {
+                data.properties(PropertyQuery(sortBy=sort),page)
+                assertEquals(expected,requests.last().url.parameters["order"])
+                assertEquals(if(page==1) "0" else "20",requests.last().url.parameters["offset"])
+            }
         }
         val before=requests.size
         try { data.properties(PropertyQuery(),0); fail() } catch (_: IllegalArgumentException) {}

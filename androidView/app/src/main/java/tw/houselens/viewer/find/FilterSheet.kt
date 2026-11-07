@@ -6,6 +6,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.res.painterResource
+import tw.houselens.viewer.R
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.semantics.contentDescription
@@ -13,7 +16,14 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import tw.houselens.viewer.data.*
 
-internal val sortLabels=linkedMapOf("score" to "系統評分優先","price" to "總價低到高","unitPrice" to "單價排序（未提供優先）","newest" to "最近收錄")
+internal val sortLabels=linkedMapOf(
+    "score" to "系統評分優先",
+    "price" to "總價低到高",
+    "priceDesc" to "總價高到低",
+    "unitPrice" to "單價低到高",
+    "unitPriceDesc" to "單價高到低",
+    "newest" to "最近收錄"
+)
 internal data class QueryChip(val label: String,val removed: PropertyQuery)
 internal fun queryChips(query: PropertyQuery): List<QueryChip> = buildList {
     query.districts.forEach { name -> add(QueryChip(name,query.copy(districts=query.districts-name))) }
@@ -23,7 +33,7 @@ internal fun queryChips(query: PropertyQuery): List<QueryChip> = buildList {
     query.hasParking?.let { add(QueryChip(if(it) "有車位" else "未標示車位",query.copy(hasParking=null))) }
     if(query.priceDropped) add(QueryChip("曾有降價紀錄",query.copy(priceDropped=false)))
     if(query.status!=0) add(QueryChip("已下架",query.copy(status=0)))
-    if(query.sortBy!="score") add(QueryChip(sortLabels.getValue(query.sortBy),query.copy(sortBy="score")))
+    if(query.sortBy!="unitPrice") add(QueryChip(sortLabels.getValue(query.sortBy),query.copy(sortBy="unitPrice")))
 }
 
 @OptIn(ExperimentalMaterial3Api::class,ExperimentalLayoutApi::class)
@@ -34,10 +44,14 @@ fun FilterSheet(initial: PropertyQuery,choices: List<DistrictChoice>,onApply: (P
     var max by remember(initial) { mutableStateOf(initial.maxPrice?.toPlainString().orEmpty()) }
     var error by remember { mutableStateOf<String?>(null) }
     ModalBottomSheet(onDismissRequest=onDismiss,sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true),
-        dragHandle=null) {
+        // Keep boundary flings in the form instead of rebounding the entire sheet.
+        sheetGesturesEnabled=false,dragHandle=null) {
         Column(Modifier.fillMaxWidth().fillMaxHeight(.95f).padding(horizontal=16.dp)) {
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                Text("篩選房源",style=MaterialTheme.typography.headlineSmall)
+                Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                    Icon(painterResource(R.drawable.ic_filter),contentDescription=null,modifier=Modifier.size(24.dp))
+                    Text("篩選房源",style=MaterialTheme.typography.headlineSmall)
+                }
                 TextButton(onClick=onDismiss,modifier=Modifier.sizeIn(minWidth=48.dp,minHeight=48.dp)) { Text("關閉篩選") }
                 Text("行政區",style=MaterialTheme.typography.titleMedium)
                 FilterChip(selected=draft.districts.isEmpty(),onClick={ draft=draft.copy(districts=emptyList()) },label={ Text("全部行政區") },modifier=Modifier.sizeIn(minWidth=48.dp,minHeight=48.dp))

@@ -6,6 +6,8 @@ import androidx.compose.foundation.lazy.*
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
+import androidx.compose.ui.res.painterResource
+import tw.houselens.viewer.R
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.*
@@ -28,12 +30,12 @@ import tw.houselens.viewer.ui.*
      Text("刊登資料分析，非實價登錄")
      Text("依行政區名稱統計，同名區可能包含不同縣市",style=MaterialTheme.typography.bodyMedium)
      Box {
-      TextButton(onClick={ menu=true },enabled=state.stats.isNotEmpty(),modifier=Modifier.heightIn(min=48.dp)) { Text("行政區：${state.selectedDistrict ?: "尚無資料"}") }
+      TextButton(onClick={ menu=true },enabled=state.stats.isNotEmpty(),modifier=Modifier.heightIn(min=48.dp)) { Icon(painterResource(R.drawable.ic_district),contentDescription=null,modifier=Modifier.size(20.dp));Spacer(Modifier.width(8.dp));Text("行政區：${state.selectedDistrict ?: "尚無資料"}") }
       DropdownMenu(expanded=menu,onDismissRequest={ menu=false }) { state.stats.map { it.district }.distinct().forEach { district ->
        DropdownMenuItem(text={ Text(district) },onClick={ menu=false;viewModel.selectDistrict(district) })
       } }
      }
-     TextButton(onClick=viewModel::refresh,enabled=!state.loading,modifier=Modifier.heightIn(min=48.dp)) { Text("更新區域分析") }
+     TextButton(onClick=viewModel::refresh,enabled=!state.loading,modifier=Modifier.heightIn(min=48.dp)) { Icon(painterResource(R.drawable.ic_refresh),contentDescription=null,modifier=Modifier.size(20.dp));Spacer(Modifier.width(8.dp));Text("更新區域分析") }
      if(state.stats.isNotEmpty() && (state.loading || state.error!=null)) Text("保留上次結果（舊資料）")
      state.error?.let {
       Text(it,color=MaterialTheme.colorScheme.error,modifier=Modifier.semantics { liveRegion=LiveRegionMode.Polite })
@@ -71,7 +73,7 @@ import tw.houselens.viewer.ui.*
      }
     }
     items(stats.trend.sortedBy { it.date }) { point -> Text("${formatDateOnly(point.date)}：${point.avgUnitPrice?.let { "${it.stripTrailingZeros().toPlainString()} 萬／坪" } ?: "—"}") }
-    item { Button(onClick={ onBrowseDistrict(stats.district) },modifier=Modifier.heightIn(min=48.dp)) { Text("查看本區房源") } }
+    item { Button(onClick={ onBrowseDistrict(stats.district) },modifier=Modifier.heightIn(min=48.dp)) { Icon(painterResource(R.drawable.ic_search),contentDescription=null,modifier=Modifier.size(20.dp));Spacer(Modifier.width(8.dp));Text("查看本區房源") } }
    }
    state.fetchedAt?.let { item { Text("本次取得資料時間：${formatTaipeiTime(it)}",style=MaterialTheme.typography.bodyMedium) } }
   }

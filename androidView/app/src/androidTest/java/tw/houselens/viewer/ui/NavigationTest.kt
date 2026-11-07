@@ -25,14 +25,50 @@ class NavigationTest {
         scenario.onActivity { mount(it,graph) }
         try { block(graph,scenario) } finally { scenario.close();graph.dispose() }
     }
-    @Test fun find_detail_return_keeps_query_scroll_and_loaded_data_across_rotation()=fixture { graph,scenario ->
+    @Test fun all_sort_directions_apply_without_losing_district_filter()=fixture { graph,_ ->
         compose.onNodeWithText("篩選").performScrollTo().performClick()
-        compose.onAllNodesWithText("中正區").onLast().performScrollTo().performClick()
+        compose.onAllNodesWithText("中正區").onLast().performScrollTo().performClick().assertIsSelected()
+        compose.onNodeWithText("套用").performClick()
+        compose.waitUntil(5000) { graph.requests.lastOrNull()?.districts==listOf("中正區") }
+        compose.runOnIdle { assertEquals("unitPrice",graph.requests.first().sortBy) }
+        var current="單價低到高"
+        listOf(
+            "price" to "總價低到高",
+            "priceDesc" to "總價高到低",
+            "unitPrice" to "單價低到高",
+            "unitPriceDesc" to "單價高到低",
+            "newest" to "最近收錄",
+            "score" to "系統評分優先"
+        ).forEachIndexed { index,(sort,label) ->
+            compose.onNodeWithText(current).performScrollTo().performClick()
+            if(index==0) { compose.waitForIdle();captureScreenshot("sort-menu.png") }
+            compose.onNodeWithText(label).performScrollTo().assertIsDisplayed().performClick()
+            compose.waitUntil(5000) { graph.requests.lastOrNull()?.sortBy==sort }
+            compose.runOnIdle { assertEquals(listOf("中正區"),graph.requests.last().districts) }
+            compose.onNodeWithText(label).assertIsDisplayed()
+            if(sort!="unitPrice") compose.onNodeWithContentDescription("移除${label}條件").assertExists()
+            else compose.onNodeWithContentDescription("移除${label}條件").assertDoesNotExist()
+            current=label
+        }
+        compose.onNodeWithContentDescription("移除系統評分優先條件").performScrollTo().performClick()
+        compose.waitUntil(5000) { graph.requests.lastOrNull()?.sortBy=="unitPrice" }
+        compose.runOnIdle { assertEquals(listOf("中正區"),graph.requests.last().districts) }
+        compose.onNodeWithContentDescription("移除單價低到高條件").assertDoesNotExist()
+        compose.onNodeWithText("清除全部").performScrollTo().performClick()
+        compose.waitUntil(5000) { graph.requests.lastOrNull()?.let { it.districts.isEmpty() && it.sortBy=="unitPrice" }==true }
+        compose.onNodeWithText("單價低到高").assertIsDisplayed()
+    }
+    @Test fun find_detail_return_keeps_query_scroll_and_loaded_data_across_rotation()=fixture { graph,scenario ->
+        compose.onNodeWithText("HouseLens").assertIsDisplayed()
+        captureScreenshot("icons-find.png")
+        compose.onNodeWithText("篩選").performScrollTo().performClick()
+        compose.onAllNodesWithText("中正區").onLast().performScrollTo().performClick().assertIsSelected()
         compose.onNodeWithText("套用").performClick()
         compose.waitUntil(5000) { graph.requests.lastOrNull()?.districts==listOf("中正區") }
         compose.onNodeWithTag("find-list").performScrollToIndex(8)
         compose.onNodeWithText("房源 8").performScrollTo().performClick()
         compose.onNodeWithText("返回").assertExists()
+        captureScreenshot("icons-detail.png")
         val requests=graph.requests.size
         scenario.recreate()
         scenario.onActivity { mount(it,graph) }
@@ -47,6 +83,8 @@ class NavigationTest {
     @Test fun saved_history_target_returns_same_position_and_root_back_reaches_system()=fixture { graph,scenario ->
         runBlocking { graph.properties.forEachIndexed { index,p -> graph.favorites.put(graph.owner,FavoriteEntry(p.id,index.toLong(),p.toSnapshot())) } }
         compose.onNodeWithText("收藏",useUnmergedTree=true).performClick()
+        compose.onNodeWithTag("saved-list").assertIsDisplayed()
+        captureScreenshot("icons-saved.png")
         compose.onNodeWithTag("saved-list").performScrollToIndex(7)
         compose.onAllNodesWithText("價格歷史").onFirst().performScrollTo().assertIsDisplayed().performClick()
         try { compose.waitUntil(5000) { compose.onNodeWithText("系統擷取價格紀錄").isDisplayed() } }
@@ -77,6 +115,7 @@ class NavigationTest {
         compose.onNodeWithText("精選",useUnmergedTree=true).performClick()
         compose.onNodeWithTag("explore-top-list").performScrollToNode(hasText("精選房源 3"))
         compose.onNodeWithText("精選房源 3").assertIsDisplayed()
+        captureScreenshot("icons-explore.png")
         compose.onNodeWithText("收藏",useUnmergedTree=true).performClick()
         compose.onNodeWithText("精選",useUnmergedTree=true).performClick()
         compose.onNodeWithText("精選房源 3").assertIsDisplayed()
@@ -84,6 +123,8 @@ class NavigationTest {
         compose.onNodeWithText("返回").performClick()
         compose.onNodeWithText("精選房源 3").assertIsDisplayed()
         compose.onNodeWithText("區域",useUnmergedTree=true).performClick()
+        compose.onNodeWithTag("district-list").assertIsDisplayed()
+        captureScreenshot("icons-districts.png")
         compose.onNodeWithTag("district-list").performScrollToNode(hasText("查看本區房源"))
         compose.onNodeWithText("查看本區房源").performClick()
         compose.waitUntil(5000) { graph.requests.lastOrNull()?.districts==listOf("中正區") }

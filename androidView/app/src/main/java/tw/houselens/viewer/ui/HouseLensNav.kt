@@ -11,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.*
 import androidx.lifecycle.viewmodel.compose.*
@@ -38,12 +39,23 @@ fun HouseLensNav(graph:AppGraph) {
             val route=entry?.destination?.route
             val root=route==null || route in listOf("find","explore","saved","districts")
             Scaffold(topBar={ if(root) Row(Modifier.fillMaxWidth().statusBarsPadding(),horizontalArrangement=Arrangement.End) {
-                TextButton(onClick={ nav.navigate("info") { launchSingleTop=true } },modifier=Modifier.heightIn(min=48.dp)) { Text("資訊") }
+                TextButton(onClick={ nav.navigate("info") { launchSingleTop=true } },modifier=Modifier.heightIn(min=48.dp)) { Icon(painterResource(R.drawable.ic_info),contentDescription=null,modifier=Modifier.size(20.dp));Spacer(Modifier.width(8.dp));Text("資訊") }
             } },bottomBar={ if(root) NavigationBar {
                 listOf("find" to "找房","explore" to "精選","saved" to "收藏","districts" to "區域").forEach { (destination,label) ->
                     NavigationBarItem(selected=(route ?: "find")==destination,onClick={ nav.navigate(destination) {
                         popUpTo(nav.graph.startDestinationId) { saveState=true };launchSingleTop=true;restoreState=true
-                    } },icon={ Text(when(destination) { "find"->"⌂";"explore"->"☆";"saved"->"♡";else->"▥" }) },label={ Text(label) })
+                    } },icon={
+                        val selected=(route ?: "find")==destination
+                        Icon(painterResource(when(destination) {
+                            "find" -> R.drawable.ic_search
+                            "explore" -> if(selected) R.drawable.ic_star_filled else R.drawable.ic_star
+                            "saved" -> if(selected) R.drawable.ic_heart_filled else R.drawable.ic_heart
+                            else -> R.drawable.ic_district
+                        }),contentDescription=null,modifier=Modifier.size(24.dp))
+                    },label={ Text(label) },colors=NavigationBarItemDefaults.colors(
+                        selectedIconColor=MaterialTheme.colorScheme.primary,selectedTextColor=MaterialTheme.colorScheme.primary,
+                        unselectedIconColor=MaterialTheme.colorScheme.onSurfaceVariant,unselectedTextColor=MaterialTheme.colorScheme.onSurfaceVariant,
+                        indicatorColor=MaterialTheme.colorScheme.primaryContainer))
                 }
             } }) { padding ->
                 NavHost(nav,startDestination="find",modifier=Modifier.fillMaxSize().padding(if(root) padding else PaddingValues())) {
@@ -74,7 +86,7 @@ fun HouseLensNav(graph:AppGraph) {
                     }
                     composable("info") {
                         val status:DataStatusViewModel=viewModel(factory=viewModelFactory { initializer { DataStatusViewModel(session.data) } })
-                        Scaffold(topBar={ TextButton(onClick={ nav.popBackStack() },modifier=Modifier.statusBarsPadding().heightIn(min=48.dp)) { Text("返回") } }) { infoPadding ->
+                        Scaffold(topBar={ TextButton(onClick={ nav.popBackStack() },modifier=Modifier.statusBarsPadding().heightIn(min=48.dp)) { Icon(painterResource(R.drawable.ic_back),contentDescription=null,modifier=Modifier.size(20.dp));Spacer(Modifier.width(8.dp));Text("返回") } }) { infoPadding ->
                             Column(Modifier.fillMaxSize().padding(infoPadding).verticalScroll(rememberScrollState()).padding(16.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
                                 Text("資訊",style=MaterialTheme.typography.headlineSmall)
                                 Text("版本 ${BuildConfig.VERSION_NAME}")

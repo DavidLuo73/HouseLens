@@ -5,6 +5,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.res.painterResource
+import tw.houselens.viewer.R
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -21,6 +23,6 @@ fun DataStatusSection(viewModel:DataStatusViewModel) {
         if(state.fetchedAt!=null && (state.loading || state.error!=null)) Text("保留上次資料狀態（舊資料）")
         state.error?.let { Text(it,color=MaterialTheme.colorScheme.error,modifier=Modifier.semantics { liveRegion=LiveRegionMode.Polite }) }
         state.fetchedAt?.let { Text("本次取得資料時間：${tw.houselens.viewer.data.formatTaipeiTime(it)}",style=MaterialTheme.typography.bodyMedium) }
-        TextButton(onClick=viewModel::refresh,enabled=!state.loading,modifier=Modifier.heightIn(min=48.dp)) { Text("更新資料狀態") }
+        TextButton(onClick=viewModel::refresh,enabled=!state.loading,modifier=Modifier.heightIn(min=48.dp)) { Icon(painterResource(R.drawable.ic_refresh),contentDescription=null,modifier=Modifier.size(20.dp));Spacer(Modifier.width(8.dp));Text("更新資料狀態") }
     }
 }

@@ -55,8 +55,8 @@ android {
         applicationId = "tw.houselens.viewer"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 6
+        versionName = "0.1.5"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "SUPABASE_URL", quoted(projectUrl.trimEnd('/')))
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", quoted(publishableKey))
