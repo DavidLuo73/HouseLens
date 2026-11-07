@@ -74,8 +74,8 @@
 - `SupabaseHouseLensData(client: SupabaseClient, refreshSession: suspend () -> Unit, onForbidden: suspend () -> Unit, sessionVersion: () -> Long)` 實作 API；`ApiException(status: Int?, retryAfterSeconds: Long?, message: String)` 為明確失敗型別，CancellationException 原樣傳播。
 - `formatDrop(value: BigDecimal?): String`、`formatTaipeiTime(isoUtc: String): String`、`mediaUrl(raw: String?): String?`、`externalListingUrl(raw: String?): String?`；非法／不支援媒體回 null。`mergeDistrictOptions(config: List<DistrictOptionDto>, stats: List<DistrictStatsDto>): List<DistrictChoice>`，`DistrictChoice(name: String, cityLabel: String?)` 跨市同名合一且標明「所有同名行政區」。
 
-- [ ] **Step 1: 建最小測試宿主並確認工具鏈。** 安裝／選定 JDK 21、SDK 36 與 AGP 所需 build tools；僅設本程序 JAVA_HOME／ANDROID_HOME，wrapper 與 distribution SHA256 取官方發行。建立單 module、INTERNET 權限、讀取被忽略的supabase.local.properties產生BuildConfig；Project URL為HTTPS、Theme 與可啟動 Activity。ignore `.gradle/`、各 `build/`、`local.properties`、簽署檔、`.artifacts/`；不複製排除目錄。執行 `./gradlew.bat --version` 及 `:app:dependencies --configuration debugRuntimeClasspath`，確認版本可解析；此步不是功能 RED。
-- [ ] **Step 2: 寫失敗的契約／格式測試。** Ktor MockEngine 回傳合成列表／詳情／分析／錯誤 JSON，測資料methods、Postgrest編碼／Accept-Profile=houselens／SELECT-only、limit=20、exact count、null結果、drop事件時間，以及500筆一批的歷史查詢不因REST上限截斷。例：
+- [x] **Step 1: 建最小測試宿主並確認工具鏈。** 安裝／選定 JDK 21、SDK 36 與 AGP 所需 build tools；僅設本程序 JAVA_HOME／ANDROID_HOME，wrapper 與 distribution SHA256 取官方發行。建立單 module、INTERNET 權限、讀取被忽略的supabase.local.properties產生BuildConfig；Project URL為HTTPS、Theme 與可啟動 Activity。ignore `.gradle/`、各 `build/`、`local.properties`、簽署檔、`.artifacts/`；不複製排除目錄。執行 `./gradlew.bat --version` 及 `:app:dependencies --configuration debugRuntimeClasspath`，確認版本可解析；此步不是功能 RED。
+- [x] **Step 2: 寫失敗的契約／格式測試。** Ktor MockEngine 回傳合成列表／詳情／分析／錯誤 JSON，測資料methods、Postgrest編碼／Accept-Profile=houselens／SELECT-only、limit=20、exact count、null結果、drop事件時間，以及500筆一批的歷史查詢不因REST上限截斷。例：
   ```kotlin
   @Test fun fractional_drop_is_percent() {
       assertEquals("▼ 5.0%", formatDrop(BigDecimal("-0.05")))
@@ -86,10 +86,10 @@
   }
   ```
   補小數 `9007199254740993.01` round-trip 不失真、null 與 0 分開、台灣跨午夜與 DateOnly 原日期、重複區名、`res.sinyi.com.tw.evil`／userinfo 不得套用信義Referer或取得Supabase憑證；429 Retry-After 秒數與 HTTP-date、500 HTML、空 body 都保留可判斷狀態。
-- [ ] **Step 3: 確認 RED。** `./gradlew.bat :app:testDebugUnitTest --tests "tw.houselens.viewer.data.*"` → 因未實作契約／格式而 FAIL。
-- [ ] **Step 4: 最小實作。** 固定 timeout 15 秒、pageSize 20，安裝Postgrest(defaultSchema="houselens", propertyConversionMethod=SERIAL_NAME)，query用SDK的filter／order／range建構；每個資料方法先查會員列，未核准以ApiException(403, null, "此帳號尚未獲得使用權限")通知onForbidden，不把RLS空集合誤當無房源；建立所需 DTO 與上述 helpers，使用 kotlinx JSON。client 不自動追隨重新導向；僅可信 HTTPS Supabase project origin 可附 token；圖片只對精確信義host附Referer，不附Supabase憑證。Theme 使用 spec token、字級與對比，不加動態配色。B2 實作 token provider 之前，入口僅呈現未登入狀態，不用假 token／公開房源代替登入。
-- [ ] **Step 5: 驗證 GREEN。** 重跑 Step 3，再跑 `./gradlew.bat :app:assembleDebug :app:lintDebug` → PASS／BUILD SUCCESSFUL；記錄確切工具鏈。若 AAR 要求更高 compile SDK，依具體 metadata 做最小相容修正並記錄，不能降低 minSdk 相容要求或略過 lint。
-- [ ] **Step 6: 提交。** stage 本任務檔案（含 wrapper，排除機器設定／Supabase本機設定／產物）；`git commit -m "feat: add viewer app and read API contract"`。
+- [x] **Step 3: 確認 RED。** `./gradlew.bat :app:testDebugUnitTest --tests "tw.houselens.viewer.data.*"` → 因未實作契約／格式而 FAIL。
+- [x] **Step 4: 最小實作。** 固定 timeout 15 秒、pageSize 20，安裝Postgrest(defaultSchema="houselens", propertyConversionMethod=SERIAL_NAME)，query用SDK的filter／order／range建構；每個資料方法先查會員列，未核准以ApiException(403, null, "此帳號尚未獲得使用權限")通知onForbidden，不把RLS空集合誤當無房源；建立所需 DTO 與上述 helpers，使用 kotlinx JSON。client 不自動追隨重新導向；僅可信 HTTPS Supabase project origin 可附 token；圖片只對精確信義host附Referer，不附Supabase憑證。Theme 使用 spec token、字級與對比，不加動態配色。B2 實作 token provider 之前，入口僅呈現未登入狀態，不用假 token／公開房源代替登入。
+- [x] **Step 5: 驗證 GREEN。** 重跑 Step 3，再跑 `./gradlew.bat :app:assembleDebug :app:lintDebug` → PASS／BUILD SUCCESSFUL；記錄確切工具鏈。若 AAR 要求更高 compile SDK，依具體 metadata 做最小相容修正並記錄，不能降低 minSdk 相容要求或略過 lint。
+- [x] **Step 6: 提交。** stage 本任務檔案（含 wrapper，排除機器設定／Supabase本機設定／產物）；`git commit -m "feat: add viewer app and read API contract"`。
 
 ### Task B2: Google 登入、加密 session 與授權生命週期
 

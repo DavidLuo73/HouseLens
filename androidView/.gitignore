@@ -5,3 +5,4 @@ supabase.local.properties
 *.jks
 *.keystore
 .artifacts/
+.kotlin/
