@@ -20,8 +20,8 @@
 | B2 | 完成並通過獨立審查：Google／PKCE控制器、安全儲存、會員gate、callback、AppGraph／Application／Activity與登入畫面；提交423c653、清理修正2229e6f。真實Google驗收仍屬B7。 |
 | B3 | 完成並通過審查：本機收藏／摘要、收藏畫面、PropertyCard、登出清摘要；提交c765200、3a5954a、b22e4cf。 |
 | B4 | 完成並通過審查：找房篩選／分頁／條件保存與共用卡片補齊；提交6e842f9、b9aa7f5。 |
-| B5 | 下一項：詳情／歷史、正式導覽與返回位置。 |
-| B6 | 精選／區域待做。 |
+| B5 | 完成並通過審查：詳情／歷史、找房／收藏／帳號導覽與返回位置；提交4371de0、f23959f。 |
+| B6 | 下一項：精選／區域分析與四個主入口。 |
 | B7 | 整體旅程、真機／外網／無障礙效能及release交付待做。 |
 | S1–S2 | SQL／RLS／views與隔離測試、正式Supabase設定待做；已有唯讀契約調查。 |
 
@@ -31,7 +31,7 @@ B2已把SecureAuthStorage接入SDK，使用精確 tw.houselens.viewer://auth/cal
 
 圖片皆直接來自原刊登公開URL，不帶bearer／apikey、不觸發登入刷新；目前關閉圖片memory／disk cache以避免晚回填，效能取捨留B7量測。SDK清記憶體使用3.5.0 internal status API，升級時須重新核對。
 
-目前核准後仍顯示帳號狀態；找房與收藏元件已完成但正式導覽尚未接入，詳情／精選／區域尚待實作，不是完整成品。
+目前核准後已接上找房、收藏、詳情／歷史與帳號頁；精選／區域尚待實作。正式Supabase／Google／RLS未驗收，不能視為可交付成品。
 
 ## 驗證與接續
 - B2完整檢查：34個JVM、8個API26登入裝置測試、lint及Debug APK成功。後續callback／帳號選擇器修改經focused auth JVM＋8裝置測試驗證。
@@ -40,10 +40,12 @@ B2已把SecureAuthStorage接入SDK，使用精確 tw.houselens.viewer://auth/cal
 - B3完整檢查48個JVM、2個API26收藏操作、lint／Debug APK成功；後續兩輪刷新修正經10個SavedViewModel測試及test-host編譯通過。詳見 .superpowers/sdd/02-app-plan/task-B3-report.md。
 - B3使用已安裝OkioStorage處理Windows原子檔案替換，維持真實檔案持久化測試；帳號命名空間、generation／寫入鎖防止登出後回填。refreshVisible更新可見集合，retry(id)僅重試單卡。
 - B4完整檢查61個JVM、API26三項360dp／200%字級＋一項48dp觸控檢查、lint／Debug APK通過；後續初始化刷新修正經12個FindViewModel測試通過。報告 .superpowers/sdd/02-app-plan/task-B4-report.md。
-- B5讀task-B5-brief.md與spec詳情／返回規格；SessionResources已有saved及find(SavedStateHandle)工廠，重用FavoriteStore／PropertyCard／LocalPropertyImageLoader。FindViewModel保留resultQuery區分舊資料，保存與查詢job分離，初次refresh不跳過保存條件還原。
+- B5完整驗證71個JVM、5個API26詳情／導航測試、lint0 errors／22 warnings、Debug APK成功；帳號說明修正另跑指定測試1/1。搬至固定ui／support路徑後另驗證Kotlin編譯，未重跑整套。報告task-B5-report.md記錄初始compile-only RED偏差與後續行為驗證。
+- 正式AppGraph介面由DefaultAppGraph實作；SessionResources提供session ViewModelStore、saved及find工廠。HouseLensNav位於ui/，使用NavHost entry生命週期與createSavedStateHandle；TestGraph僅在androidTest/support。收藏返回不自動重抓已有狀態項目，仍可明確retry。
+- B6讀task-B6-brief.md（含續作裁定）；補精選／區域routes、同名區與DateOnly語意。空排行區可在adapter額外讀viewer_district_stats的district欄位補group；帳號資料狀態需接目前實際account目的地。
 - B4待整體review：成功保存後舊錯誤提示未清、共用Theme預設surface角色偏紫；另一次既有收藏快速連點測試逾時，原碼重跑通過，可能是Flow先發布而in-flight guard未釋放，紀錄b4-fix1-unrelated-favorite-failure.log。不可把該失敗run當通過。
-- 尚有B3 minor：undo寫入失敗保留entry，但Snackbar消失後缺重試入口；已列ledger，整體review須處理。
-- 接續B5→B6；S1完成隔離SQL測試及可檢閱部署內容後才進S2。正式安全設定與B7實機輸入不足時明列未完成。
+- 待整體review：B3 undo失敗後缺重試入口；B4保存錯誤未清／主題淡紫／收藏連點偶發逾時；B5 DetailScreenTest的retry測試直接呼叫vm.refresh掩蓋callback，另有Uri.parse提示。完整ledger保留證據，沒有默認已修復。
+- 接續B6；S1完成隔離SQL測試及可檢閱部署內容後才進S2。正式安全設定與B7實機輸入不足時明列未完成。
 
 ## 環境
 | 設定 | 值（相對worktree） |
@@ -63,5 +65,6 @@ API26模擬器與Gradle daemon目前正在使用；保留ignored工具／本機�
 本次sandbox只可寫F:/SourceCode/HouseLens；開發worktree寫入／build需require_escalated。曾有子代理授權請求停滯，必要時由實作者將精確腳本暫存F:/SourceCode/HouseLens/.superpowers/sdd/02-app-plan/transfer，主agent檢閱後仍以require_escalated在指定worktree執行；不得繞過授權。
 
 Supabase公開設定已在ignored androidView/supabase.local.properties（supabase.url／supabase.publishableKey），重用不重新索取；DB管理憑證不得放APK。正式RLS／exposed schema／Google provider／callback allowlist與核准成員尚待S1／S2；正式變更前重新核對owner／grants／policies。真實Google登入、行動網路、真機效能、release簽署與整體review均未完成。
+
 
 

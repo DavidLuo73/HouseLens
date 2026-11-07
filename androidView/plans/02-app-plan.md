@@ -164,6 +164,8 @@ B2完成（423c653、2229e6f），登入控制器／callback／UI接線及清理
 
 ### Task B5: 詳情、價格歷史與正式返回流程
 
+完成並通過審查（4371de0、f23959f）。初次RED僅編譯失敗，後續mutation／還原GREEN及真正integration RED已在task-B5-report.md如實記錄；不倒稱已達成最初behavioral TDD順序。
+
 **Files:** Create `M/detail/DetailViewModel.kt`, `DetailScreen.kt`, `PriceHistory.kt`, `M/ui/SimpleCharts.kt`, `HouseLensNav.kt`；Modify MainActivity／AppGraph；Test `T/detail/PriceHistoryTest.kt`, `DetailViewModelTest.kt`, `I/detail/DetailScreenTest.kt`, `I/ui/NavigationTest.kt`。
 
 **Interfaces:**
@@ -172,7 +174,7 @@ B2完成（423c653、2229e6f），登入控制器／callback／UI接線及清理
 - `TimePriceChart(points: List<ChartPoint>, onSelected: (List<Int>) -> Unit)`：相同 x 選取回所有重疊點索引，不假造 x 間距；`PriceBucketChart(buckets: List<PriceBucketDto>)` 於 B6 實作。
 - `HouseLensNav(graph: AppGraph, owner: OwnerKey)` 使用 Navigation Compose；route `find`、`saved`、`property/{id}?history={boolean}`、`account`，B6 再補 `explore`、`districts`。返回依 spec，不用一份自製路由堆疊。
 
-- [ ] **Step 1: 寫失敗測試。** `PriceHistoryTest` 測0／1／多筆、首價0、null單價、同timestamp多筆、真實不等距時間、極大相近價格；圖形座標先用 BigDecimal 減去基準再轉螢幕浮點，所有座標有限，水平線也能畫。核心斷言：
+- [x] **Step 1: 寫失敗測試。** `PriceHistoryTest` 測0／1／多筆、首價0、null單價、同timestamp多筆、真實不等距時間、極大相近價格；圖形座標先用 BigDecimal 減去基準再轉螢幕浮點，所有座標有限，水平線也能畫。核心斷言：
   ```kotlin
   assertNull(priceStats(emptyList()).high)
   assertNull(priceStats(oneEntry).change)
@@ -180,11 +182,11 @@ B2完成（423c653、2229e6f），登入控制器／callback／UI接線及清理
   assertEquals(BigDecimal("-0.05"), priceStats(dropEntries).change)
   ```
   同timestamp造成首／末基準不唯一時 change=null，依原順序列出且說明無法判定期間變動；不編造先後。DetailViewModel 測null詳情與斷線分別處理、來源與歷史載入失敗可重試。Compose 測紀錄20→40、圖點有文字替代、來源選擇、非法scheme不開啟、圖／標題進站內。NavigationTest 測找房／收藏進詳情返回保留 scroll 與 query、history=true 定位歷史區、root 返回交系統。
-- [ ] **Step 2: 確認 RED。** `./gradlew.bat :app:testDebugUnitTest --tests "tw.houselens.viewer.detail.*"`；指定 `tw.houselens.viewer.detail` 及 `tw.houselens.viewer.ui.NavigationTest` 的 instrumentation → FAIL。
-- [ ] **Step 3: 實作詳情與簡單圖。** 由 API 資料依 spec 順序顯示，固定底部來源按鈕不遮內容；單張圖與影片占位，無圖庫／自動播放。圖 x 用 epoch millis 真實間距、直線、不平滑；同時間僅顯示觀測點／多筆 tooltip，不虛構連線順序。用 Canvas 與可讀資料列，不自建圖表 framework；標題「系統擷取價格紀錄」、跨平台說明、金額及時間沿用 B1。
-- [ ] **Step 4: 串正式導覽與收藏。** NavHost 按 owner／session version 建立，使用 saveState／restoreState 保留底部頁狀態；詳情返回不重新載入前頁。account 顯示 email、版本、本機收藏說明與登出。來源經 B1 驗證後用 Custom Tab，回 App 保留位置；無網址停用，不能把 token 放 URL。骨架／重試／查無物件／舊資料狀態完整。
-- [ ] **Step 5: 驗證 GREEN。** 重跑 Step 2，檢查旋轉、返回手勢、200% 字級及長地址。未有精選／區域頁前不建立可點但無內容的 tab；B6 組成最終四個入口。
-- [ ] **Step 6: 提交。** `git commit -m "feat: add property detail history and navigation"`。
+- [x] **Step 2: 確認 RED。** `./gradlew.bat :app:testDebugUnitTest --tests "tw.houselens.viewer.detail.*"`；指定 `tw.houselens.viewer.detail` 及 `tw.houselens.viewer.ui.NavigationTest` 的 instrumentation → FAIL。
+- [x] **Step 3: 實作詳情與簡單圖。** 由 API 資料依 spec 順序顯示，固定底部來源按鈕不遮內容；單張圖與影片占位，無圖庫／自動播放。圖 x 用 epoch millis 真實間距、直線、不平滑；同時間僅顯示觀測點／多筆 tooltip，不虛構連線順序。用 Canvas 與可讀資料列，不自建圖表 framework；標題「系統擷取價格紀錄」、跨平台說明、金額及時間沿用 B1。
+- [x] **Step 4: 串正式導覽與收藏。** NavHost 按 owner／session version 建立，使用 saveState／restoreState 保留底部頁狀態；詳情返回不重新載入前頁。account 顯示 email、版本、本機收藏說明與登出。來源經 B1 驗證後用 Custom Tab，回 App 保留位置；無網址停用，不能把 token 放 URL。骨架／重試／查無物件／舊資料狀態完整。
+- [x] **Step 5: 驗證 GREEN。** 重跑 Step 2，檢查旋轉、返回手勢、200% 字級及長地址。未有精選／區域頁前不建立可點但無內容的 tab；B6 組成最終四個入口。
+- [x] **Step 6: 提交。** `git commit -m "feat: add property detail history and navigation"`。
 
 ### Task B6: 精選、區域分析與資料狀態
 
@@ -207,6 +209,9 @@ B2完成（423c653、2229e6f），登入控制器／callback／UI接線及清理
 - [ ] **Step 4: 完成四個主入口。** 加 explore／districts routes，最終順序找房、精選、收藏、區域；各 tab 保留位置。查看本區房源使用 B4 `setDistrictFromAnalytics`，重設其他條件、提供 `undoDistrictChange`；不混用找房與精選的地區狀態。
 - [ ] **Step 5: 驗證 GREEN。** 重跑 Step 2；NavigationTest 擴充四 tab 與區域跳轉還原，再 `./gradlew.bat :app:testDebugUnitTest :app:lintDebug :app:assembleDebug` 全部成功。
 - [ ] **Step 6: 提交。** `git commit -m "feat: complete curated and district browsing"`。
+**續作裁定（B5完成後）：**
+- 空排行行政區須可呈現。現有topRated只group已回傳TopItem，B6允許最小修改data/SupabaseHouseLensData.kt及其ApiContractTest：額外對viewer_district_stats只SELECT district，與排行group聯集，補空TopGroupDto；不下載完整stats／歷史、不做逐卡查詢，保留既有介面。
+- 帳號資料狀態須接入目前真正的HouseLensNav account目的地；可重用AuthScreen.kt中的帳號呈現，但不可只放在未被掛載的Authorized分支。
 
 ### Task B7: 真機驗收與簽署 APK
 
@@ -229,6 +234,7 @@ B2完成（423c653、2229e6f），登入控制器／callback／UI接線及清理
 - [Coil network](https://coil-kt.github.io/coil/network/)：只加入一種 network adapter；HTTP client 的 header 與 redirect 規則須在圖片管線同樣適用。
 
 以上是後續實作／驗收步驟；本次未安裝套件、建置、登入或真機量測。此計畫不承諾未驗證的依賴組合或效能已可用。
+
 
 
 
