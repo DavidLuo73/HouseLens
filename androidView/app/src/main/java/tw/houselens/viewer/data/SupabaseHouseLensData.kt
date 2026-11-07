@@ -3,6 +3,7 @@ package tw.houselens.viewer.data
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.annotations.SupabaseInternal
+import io.github.jan.supabase.annotations.SupabaseExperimental
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.FlowType
 import io.github.jan.supabase.auth.minimalConfig
@@ -23,8 +24,8 @@ import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-@OptIn(SupabaseInternal::class)
-fun createViewerClient(url: String, key: String, engine: HttpClientEngine? = null): SupabaseClient {
+@OptIn(SupabaseInternal::class, SupabaseExperimental::class)
+fun createViewerClient(url: String, key: String, engine: HttpClientEngine? = null, storage: tw.houselens.viewer.auth.ViewerAuthStorage? = null): SupabaseClient {
     val origin = Url(url)
     require(origin.protocol.name == "https" && origin.host.isNotBlank() &&
         origin.user == null && origin.password == null &&
@@ -47,8 +48,13 @@ fun createViewerClient(url: String, key: String, engine: HttpClientEngine? = nul
             })
         }
         install(Auth) {
-            // B2 replaces memory-only storage before enabling the login UI.
+            // Auth is driven explicitly by SessionController.
             minimalConfig()
+            checkSessionOnRequest = false
+            if (storage != null) {
+                sessionManager = storage
+                codeVerifierCache = storage
+            }
             flowType = FlowType.PKCE
             scheme = "tw.houselens.viewer"
             host = "auth"
@@ -66,7 +72,9 @@ class SupabaseHouseLensData(
     private val client: SupabaseClient,
     private val refreshSession: suspend () -> Unit,
     private val onForbidden: suspend () -> Unit,
-    private val sessionVersion: () -> Long
+    private val sessionVersion: () -> Long,
+    private val onUnauthorized: suspend () -> Unit = {},
+    private val beforeRead: suspend () -> Unit = {}
 ) : HouseLensData {
     private val refreshMutex = Mutex()
     @Volatile private var refreshGeneration = 0L
@@ -77,6 +85,8 @@ class SupabaseHouseLensData(
             if (version != sessionVersion()) throw CancellationException("Session changed")
         }
         try {
+            beforeRead()
+            ensureCurrent()
             repeat(2) { attempt ->
                 ensureCurrent()
                 try {
@@ -104,6 +114,7 @@ class SupabaseHouseLensData(
         } catch (e: RestException) {
             ensureCurrent()
             if (e.statusCode == 403) onForbidden()
+            if (e.statusCode == 401) onUnauthorized()
             throw ApiException(e.statusCode, retryAfter(e.response.headers["Retry-After"]), "資料讀取失敗（HTTP ${e.statusCode}），請重試")
         } catch (e: ApiException) {
             ensureCurrent()

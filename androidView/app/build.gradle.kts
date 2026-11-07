@@ -62,6 +62,7 @@ dependencies {
     testImplementation(libs.ktor.mock)
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.compose.ui.test)
+    androidTestImplementation(libs.ktor.mock)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.junit)
     debugImplementation(libs.compose.test.manifest)

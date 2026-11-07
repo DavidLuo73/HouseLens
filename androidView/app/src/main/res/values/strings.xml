@@ -1,1 +1,17 @@
-<resources><string name="app_name">HouseLens</string></resources>
+<resources>
+    <string name="app_name">HouseLens</string>
+    <string name="auth_intro">隨時查看收藏與房價變化</string>
+    <string name="auth_checking">正在確認帳號與使用權限…</string>
+    <string name="auth_sign_in_hint">請使用事先核准的 Google 帳號登入。</string>
+    <string name="auth_google">使用 Google 登入</string>
+    <string name="auth_browser_hint">請在瀏覽器完成登入；取消後可再次登入。</string>
+    <string name="auth_denied">此帳號尚未獲得使用權限，請聯絡管理者核准後再登入。</string>
+    <string name="auth_switch_account">換個 Google 帳號</string>
+    <string name="auth_connection_error">暫時無法確認使用權限，請檢查網路後重試。</string>
+    <string name="auth_retry">重試</string>
+    <string name="auth_sign_out">登出</string>
+    <string name="auth_approved">帳號已核准。房源瀏覽功能將於後續版本提供。</string>
+    <string name="auth_local_data">收藏僅存於這部裝置；清除 App 資料或解除安裝會移除收藏。</string>
+    <string name="auth_version">版本 %1$s</string>
+    <string name="auth_browser_error">無法開啟登入瀏覽器，請稍後重試。</string>
+</resources>
