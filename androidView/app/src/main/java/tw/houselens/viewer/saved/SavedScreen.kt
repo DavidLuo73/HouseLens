@@ -59,7 +59,7 @@ fun SavedScreen(viewModel: SavedViewModel,onOpen: (id: String,showHistory: Boole
                             }
                         }
                         if(status==RefreshStatus.TEMPORARY_FAILURE || status==RefreshStatus.NOT_REFRESHED)
-                            TextButton(onClick={ viewModel.refreshVisible(listOf(entry.id)) }) { Text("重試更新") }
+                            TextButton(onClick={ viewModel.retry(entry.id) }) { Text("重試更新") }
                     }
                 }
             }

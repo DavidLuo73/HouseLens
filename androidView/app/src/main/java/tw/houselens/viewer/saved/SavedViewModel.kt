@@ -41,7 +41,13 @@ class SavedViewModel(
     fun refreshVisible(ids: List<String>) {
         val savedIds = state.value.entries.map { it.id }.toSet()
         visibleIds = ids.filter { it in savedIds }.toSet()
-        visibleIds.filter { inFlight.add(it) }.forEach { id ->
+        refresh(visibleIds)
+    }
+    fun retry(id: String) {
+        if (id in visibleIds) refresh(listOf(id))
+    }
+    private fun refresh(ids: Collection<String>) {
+        ids.filter { inFlight.add(it) }.forEach { id ->
             workScope.launch {
                 try {
                     val generation = store.generation(owner)

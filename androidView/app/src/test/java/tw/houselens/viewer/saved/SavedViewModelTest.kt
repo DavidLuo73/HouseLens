@@ -172,4 +172,35 @@ class SavedViewModelTest {
             assertEquals(setOf("1","2","3","4","5","6","7","8","9"),seen.toSet())
         } finally { release.complete(Unit);scope.coroutineContext[Job]!!.cancelAndJoin();directory.deleteRecursively() }
     }
+    @Test fun retrying_one_card_keeps_other_visible_requests_queued() = runBlocking {
+        val directory=Files.createTempDirectory("saved-retry").toFile()
+        val scope=CoroutineScope(coroutineContext + SupervisorJob())
+        val started=CompletableDeferred<Unit>();val release=CompletableDeferred<Unit>()
+        val seen=mutableListOf<String>()
+        try {
+            val store=FavoriteStore(directory,scope)
+            (1..6).forEach { store.put(owner,FavoriteEntry("$it",it.toLong(),null)) }
+            val vm=SavedViewModel(owner,SummaryApi { id ->
+                seen += id
+                if(id=="1" && seen.count { it=="1" }==1) throw IOException("retryable")
+                if(id in listOf("2","3","4")) {
+                    if(seen.containsAll(listOf("2","3","4"))) started.complete(Unit)
+                    release.await()
+                }
+                property(id)
+            },store,scope)
+            waitFor { vm.state.value.entries.size==6 }
+            vm.refreshVisible(listOf("1","2","3","4","5","6"))
+            withTimeout(5000) { started.await() }
+            assertEquals(RefreshStatus.TEMPORARY_FAILURE,vm.state.value.statuses["1"])
+            assertEquals(listOf("1","2","3","4"),seen)
+            vm.retry("1")
+            release.complete(Unit)
+            waitFor { vm.state.value.statuses["1"]==RefreshStatus.UPDATED }
+            assertEquals(RefreshStatus.UPDATED,vm.state.value.statuses["5"])
+            assertEquals(RefreshStatus.UPDATED,vm.state.value.statuses["6"])
+            assertEquals(setOf("1","2","3","4","5","6"),seen.toSet())
+            assertEquals(2,seen.count { it=="1" });assertEquals(7,seen.size)
+        } finally { release.complete(Unit);scope.coroutineContext[Job]!!.cancelAndJoin();directory.deleteRecursively() }
+    }
 }
