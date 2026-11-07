@@ -1,6 +1,6 @@
 # HouseLens Android View Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans. The user selected Native execution; do not ask them to choose again. Steps use checkbox (`- [ ]`) syntax.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development. The user explicitly selected subagent-driven execution on 2026-11-07. Steps use checkbox (`- [ ]`) syntax.
 
 **Goal:** 建立本人／家人可用、直接讀取 Supabase 爬取結果的原生 Android 瀏覽 App，以 UI／UX 為優先。
 
@@ -36,11 +36,11 @@
 | 計畫 | 工作 | 狀態 |
 | --- | --- | --- |
 | [01-supabase-plan.md](plans/01-supabase-plan.md) | S1 本機SQL／RLS／views與測試；S2正式Supabase設定與驗證 | 尚未實作；只有遠端唯讀結構檢查完成。 |
-| [02-app-plan.md](plans/02-app-plan.md) | B1 SDK／專案；B2登入；B3收藏；B4找房；B5詳情；B6精選／區域；B7驗收APK | B1已完成（ff2f197）；B2安全儲存／重試子步驟完成（62232d8），其餘待做。 |
+| [02-app-plan.md](plans/02-app-plan.md) | B1 SDK／專案；B2登入；B3收藏；B4找房；B5詳情；B6精選／區域；B7驗收APK | B1／B2完成並通過B2獨立審查（423c653、2229e6f）；下一項B3。 |
 
-下一個session從B2登入控制器／callback／AppGraph接線繼續，再按B3→B7；S1可在資料fixture確定後完成，S2與B7的真實連線需正式RLS／Google設定。先把手機核心流程做順，不在準備階段再擴充後端。
+下一個任務從B3收藏繼續，再按B4→B7；S1可在資料fixture確定後完成，S2與B7的真實連線需正式RLS／Google設定。先把手機核心流程做順，不在準備階段再擴充後端。
 
-執行採Native，由同一實作者依TDD完成；每個任務保留測試與提交紀錄，最後一次獨立整體review。必要的變更判斷寫入plan-scoped ledger，沒有完成的測試不勾選。
+依使用者2026-11-07最新指示，採subagent-driven-development：每項任務由新實作者依TDD完成，保留測試與提交紀錄，逐項獨立review，最後整體review。必要的變更判斷寫入plan-scoped ledger，沒有完成的測試不勾選。
 
 ## Ponytail 邊界
 
@@ -62,3 +62,5 @@ Supabase唯讀檢查確認12個既有關聯、RLS尚未啟用、anon／authentic
 - AC07／08／09：S1／B1／B5／B6的歷史、降價事件、區域分析。
 - AC10／11／14：B1／B2／B7的網路／session／圖片／程序恢復。
 - AC12與效能：B4–B7真機、無障礙與量測。
+
+

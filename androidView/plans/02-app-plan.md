@@ -1,6 +1,6 @@
 # HouseLens Native Android App Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans. Native execution is already selected. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development. User selected this execution workflow on 2026-11-07. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 完成找房、詳情／歷史、精選、收藏、區域分析與 Google 核准帳號登入，交付可安裝 APK。
 
@@ -93,7 +93,7 @@
 
 ### Task B2: Google 登入、加密 session 與授權生命週期
 
-目前部分完成（62232d8）：SecureAuthStorage／備份規則、ApiAuthorizationTest與共用401重試已通過；SessionController、AuthScreen、AppGraph、OAuthCallbackTest待實作。B2尚未完成。
+B2完成（423c653、2229e6f），登入控制器／callback／UI接線及清理失敗修正通過測試與獨立審查。真實Google驗收仍由B7執行。
 
 **Files:** Create `M/auth/SecureAuthStorage.kt`, `SessionController.kt`, `AuthScreen.kt`, `app/src/main/res/xml/backup_rules.xml`, `data_extraction_rules.xml`；Modify `M/AppGraph.kt`, `MainActivity.kt`, `HouseLensApplication.kt`, `data/SupabaseHouseLensData.kt`, Manifest／strings；Test `T/auth/SessionControllerTest.kt`, `T/data/ApiAuthorizationTest.kt`, `I/auth/SecureAuthStorageTest.kt`, `OAuthCallbackTest.kt`。
 
@@ -102,7 +102,7 @@
 - `SessionController` 提供 `state: StateFlow<AuthState>`、`version: Long`，suspend `restore()`、`startGoogleLogin(): Uri`、`handleCallback(uri: Uri)`、`accessToken(forceRefresh: Boolean = false): String`、`deny()`、`signOut()`。建構注入 Supabase client、加密儲存與 `verifyMembership: suspend (accessToken: String) -> Unit`，後者用SDK SELECT ViewerMembers 的自身UserId列，空集合就拒絕；不另建伺服器或auth endpoint。
 - `SecureAuthStorage` 以 SDK 原有 `SessionManager`／`CodeVerifierCache` 介面儲存 session／PKCE，另保存單次 pending callback 狀態。以 AndroidKeyStore AES/GCM、每次獨立 IV＋AtomicFile 放 noBackupFilesDir；不自創加密算法。SDK 的 storage interface 見文末參考。
 
-- [ ] **Step 1: 寫失敗測試。** `SessionControllerTest` 用假的 SDK 邊界／HTTP 回應驗證取消、冷啟動 membership gate、403、callback path/state 不符、重複 callback、舊 session 慢回應、退出後不可刷新。`ApiAuthorizationTest` 並發兩個 401，只允許一次共用 refresh、每請求最多重送一次；403 不 refresh。測試 assertion 核心如下（counter 與 controlled replies 在 test support 建立）：
+- [x] **Step 1: 寫失敗測試。** `SessionControllerTest` 用假的 SDK 邊界／HTTP 回應驗證取消、冷啟動 membership gate、403、callback path/state 不符、重複 callback、舊 session 慢回應、退出後不可刷新。`ApiAuthorizationTest` 並發兩個 401，只允許一次共用 refresh、每請求最多重送一次；403 不 refresh。測試 assertion 核心如下（counter 與 controlled replies 在 test support 建立）：
   ```kotlin
   assertEquals(1, refreshCalls)
   assertEquals(2, attemptsPerRequest.max())
@@ -110,11 +110,11 @@
   assertFalse(renderedOwners.contains(previousOwner))
   ```
   MockEngine 驗證 API→第三方 302 不追送 token，第三方圖片無 Authorization。instrumentation 驗證重新建 storage 能讀回、密文不含 token、刪除 Keystore key／破壞檔案安全回登入、收藏 ID 未受影響；callback 程序重建後只能消費一次。
-- [ ] **Step 2: 確認 RED。** `./gradlew.bat :app:testDebugUnitTest --tests "tw.houselens.viewer.auth.*" --tests "tw.houselens.viewer.data.ApiAuthorizationTest"`；裝置上的 `:app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=tw.houselens.viewer.auth`。預期未完成 session gate／儲存而 FAIL，無裝置不能算測試成功。
-- [ ] **Step 3: 接 SDK 與 session 控制。** Supabase Auth `FlowType.PKCE`＋自訂兩個安全 storage adapters，透過 Custom Tab 開 URL，驗證 callback 的 scheme／host／path 與本次 pending session；Google↔Supabase state 由 SDK／provider 處理，不自行重寫協定。callback固定 `tw.houselens.viewer://auth/callback`，Supabase精確allowlist並啟用PKCE，不新增App Link網域；debug亦不放寬至wildcard。一次性 callback／PKCE state 持久化後才能開瀏覽器，成功／取消後清除。session refresh 使用 Mutex 與 token/version 雙重檢查，只在前景需要時刷新，不加背景服務。
-- [ ] **Step 4: 串接權限與清理。** 登入成功及每次資料載入先讀ViewerMembers確認資格；空會員列／403／登出先增加 version、取消舊 session 的資料工作、卸載舊 ViewModel／NavHost、關閉及清除該 session ImageLoader，再進拒絕／登入畫面。HTTP 完成時 version 不符視為取消，不能寫回畫面。B3 提供 purge 後掛入同一清理路徑。圖片使用同一套限 origin／401 行為但獨立 ImageLoader 生命週期；第三方圖片不碰 bearer。401 第二次失敗回登入；網路離線保留已載入畫面但冷啟動不得繞過 probe。
-- [ ] **Step 5: 驗證 GREEN。** 重跑 Step 2；`./gradlew.bat :app:lintDebug :app:assembleDebug` 成功。真 Google／PKCE callback 的正式成功驗證保留 B7，不以 mocked callback 當完成證據。
-- [ ] **Step 6: 提交。** `git commit -m "feat: add approved Google sign-in and secure sessions"`，只 stage 本任務檔案。
+- [x] **Step 2: 確認 RED。** `./gradlew.bat :app:testDebugUnitTest --tests "tw.houselens.viewer.auth.*" --tests "tw.houselens.viewer.data.ApiAuthorizationTest"`；裝置上的 `:app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=tw.houselens.viewer.auth`。預期未完成 session gate／儲存而 FAIL，無裝置不能算測試成功。
+- [x] **Step 3: 接 SDK 與 session 控制。** Supabase Auth `FlowType.PKCE`＋自訂兩個安全 storage adapters，透過 Custom Tab 開 URL，驗證 callback 的 scheme／host／path 與本次 pending session；Google↔Supabase state 由 SDK／provider 處理，不自行重寫協定。callback固定 `tw.houselens.viewer://auth/callback`，Supabase精確allowlist並啟用PKCE，不新增App Link網域；debug亦不放寬至wildcard。一次性 callback／PKCE state 持久化後才能開瀏覽器，成功／取消後清除。session refresh 使用 Mutex 與 token/version 雙重檢查，只在前景需要時刷新，不加背景服務。
+- [x] **Step 4: 串接權限與清理。** 登入成功及每次資料載入先讀ViewerMembers確認資格；空會員列／403／登出先增加 version、取消舊 session 的資料工作、卸載舊 ViewModel／NavHost、關閉及清除該 session ImageLoader，再進拒絕／登入畫面。HTTP 完成時 version 不符視為取消，不能寫回畫面。B3 提供 purge 後掛入同一清理路徑。圖片使用獨立 ImageLoader 生命週期及 HTTPS／禁止 redirect 規則；本 App 直接載入原刊登公開圖片，不建立需登入的圖片端點，所有圖片請求均不帶 bearer／apikey、不觸發 session refresh。401 第二次失敗回登入；網路離線保留已載入畫面但冷啟動不得繞過 probe。
+- [x] **Step 5: 驗證 GREEN。** 重跑 Step 2；`./gradlew.bat :app:lintDebug :app:assembleDebug` 成功。真 Google／PKCE callback 的正式成功驗證保留 B7，不以 mocked callback 當完成證據。
+- [x] **Step 6: 提交。** `git commit -m "feat: add approved Google sign-in and secure sessions"`，只 stage 本任務檔案。
 
 ### Task B3: 本機收藏與收藏頁
 
@@ -229,3 +229,6 @@
 - [Coil network](https://coil-kt.github.io/coil/network/)：只加入一種 network adapter；HTTP client 的 header 與 redirect 規則須在圖片管線同樣適用。
 
 以上是後續實作／驗收步驟；本次未安裝套件、建置、登入或真機量測。此計畫不承諾未驗證的依賴組合或效能已可用。
+
+
+

@@ -1,6 +1,6 @@
 # HouseLens Supabase Read Access Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans. Native execution is already selected; steps use checkbox (`- [ ]`) syntax.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development. User selected this execution workflow on 2026-11-07; steps use checkbox (`- [ ]`) syntax.
 
 **Goal:** 讓核准的本人／家人透過 Supabase Kotlin SDK 讀取既有房源，無須新增 API server。
 
@@ -61,3 +61,4 @@ SQL 介面由 spec §8 定義：ViewerMembers(UserId UUID primary key references
 - [ ] **Step 2: 安全套用與設定。** 只在S1通過且正式變更範圍可檢閱後套用；將houselens加入Data API exposed schemas、Google provider及精確callback allowlist，維運者核對Google身分後加入ViewerMembers。不得自動核准任意Google帳號。
 - [ ] **Step 3: 真實驗證。** App／REST以匿名、未核准、核准三種身分確認隔離；撤銷名單後下一次畫面刷新拒絕。寫入拒絕先在隔離測試庫證明，不向正式房源試寫／刪除。B7驗證外出與電腦關機仍能讀Supabase。
 - [ ] **Step 4: 提交文件。** `git commit -m "docs: document Supabase viewer setup and verification"`；未完成的Dashboard／Google設定明列，不宣稱上線。
+
