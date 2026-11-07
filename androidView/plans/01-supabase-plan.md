@@ -45,11 +45,11 @@ SQL 介面由 spec §8 定義：ViewerMembers(UserId UUID primary key references
 
 **Interfaces:** consumes 現有 EF 資料結構；produces 以上表／view。測試 bootstrap 只允許 localhost 暫存資料庫，模擬 auth.uid() 與 anon／authenticated；正式 viewer.sql 不建立假 Auth、不含資料庫密碼或核准的真實 user ID。
 
-- [ ] **Step 1: 寫失敗自測。** verify.sql 以固定 UUID 兩位使用者及合成房源，SET ROLE／JWT claim 後斷言：anon讀取拒絕、未核准看0筆、核准看預期ID、移除名單後0筆、他人會員列不可見、全部寫方法被拒絕、既有owner仍可寫。測同分同價6筆跨三頁、跨來源／同時歷史、最後降價而非現價、0／1筆區域、缺單價的fallback與分布邊界。使用 SQL DO／RAISE EXCEPTION 及交易 rollback；不做只檢查SQL文字的測試。
-- [ ] **Step 2: 確認 RED。** `pwsh -File androidView/supabase/Test-ViewerSql.ps1`；預期缺少views／grants／RLS，測試失敗。不得以連線錯誤當成RED；測試腳本本身有 `-SelfTest` 驗證非loopback目標遭拒，避免碰正式庫。
-- [ ] **Step 3: 最小實作 viewer.sql。** 先建立 ViewerMembers own-row SELECT policy，再對必要表建立 membership SELECT policy與欄位 grants；四個 invoker views 不改既有表資料。SourceRunResults 不授予 ErrorMessage；同名區沿用網站區名語意。安裝包在交易中，確認既有同名物件是否由本功能管理，遇到未知政策／grants變更即報告，不盲目drop/recreate。
-- [ ] **Step 4: 驗證 GREEN。** 以 PostgreSQL 17 本機隔離庫跑整套角色與計算自測，全部PASS；記錄SQL執行與rollback結果。另用實際PostgREST／SDK fixture確認 header、大小寫、count／分頁，不假設SQL成功即代表REST已公開。
-- [ ] **Step 5: 提交。** `git commit -m "feat: add read-only Supabase viewer queries"`；只提交腳本與合成fixture。
+- [x] **Step 1: 寫失敗自測。** verify.sql 以固定 UUID 兩位使用者及合成房源，SET ROLE／JWT claim 後斷言：anon讀取拒絕、未核准看0筆、核准看預期ID、移除名單後0筆、他人會員列不可見、全部寫方法被拒絕、既有owner仍可寫。測同分同價6筆跨三頁、跨來源／同時歷史、最後降價而非現價、0／1筆區域、缺單價的fallback與分布邊界。使用 SQL DO／RAISE EXCEPTION 及交易 rollback；不做只檢查SQL文字的測試。
+- [x] **Step 2: 確認 RED。** `pwsh -File androidView/supabase/Test-ViewerSql.ps1`；預期缺少views／grants／RLS，測試失敗。不得以連線錯誤當成RED；測試腳本本身有 `-SelfTest` 驗證非loopback目標遭拒，避免碰正式庫。
+- [x] **Step 3: 最小實作 viewer.sql。** 先建立 ViewerMembers own-row SELECT policy，再對必要表建立 membership SELECT policy與欄位 grants；四個 invoker views 不改既有表資料。SourceRunResults 不授予 ErrorMessage；同名區沿用網站區名語意。安裝包在交易中，確認既有同名物件是否由本功能管理，遇到未知政策／grants變更即報告，不盲目drop/recreate。
+- [x] **Step 4: 驗證 GREEN。** 以 PostgreSQL 17 本機隔離庫跑整套角色與計算自測，全部PASS；記錄SQL執行與rollback結果。另用實際PostgREST／SDK fixture確認 header、大小寫、count／分頁，不假設SQL成功即代表REST已公開。
+- [x] **Step 5: 提交。** `git commit -m "feat: add read-only Supabase viewer queries"`；只提交腳本與合成fixture。
 
 ### Task S2: Supabase 設定與真實連線驗證
 
@@ -61,5 +61,6 @@ SQL 介面由 spec §8 定義：ViewerMembers(UserId UUID primary key references
 - [ ] **Step 2: 安全套用與設定。** 只在S1通過且正式變更範圍可檢閱後套用；將houselens加入Data API exposed schemas、Google provider及精確callback allowlist，維運者核對Google身分後加入ViewerMembers。不得自動核准任意Google帳號。
 - [ ] **Step 3: 真實驗證。** App／REST以匿名、未核准、核准三種身分確認隔離；撤銷名單後下一次畫面刷新拒絕。寫入拒絕先在隔離測試庫證明，不向正式房源試寫／刪除。B7驗證外出與電腦關機仍能讀Supabase。
 - [ ] **Step 4: 提交文件。** `git commit -m "docs: document Supabase viewer setup and verification"`；未完成的Dashboard／Google設定明列，不宣稱上線。
+
 
 
