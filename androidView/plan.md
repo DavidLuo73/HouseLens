@@ -36,9 +36,9 @@
 | 計畫 | 工作 | 狀態 |
 | --- | --- | --- |
 | [01-supabase-plan.md](plans/01-supabase-plan.md) | S1 本機SQL／RLS／views與測試；S2正式Supabase設定與驗證 | 尚未實作；只有遠端唯讀結構檢查完成。 |
-| [02-app-plan.md](plans/02-app-plan.md) | B1 SDK／專案；B2登入；B3收藏；B4找房；B5詳情；B6精選／區域；B7驗收APK | 尚未建立App；工具下載與版本命令已完成。 |
+| [02-app-plan.md](plans/02-app-plan.md) | B1 SDK／專案；B2登入；B3收藏；B4找房；B5詳情；B6精選／區域；B7驗收APK | B1已完成（ff2f197）；B2安全儲存／重試子步驟完成（62232d8），其餘待做。 |
 
-下一個session先完成B1最小可建置專案及SDK資料接點，再按B2→B7；S1可在資料fixture確定後完成，S2與B7的真實連線需正式RLS／Google設定。先把手機核心流程做順，不在準備階段再擴充後端。
+下一個session從B2登入控制器／callback／AppGraph接線繼續，再按B3→B7；S1可在資料fixture確定後完成，S2與B7的真實連線需正式RLS／Google設定。先把手機核心流程做順，不在準備階段再擴充後端。
 
 執行採Native，由同一實作者依TDD完成；每個任務保留測試與提交紀錄，最後一次獨立整體review。必要的變更判斷寫入plan-scoped ledger，沒有完成的測試不勾選。
 
@@ -52,7 +52,7 @@
 
 Supabase唯讀檢查確認12個既有關聯、RLS尚未啟用、anon／authenticated目前沒有表的讀寫權限。正式尚需S1腳本、exposed schema確認、Google provider與核准user IDs；不再需要API主機／網域／Caddy。
 
-工具快取位於 `.superpowers/sdd/02-app-plan/tools`：Gradle8.13、Android command-line tools22.0已下載且核對SHA256，JDK21.0.8可用；尚未安裝SDK36／build tools、未解析App依賴或建置APK。下一個session先閱讀 [handoff.md](handoff.md) 的實際狀態。
+工具快取位於 `.superpowers/sdd/02-app-plan/tools`：Gradle8.13、Android command-line tools22.0已下載且核對SHA256，JDK21.0.8可用；SDK36／build-tools35.0.0／API26模擬器已安裝，依賴解析與Debug APK建置通過。下一個session先閱讀 [handoff.md](handoff.md) 的實際狀態。
 
 ## 驗收對應
 

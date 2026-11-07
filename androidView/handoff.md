@@ -2,105 +2,92 @@
 
 更新日期：2026-11-07。請以繁體中文溝通。
 
-## 先看這裡
+## 接續點與工作區
 
-使用者要求在一個可接續的節點停下，將狀態寫在 `F:\SourceCode\HouseLens\androidView\handoff.md`，由下一個 session 繼續。現在停在**架構已改為 Supabase 直連、規格／計畫整理完成、工具已下載**；**尚未建立 Android app，也沒有 APK、SQL views 或 RLS 安裝腳本**。
+本輪已完成 B1，並完成 B2 的加密儲存與401重試子步驟。B2登入控制器／畫面尚未接線；S1／S2、B3–B7尚未實作。已有Debug APK，但畫面仍是未登入說明，不是完成的看房App。
 
-使用者最後確認的方向是：Android 只瀏覽爬取後的結果，盡量簡單，重點 UI／UX；使用原生 Kotlin＋Compose，直接用 Supabase Kotlin SDK 的 Postgrest＋Auth，不新增或部署 .NET API 層。Google 登入仍只開放事先核准的本人／家人。
+- 實際開發 worktree：C:/Users/David/.codex/worktrees/9611/HouseLens
+- 分支：feature/android-viewer；exec 必須明確指定此 workdir，不另建worktree。
+- 原目錄 F:/SourceCode/HouseLens 有使用者既有未提交內容；本任務只同步此handoff，不在原目錄開發。
+- 最新 spec／plan 都在 C: worktree；F: 的 spec／plan 仍是舊版。
+- Native 執行已選定：主agent依序實作，產品完成後一次獨立review，不再詢問執行方式。
+- 不讀取／沿用 android/、androidtest/；不改既有 backend／frontend。
 
-## 正確工作目錄
+## 文件與既定方向
 
-| 項目 | 值 |
-| --- | --- |
-| 原始 checkout | `F:\SourceCode\HouseLens`，原分支 `android/probe-bootstrap`，有使用者既有未提交內容。 |
-| **實際開發 worktree** | **`C:\Users\David\.codex\worktrees\9611\HouseLens`** |
-| 開發分支 | **`feature/android-viewer`** |
-| 建立方式 | 已使用 Codex 原生 create_worktree 工具建立；不要再建立第二個 worktree。 |
-| 執行方式 | 使用者已選 **Native**，由主 agent 依序實作，最後一次獨立 review；不要再次詢問執行方式。 |
+- [spec](C:/Users/David/.codex/worktrees/9611/HouseLens/androidView/spec.md)
+- [總計畫](C:/Users/David/.codex/worktrees/9611/HouseLens/androidView/plan.md)
+- [App計畫](C:/Users/David/.codex/worktrees/9611/HouseLens/androidView/plans/02-app-plan.md)
+- [Supabase計畫](C:/Users/David/.codex/worktrees/9611/HouseLens/androidView/plans/01-supabase-plan.md)
+- [建置說明](C:/Users/David/.codex/worktrees/9611/HouseLens/androidView/README.md)
 
-後續 exec 必須明確指定上面的 worktree 為 workdir；工具不會自動切換 cwd。若沙箱仍只允許 F: 原目錄寫入，為 C: worktree 的必要寫入使用正常權限申請，不改回原目錄實作。
+原生Kotlin＋Compose，直接用Supabase Auth＋Postgrest，只瀏覽資料；不新增.NET API、Edge Function、主機或同步服務。完整範圍仍含找房、詳情歷史、收藏、排行、大降價、區域分析。Google登入只開放核准本人／家人。UI／UX、品牌與返回行為依spec，不重問需求。
 
-**原目錄 F: 的 spec／plan 還是先前版本；最新版本在 C: worktree。** 此 handoff 同時保存於兩處，作為進入正確工作區的入口。不要直接依 F: 的舊 API plan 續作。保留原目錄使用者的 android、androidtest 及其他未提交資料；本任務一直排除 android／androidtest 的內容。
+## 提交與驗證
 
-## 最新文件（實際內容不在本文件重複）
+- 設計基準e1894f1；舊A1／A2已以9b771c6、ecababb撤回，不重做。
+- ff2f197：B1 App骨架、wrapper、DTO／BigDecimal、唯讀SDK接點、URL／圖片隔離、契約測試。
+- 62232d8：B2子步驟，AndroidKeyStore AES/GCM＋AtomicFile儲存session/verifier/pending，備份排除；401共用刷新／最多重試一次／登出世代取消及測試。
+- git diff e1894f1 -- backend frontend 仍無差異。
+- B1計畫已勾選；B2保持未完成。AppGraph／HouseLensApplication延至B2有實際生命週期用途時建立，此判斷已記錄ledger。
 
-- [最新版 spec](C:/Users/David/.codex/worktrees/9611/HouseLens/androidView/spec.md)
-- [總計畫／順序](C:/Users/David/.codex/worktrees/9611/HouseLens/androidView/plan.md)
-- [Supabase 最小讀取權限計畫](C:/Users/David/.codex/worktrees/9611/HouseLens/androidView/plans/01-supabase-plan.md)
-- [原生 App 計畫](C:/Users/David/.codex/worktrees/9611/HouseLens/androidView/plans/02-app-plan.md)
+最後完整命令：androidView/gradlew.bat -p androidView :app:testDebugUnitTest :app:connectedDebugAndroidTest :app:lintDebug :app:assembleDebug --max-workers=2
 
-UI 的功能範圍、品牌色、四個入口、篩選與返回位置、收藏、圖表、錯誤及無障礙要求已在 spec；不要重新問一輪需求。完整瀏覽仍包含房源／詳情歷史／收藏／排行／大降價／區域分析，使用者沒有要求刪減成只有列表。
+結果：JVM 22／22、Android 8.0 API26模擬器3／3通過，BUILD SUCCESSFUL。裝置測試含密文無token、重建讀回、一次性callback、key刪除／密文損壞、重設不碰收藏檔。lint為0 errors／20 warnings（19項新版依賴提示、1項launcher icon）。未關閉檢查或為提示升級版本。
 
-## 已完成與已撤回
+TDD：B1 17測試stub RED→GREEN，再加圖片傳輸RED；B2授權4項中3項RED→GREEN；儲存3項在真正開機後RED→GREEN。環境錯誤未算RED。
 
-1. 建立隔離 worktree，複製並提交規格／計畫：`e1894f1`。
-2. 曾依舊計畫完成 A1 查詢驗證／分頁（`77969d2`）、A2 公開唯讀 JWT／成員授權（`2aa03e0`）。
-3. 使用者明確改為 Supabase 直連後，已用 **`9b771c6`、`ecababb`** 撤回 A2、A1；保留歷史，不 reset／改寫歷史。
-4. `git diff e1894f1 -- backend frontend` 無差異。不要重做舊 A1／A2，也不要新增 Caddy、API 主機、網域或 Edge Functions。
-5. spec／plan 已更新。舊 `plans/01-api-plan.md` 已改為 `plans/01-supabase-plan.md`。原生計畫 B1–B7、Supabase S1–S2 都仍未實作。
+Debug APK：androidView/app/build/outputs/apk/debug/app-debug.apk（ignored，非release交付）。aapt確認package tw.houselens.viewer、minSdk26／targetSdk36、MainActivity存在。最終log：.superpowers/sdd/02-app-plan/checkpoint-verification.log。
 
-先前後端測試證據：初始單元 159 通過；本機隔離庫上的基準整合 58 通過。舊 A1 的相關測試 60 通過；舊 A2 完成時單元159＋整合117全部通過。**這些不是新 Supabase App 的驗收結果**，A1／A2產品變更及新增測試已撤回。既有 bin／obj 可能仍有撤回前產物；若再跑後端測試，先正常建置，不直接用 --no-build 當目前源碼證據。
+尚未視覺／導覽驗收。connected tests後嘗試直接啟動Activity得到未安裝／Activity不存在，未算啟動成功；下次手動測UI須先adb install APK，不假設runner留下App。真Google、正式RLS、行動網路、真機、效能、release簽署與整體review都未完成。
 
-## Supabase 現況與用戶提供的設定
+## B2下一步
 
-已使用原本的 `backend/appsettings.Local.json` 管理連線，以 readonly transaction 只查結構／權限，未查房源內容，也沒有遠端 DDL、DML、RLS 或 Auth 變更。
+現有createViewerClient仍用Auth minimalConfig的記憶體儲存；SecureAuthStorage尚未接入production client。主Activity沒有Google登入按鈕，不會查正式房源。
 
-確認 `houselens` 有12個關聯（含 EF migration 紀錄），現有表未啟用 RLS，沒有 RLS policies；anon／authenticated 對這些表目前沒有 SELECT 或寫入權限。authenticator 的資料庫設定中未查到 exposed-schema 覆寫；這**不能證明** Dashboard 的 exposed schemas 已設定，S2須實查。
+1. 讀B2完整brief，先寫SessionController／OAuthCallback測試。
+2. 建OwnerKey／AuthState／SessionController、AuthScreen、AppGraph與Application，接安全storage到SDK兩個adapter。
+3. 第二次401目前回ApiException(401)，接控制器後仍須回SignedOut；403已有onForbidden hook，須串版本遞增、清畫面／圖片快取，B3再串收藏摘要清除。
+4. 冷啟動／資料載入查ViewerMembers；不能因本機有session就顯示資料。
+5. 裝置callback／程序重建驗證完成才勾B2；正式Google成功仍留B7。
 
-使用者已提供 Supabase 官方 Kotlin 範例、Project URL 與 **publishable key**。已保存於：
+已查證Supabase Kotlin 3.5.0原始碼，避免重踩：
 
-`C:\Users\David\.codex\worktrees\9611\HouseLens\androidView\supabase.local.properties`
+- getOAuthUrl(Google, redirectUrl=...)不是suspend，內部launch非同步保存verifier。先storage.beginLogin()，呼叫SDK，再以有限timeout等待本次storage.awaitVerifier()持久化成功，才開Custom Tab。
+- exchangeCodeForSession(code, saveSession=false)及refreshSession(refreshToken)只回UserSession；先驗session version，再importSession(..., autoRefresh=false)。不要用會立即import的refreshCurrentSession處理登出競態。
+- 不直接用handleDeeplinks：只驗scheme／host且立即import。自行驗完整tw.houselens.viewer://auth/callback、userinfo／port、唯一code、pending，以claimCallback原子消費；重送不交換。
+- 正常App callback只有code；Google↔Supabase的state由server/provider管理。計畫的state不符應驗本機pending，不要求SDK未提供的state query、不覆寫provider state。
+- 一次只允許一個PKCE交換；舊交換可能刪共用verifier，須完成／取消後才能開始新交易。
+- 冷啟動有callback先處理pending，不可先clearSession（它會刪verifier）。signOut網路失敗仍要finally清本機；先增加version，拒絕晚回來的交換／refresh。
+- minimalConfig後保持autoSetupPlatform預設值；設false可能讓awaitInitialization一直等待。
+- Postgrest自己的timeout要設15秒，目前已設。價格上下限須包and，否則3.5.0丟掉同欄位第二條件，已有測試。
+- URLBuilder預設port尚未解析，不能直接比Url.port；先build再比origin，目前已修正及測試。
 
-它被 `androidView/.gitignore` 忽略，沒有提交。交接不貼 key／密碼；下一個 session 直接讀此檔供建置使用，不要重新向使用者索取已提供的公開設定。Google provider、callback、核准 user IDs 尚未配置或驗證。資料庫管理連線只作維運，絕不能放進 APK。
+參考：[AuthImpl](https://github.com/supabase-community/supabase-kt/blob/3.5.0/Auth/src/commonMain/kotlin/io/github/jan/supabase/auth/AuthImpl.kt)、[Auth API](https://github.com/supabase-community/supabase-kt/blob/3.5.0/Auth/src/commonMain/kotlin/io/github/jan/supabase/auth/Auth.kt)、[PKCE](https://supabase.com/docs/guides/auth/sessions/pkce-flow)。
 
-SDK 使用 Auth＋Postgrest，`defaultSchema = "houselens"`、明確 SerialName／欄位轉換；不要照範例查 `todos` 或假設 public schema。官方安裝頁支持 BOM＋所需模組，不必安裝範例中的可選 Agent Skills。
+## 工具與環境
 
-最小權限／views 與回呼方向已寫入新 spec：ViewerMembers名單、SELECT-only RLS、security-invoker views、精確 `tw.houselens.viewer://auth/callback`＋PKCE；無需另租App Link網域。RLS通常回空集合，App需先查自身會員列，不能把未核准誤當「沒有房源」。正式變更先備妥可檢閱SQL與隔離測試，依當時授權執行，不照官方通用範例GRANT ALL。
+全部在ignored scratch，不重新下載，不git clean -fdx。
 
-## 可直接重用的工具
+- JAVA_HOME：C:/Program Files/Android/openjdk/jdk-21.0.8，不用PATH Java11。
+- ANDROID_HOME：<worktree>/.superpowers/sdd/02-app-plan/tools/sdk
+- GRADLE_USER_HOME：<worktree>/.superpowers/sdd/02-app-plan/gradle-home
+- Gradle8.13 wrapper已獨立下載、校驗、啟動；SHA256為20f1b1176237254a6fc204d8434196fa11a4cfb387567519c61556e8710aed78。
+- CLI已移至標準tools/sdk/cmdline-tools/latest/bin，舊bootstrap/cmdline-tools位置已無工具。此修正讓avdmanager能找到正確SDK根目錄。
+- 已裝platform36、build-tools35.0.0、platform-tools、emulator37.2.13、API26 google_apis x86_64映像。
+- AVD：viewer-api26；ANDROID_USER_HOME=<worktree>/.superpowers/sdd/02-app-plan/android-user；ANDROID_AVD_HOME為其avd子目錄。
+- WHPX可用。啟動參數：-avd viewer-api26 -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader_indirect -port 5580。Windows Start-Process必須Hidden。
+- 等adb -s emulator-5580 shell getprop sys.boot_completed為1、package service就緒才跑connected tests；僅出現adb device仍可能太早。
+- PowerShell的-Pandroid.testInstrumentationRunnerArguments.class=...整個參數須加引號。
+- 模擬器與本專案Gradle daemon已正常停止；adb server可能仍在。
+- PostgreSQL17.11：.superpowers/sdd/01-api-plan/pgsql/bin；PGDATA在同plan目錄，127.0.0.1:55437，仍停止。本輪未使用。測試連線在同處test-connection.txt，不印出。
 
-所有工具都在 worktree 的 ignored scratch；不用重新下載。
+## 正式Supabase狀態
 
-| 工具 | 路徑／狀態 |
-| --- | --- |
-| JDK21.0.8 | `C:\Program Files\Android\openjdk\jdk-21.0.8`；已以此啟動Gradle。不要使用PATH中原本Java11。 |
-| Gradle8.13 | `.superpowers/sdd/02-app-plan/tools/gradle-8.13/bin/gradle.bat`，`--version`成功。 |
-| Android CLI tools22.0 | `.superpowers/sdd/02-app-plan/tools/sdk/cmdline-tools/bootstrap/cmdline-tools/bin/sdkmanager.bat`，`--version`成功；提示sdkmanager已deprecated但目前可用。 |
-| SDK root | `.superpowers/sdd/02-app-plan/tools/sdk`；**尚未裝platform36／build-tools／system images**。 |
-| PostgreSQL17.11可攜版 | `.superpowers/sdd/01-api-plan/pgsql/bin/`；僅作本機隔離測試。 |
-| 本機測試PGDATA | `.superpowers/sdd/01-api-plan/pgdata`；127.0.0.1:55437，**交接前已正常停止**。 |
+本輪未存取／變更正式資料庫或Auth。前次唯讀調查：houselens有12關聯，無RLS/policies，anon/authenticated無表讀寫權限；exposed schemas未確認。
 
-Gradle zip SHA256已核對官方值：`20f1b1176237254a6fc204d8434196fa11a4cfb387567519c61556e8710aed78`。Android工具zip SHA256已核對官方值：`90ae805d20434428bffcb699c290860f19bb5f66a67e6b330067e3de801fb04a`。只驗證工具，尚未解析App依賴／編譯／跑Android測試。
+Project URL／publishable key已存ignored androidView/supabase.local.properties；實際key名為supabase.url、supabase.publishableKey，不要重索取或貼出。DB管理連線仍僅在原本機backend設定，絕不放APK。
 
-PostgreSQL本機測試連線存於 ignored `.superpowers/sdd/01-api-plan/test-connection.txt`，不要印出內容。Docker daemon當時不可用，因此使用可攜PG；沒有動共用Supabase資料作測試。
+S1 SQL／views／RLS未寫；S2 Google provider、callback、核准user IDs、exposed schema待完成。正式變更須先有可檢閱SQL及隔離測試。
 
-## 下一步與已知注意事項
-
-1. 進 C: worktree，讀最新文件與 `git status/log`，確認分支；不要回舊 API 路線。
-2. 完成 B1：使用現成工具、補SDK36、建立最小單app module、載入本機Supabase公開設定；用Auth＋Postgrest SDK。版本是計畫基準，尚未實際resolve，若相容性有問題只修必要版本並記錄。
-3. 依B2–B7完成手機UI、登入、本機收藏與驗收；UI測試可用fixture，但正式程式不能用假登入／假房源繞過權限。優先把核心看房流程做順，不增加通用框架。
-4. S1在本機隔離PG實作並測SQL／RLS／views，S2再處理真Supabase設定。實際登入、RLS、行動網路與APK簽署仍未驗證。
-5. 最後依Native流程做獨立全分支review；目前沒有進行產品完成review，因產品尚未建立。
-
-環境經驗：Windows `Start-Process -Wait` 啟動pg_ctl會等到其背景PostgreSQL子程序結束，造成腳本停住；應 `Start-Process -WindowStyle Hidden -PassThru` 後只對pg_ctl物件 `.WaitForExit()`。PowerShell下載的 `.Content` 可能是byte[]，先UTF8解碼再Trim／驗hash；腳本使用 ErrorActionPreference=Stop 防止錯誤後繼續。
-
-既有 Minimal API 測試在無本機設定的新worktree中，ConfigureAppConfiguration在builder.Build後才生效；如需重跑原測試，須給啟動用的 ConnectionStrings__Default 與 HOUSELENS_TEST_CONNECTION，兩者都指本機隔離庫。這是測試環境問題，不是新增API的理由。
-
-## 執行紀錄
-
-- `.superpowers/sdd/01-api-plan/progress.md`：已撤回的舊API工作與測試證據，只供追溯。
-- `.superpowers/sdd/01-supabase-plan/progress.md`：新Supabase計畫，S1／S2待做。
-- `.superpowers/sdd/02-app-plan/progress.md`：B1–B7待做、介面與工具狀態。
-
-技能的task-brief工具只認數字heading，原計畫使用S1／B1；本輪已記錄以PowerShell擷取對應段落並維持同樣ledger／test證據的做法，不必為工具限制重編所有文件。Scratch為ignored，勿執行git clean -fdx清掉工具、設定與紀錄。
-
-## Suggested skills
-
-- `superpowers:using-git-worktrees`：辨識並重用既有worktree，不新建。
-- `superpowers:executing-plans`：已選Native，按最新計畫執行並記錄進度。
-- `ponytail:ponytail`（full）：最小完整改動，優先UI／UX，不加後端服務或抽象層。
-- `superpowers:test-driven-development`：先驗證失敗案例再實作必要邏輯。
-- `superpowers:systematic-debugging`：遇真實建置／測試問題先定位原因。
-- `superpowers:verification-before-completion`：完成聲明必須有實際測試證據。
-- `superpowers:requesting-code-review`：全部實作後一次獨立review。
-- `handoff`：如需再次交接，只記錄差異與指向已存在文件，遮蔽秘密。
+Ledger：.superpowers/sdd/02-app-plan/progress.md。舊API ledger只供追溯；scratch工具需保留。未測項保持未完成，產品整體完成後才做一次獨立review。

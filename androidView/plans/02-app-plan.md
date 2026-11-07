@@ -93,6 +93,8 @@
 
 ### Task B2: Google 登入、加密 session 與授權生命週期
 
+目前部分完成（62232d8）：SecureAuthStorage／備份規則、ApiAuthorizationTest與共用401重試已通過；SessionController、AuthScreen、AppGraph、OAuthCallbackTest待實作。B2尚未完成。
+
 **Files:** Create `M/auth/SecureAuthStorage.kt`, `SessionController.kt`, `AuthScreen.kt`, `app/src/main/res/xml/backup_rules.xml`, `data_extraction_rules.xml`；Modify `M/AppGraph.kt`, `MainActivity.kt`, `HouseLensApplication.kt`, `data/SupabaseHouseLensData.kt`, Manifest／strings；Test `T/auth/SessionControllerTest.kt`, `T/data/ApiAuthorizationTest.kt`, `I/auth/SecureAuthStorageTest.kt`, `OAuthCallbackTest.kt`。
 
 **Interfaces:**
