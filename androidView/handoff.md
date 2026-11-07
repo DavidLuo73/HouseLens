@@ -18,8 +18,9 @@
 | --- | --- |
 | B1 | 完成：專案、唯讀契約、格式／URL與獨立圖片client。 |
 | B2 | 完成並通過獨立審查：Google／PKCE控制器、安全儲存、會員gate、callback、AppGraph／Application／Activity與登入畫面；提交423c653、清理修正2229e6f。真實Google驗收仍屬B7。 |
-| B3 | 下一項：本機收藏、摘要、收藏畫面與共用PropertyCard。 |
-| B4–B6 | 找房、詳情／歷史、正式導覽、精選／區域待做。 |
+| B3 | 完成並通過審查：本機收藏／摘要、收藏畫面、PropertyCard、登出清摘要；提交c765200、3a5954a、b22e4cf。 |
+| B4 | 下一項：找房篩選、分頁與條件保存。 |
+| B5–B6 | 詳情／歷史、正式導覽、精選／區域待做。 |
 | B7 | 整體旅程、真機／外網／無障礙效能及release交付待做。 |
 | S1–S2 | SQL／RLS／views與隔離測試、正式Supabase設定待做；已有唯讀契約調查。 |
 
@@ -29,14 +30,17 @@ B2已把SecureAuthStorage接入SDK，使用精確 tw.houselens.viewer://auth/cal
 
 圖片皆直接來自原刊登公開URL，不帶bearer／apikey、不觸發登入刷新；目前關閉圖片memory／disk cache以避免晚回填，效能取捨留B7量測。SDK清記憶體使用3.5.0 internal status API，升級時須重新核對。
 
-目前核准後只顯示帳號狀態，尚無房源瀏覽／收藏／正式四頁導覽，不是完整成品。
+目前核准後只顯示帳號狀態；收藏元件已完成但正式導覽尚未接入，尚無找房／詳情／四頁導覽，不是完整成品。
 
 ## 驗證與接續
 - B2完整檢查：34個JVM、8個API26登入裝置測試、lint及Debug APK成功。後續callback／帳號選擇器修改經focused auth JVM＋8裝置測試驗證。
 - B2審查修正：13個SessionController JVM＋4個API26儲存測試通過（含實際刪除失敗），複查規格及品質通過。沒有重跑未受影響的整套測試；lint最近結果0 errors／21 warnings，版本／icon／UseKtx提示。
 - [完整B2報告](C:/Users/David/.codex/worktrees/9611/HouseLens/.superpowers/sdd/02-app-plan/task-B2-report.md)、[執行ledger](C:/Users/David/.codex/worktrees/9611/HouseLens/.superpowers/sdd/02-app-plan/progress.md)。不要重做已完成任務。
-- B3讀task-B3-brief.md及spec收藏規格；AppGraph的onInvalidated(owner)接purgeSnapshots。舊session慢回應不能在purge後回填同帳號摘要；保留收藏ID，DataStore每owner隔離，摘要刷新最多3個並行，僅查可見／鄰近項目。
-- B3完成及審查後續B4→B6；S1完成隔離SQL測試及可檢閱部署內容後才進S2。正式安全設定與B7實機輸入不足時明列未完成。
+- B3完整檢查48個JVM、2個API26收藏操作、lint／Debug APK成功；後續兩輪刷新修正經10個SavedViewModel測試及test-host編譯通過。詳見 .superpowers/sdd/02-app-plan/task-B3-report.md。
+- B3使用已安裝OkioStorage處理Windows原子檔案替換，維持真實檔案持久化測試；帳號命名空間、generation／寫入鎖防止登出後回填。refreshVisible更新可見集合，retry(id)僅重試單卡。
+- B4讀task-B4-brief.md與spec找房規格，重用FavoriteStore／PropertyCard／LocalPropertyImageLoader；AppGraph SessionResources已提供saved。只有有效且已套用條件才保存，網路失敗仍記住已套用條件。
+- 尚有B3 minor：undo寫入失敗保留entry，但Snackbar消失後缺重試入口；已列ledger，整體review須處理。
+- 接續B4→B6；S1完成隔離SQL測試及可檢閱部署內容後才進S2。正式安全設定與B7實機輸入不足時明列未完成。
 
 ## 環境
 | 設定 | 值（相對worktree） |
@@ -56,3 +60,4 @@ API26模擬器與Gradle daemon目前正在使用；保留ignored工具／本機�
 本次sandbox只可寫F:/SourceCode/HouseLens；開發worktree寫入／build需require_escalated。曾有子代理授權請求停滯，必要時由實作者將精確腳本暫存F:/SourceCode/HouseLens/.superpowers/sdd/02-app-plan/transfer，主agent檢閱後仍以require_escalated在指定worktree執行；不得繞過授權。
 
 Supabase公開設定已在ignored androidView/supabase.local.properties（supabase.url／supabase.publishableKey），重用不重新索取；DB管理憑證不得放APK。正式RLS／exposed schema／Google provider／callback allowlist與核准成員尚待S1／S2；正式變更前重新核對owner／grants／policies。真實Google登入、行動網路、真機效能、release簽署與整體review均未完成。
+

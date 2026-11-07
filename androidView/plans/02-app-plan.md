@@ -126,7 +126,7 @@ B2完成（423c653、2229e6f），登入控制器／callback／UI接線及清理
 - `SavedViewModel(owner, api: HouseLensData, store: FavoriteStore)`，`state: StateFlow<SavedState>`、`refreshVisible(ids: List<String>)`、`remove(id)`、`undo()`。SavedState 保留 entries、每項取得狀態（未更新／成功／查無物件／暫時失敗）與單次 undo entry。
 - `PropertyCard(snapshot: PropertySnapshot, saved: Boolean, onOpen: () -> Unit, onSave: () -> Unit, onHistory: () -> Unit)` 為 Compose；`SavedScreen(viewModel, onOpen: (id: String, showHistory: Boolean) -> Unit)`。
 
-- [ ] **Step 1: 寫失敗測試。** 用 temporary-file DataStore，不建 DB；測重建 store、owner／origin 隔離、同時 put／remove 不遺失其他項目、失敗不得改成成功狀態、損壞資料不靜默覆蓋（顯示儲存失敗，保留可供修復的原檔）。核心斷言：
+- [x] **Step 1: 寫失敗測試。** 用 temporary-file DataStore，不建 DB；測重建 store、owner／origin 隔離、同時 put／remove 不遺失其他項目、失敗不得改成成功狀態、損壞資料不靜默覆蓋（顯示儲存失敗，保留可供修復的原檔）。核心斷言：
   ```kotlin
   assertEquals(listOf(propertyId), recreated.observe(owner).first().map { it.id })
   assertTrue(store.observe(otherOwner).first().isEmpty())
@@ -134,10 +134,10 @@ B2完成（423c653、2229e6f），登入控制器／callback／UI接線及清理
   assertEquals(savedAt, restoredEntry.savedAtEpochMillis)
   ```
   SavedViewModel fixture 至少 21 個收藏，僅對可見批次查房源摘要；null物件／網路錯誤／下架不同顯示。測 session 切換後的慢刷新不能把摘要寫到新 owner；purge 保留 IDs 並清摘要。Compose 測愛心不觸發 open、移除後可復原。
-- [ ] **Step 2: 確認 RED。** `./gradlew.bat :app:testDebugUnitTest --tests "tw.houselens.viewer.saved.*"` → FAIL；instrumentation 指定 `tw.houselens.viewer.saved`。
-- [ ] **Step 3: 實作 DataStore 與收藏畫面。** 每 owner 一個序列化集合，預設 savedAt 降冪；刷新 semaphore=3、只查 visible／near-visible ids，沒有批次 API 或全表掃描。跨頁共用 store Flow，愛心立即回應，失敗回復，undo 用原 entry。圖片比例 4:3，適當文字占位；已移除仍保留移除按鈕。登出／deny 串 purgeSnapshots，收藏檔排除雲端備份以維持裝置獨立。
-- [ ] **Step 4: 驗證 GREEN。** 重跑單元與指定 instrumentation，驗證重啟持久化及隔離；不得把持久化失敗測試改成只測記憶體 list。
-- [ ] **Step 5: 提交。** `git commit -m "feat: add device-local saved properties"`。
+- [x] **Step 2: 確認 RED。** `./gradlew.bat :app:testDebugUnitTest --tests "tw.houselens.viewer.saved.*"` → FAIL；instrumentation 指定 `tw.houselens.viewer.saved`。
+- [x] **Step 3: 實作 DataStore 與收藏畫面。** 每 owner 一個序列化集合，預設 savedAt 降冪；刷新 semaphore=3、只查 visible／near-visible ids，沒有批次 API 或全表掃描。跨頁共用 store Flow，愛心立即回應，失敗回復，undo 用原 entry。圖片比例 4:3，適當文字占位；已移除仍保留移除按鈕。登出／deny 串 purgeSnapshots，收藏檔排除雲端備份以維持裝置獨立。
+- [x] **Step 4: 驗證 GREEN。** 重跑單元與指定 instrumentation，驗證重啟持久化及隔離；不得把持久化失敗測試改成只測記憶體 list。
+- [x] **Step 5: 提交。** `git commit -m "feat: add device-local saved properties"`。
 
 ### Task B4: 找房、草稿篩選與分頁
 
@@ -229,6 +229,7 @@ B2完成（423c653、2229e6f），登入控制器／callback／UI接線及清理
 - [Coil network](https://coil-kt.github.io/coil/network/)：只加入一種 network adapter；HTTP client 的 header 與 redirect 規則須在圖片管線同樣適用。
 
 以上是後續實作／驗收步驟；本次未安裝套件、建置、登入或真機量測。此計畫不承諾未驗證的依賴組合或效能已可用。
+
 
 
 

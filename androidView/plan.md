@@ -36,9 +36,9 @@
 | 計畫 | 工作 | 狀態 |
 | --- | --- | --- |
 | [01-supabase-plan.md](plans/01-supabase-plan.md) | S1 本機SQL／RLS／views與測試；S2正式Supabase設定與驗證 | 尚未實作；只有遠端唯讀結構檢查完成。 |
-| [02-app-plan.md](plans/02-app-plan.md) | B1 SDK／專案；B2登入；B3收藏；B4找房；B5詳情；B6精選／區域；B7驗收APK | B1／B2完成並通過B2獨立審查（423c653、2229e6f）；下一項B3。 |
+| [02-app-plan.md](plans/02-app-plan.md) | B1 SDK／專案；B2登入；B3收藏；B4找房；B5詳情；B6精選／區域；B7驗收APK | B1–B3完成；B2與B3通過獨立審查，B3提交c765200／3a5954a／b22e4cf；下一項B4。 |
 
-下一個任務從B3收藏繼續，再按B4→B7；S1可在資料fixture確定後完成，S2與B7的真實連線需正式RLS／Google設定。先把手機核心流程做順，不在準備階段再擴充後端。
+下一個任務從B4找房繼續，再按B5→B7；S1可在資料fixture確定後完成，S2與B7的真實連線需正式RLS／Google設定。先把手機核心流程做順，不在準備階段再擴充後端。
 
 依使用者2026-11-07最新指示，採subagent-driven-development：每項任務由新實作者依TDD完成，保留測試與提交紀錄，逐項獨立review，最後整體review。必要的變更判斷寫入plan-scoped ledger，沒有完成的測試不勾選。
 
@@ -62,5 +62,6 @@ Supabase唯讀檢查確認12個既有關聯、RLS尚未啟用、anon／authentic
 - AC07／08／09：S1／B1／B5／B6的歷史、降價事件、區域分析。
 - AC10／11／14：B1／B2／B7的網路／session／圖片／程序恢復。
 - AC12與效能：B4–B7真機、無障礙與量測。
+
 
 
