@@ -1,80 +1,68 @@
 # HouseLens Android View 交接
 
-更新日期：2026-11-07。使用繁體中文溝通。
+更新：2026-11-07。繁體中文；每次整份覆蓋並同步F入口／C worktree。不保存密碼、私鑰、個資或手機序號。
 
-## 文件維護規則
-每次更新進度時，整份覆蓋 F:/SourceCode/HouseLens/androidView/handoff.md，並同步開發 worktree 的同名檔案。只保留目前有效規格、實際進度、操作方式與接續流程；完整細節以連結引用，未驗證項目不得標完成，不寫入金鑰、密碼或個資。
+## 當前結果與最新要求
 
-## 工作區與規格
-- 開發 worktree：C:/Users/David/.codex/worktrees/9611/HouseLens，分支 feature/android-viewer。所有開發命令指定此 workdir，重用既有 worktree。
-- F:/SourceCode/HouseLens 為交接入口，其 spec／plan 不是最新版；保留原目錄使用者既有未提交內容。
-- 範圍 androidView/；不讀取或沿用 android/、androidtest/，不修改 backend／frontend。
-- 使用者本次明確選擇 subagent-driven-development，取代舊 Native 執行方式：逐項新實作者、逐項獨立審查、最後整體審查。Ponytail full。
-- 權威文件：[spec.md](C:/Users/David/.codex/worktrees/9611/HouseLens/androidView/spec.md)、[plan.md](C:/Users/David/.codex/worktrees/9611/HouseLens/androidView/plan.md)、[App計畫](C:/Users/David/.codex/worktrees/9611/HouseLens/androidView/plans/02-app-plan.md)、[Supabase計畫](C:/Users/David/.codex/worktrees/9611/HouseLens/androidView/plans/01-supabase-plan.md)、[README](C:/Users/David/.codex/worktrees/9611/HouseLens/androidView/README.md)。
-- Kotlin＋Compose，直接使用 Supabase Auth＋Postgrest；Google登入限核准成員，只瀏覽，不新增 API 服務。
+**v0.1.0免登入正式簽署APK已交付並安裝S25+，手機實際找房顯示687筆。** 使用者另要求「參考網站icon、色系UI/UX相同、時尚一點」，目前正在做v0.1.1圖示更新，不能把0.1.0當作此新需求已完成。
 
-## 實際進度
-| 任務 | 狀態 |
-| --- | --- |
-| B1 | 完成：專案、唯讀契約、格式／URL與獨立圖片client。 |
-| B2 | 完成並通過獨立審查：Google／PKCE控制器、安全儲存、會員gate、callback、AppGraph／Application／Activity與登入畫面；提交423c653、清理修正2229e6f。真實Google驗收仍屬B7。 |
-| B3 | 完成並通過審查：本機收藏／摘要、收藏畫面、PropertyCard、登出清摘要；提交c765200、3a5954a、b22e4cf。 |
-| B4 | 完成並通過審查：找房篩選／分頁／條件保存與共用卡片補齊；提交6e842f9、b9aa7f5。 |
-| B5 | 完成並通過審查：詳情／歷史、找房／收藏／帳號導覽與返回位置；提交4371de0、f23959f。 |
-| B6 | 完成並通過審查：精選／區域分析、四主入口與帳號資料狀態；提交5f9fd9e。 |
-| B7 | 整體旅程、真機／外網／無障礙效能及release交付待做。 |
-| S1 | 完成並通過審查：四個invoker views／成員RLS／最小欄位權限與本機測試；提交a65a308。 |
-| S2 | 正式Supabase安全設定與真實連線待做；不得未經檢閱即套用。 |
+- Android只view，Supabase anon SELECT，不登入、不爬取、不管理、不寫房源；目前沒有Worker。
+- 使用者已明確批准正式匿名最小欄位／Data API，並在Dashboard勾houselens保留graphql_public/public。資料對持公開key者可讀，此界線已告知且批准。
+- 長期簽署金鑰已明確批准建立，使用者承諾安全備份；不得重建或覆寫。
+- Supabase Kotlin sample已真正連線驗證，再以實際資料層完成11GET／9端點業務DTO解碼。
 
-B2已把SecureAuthStorage接入SDK，使用精確 tw.houselens.viewer://auth/callback、持久pending單次消費與編碼後參數唯一性檢查。登入URL等待verifier持久化後才開Custom Tab，Google帳號選擇器明確設定。exchange／refresh先取得未import session，確認世代後才import；SDK背景刷新停用。
+## 工作區與恢復入口
 
-冷啟動先驗會員，離線可重試但不展示快取；401共用一次刷新，再次401回登入；403／未核准回拒絕。登出先增加世代、卸載session資源；儲存刪除失敗仍清SDK記憶體與嘗試銷毀金鑰，顯示StorageError供重試，不將錯誤外拋造成畫面崩潰。
+唯一開發worktree：`C:/Users/David/.codex/worktrees/9611/HouseLens`；分支`feature/android-viewer`。以`git status`／`git log -1`核對本機提交狀態；不要以舊aee821c當最新HEAD。所有開發git/build/test明確使用C workdir。F原目錄僅交接與transfer，保留其他使用者變更。不讀取／沿用android/、androidtest/，不修改backend/frontend。最新icon需求可唯讀參考網站SVG，不能移植其爬蟲／管理操作。
 
-圖片皆直接來自原刊登公開URL，不帶bearer／apikey、不觸發登入刷新；目前關閉圖片memory／disk cache以避免晚回填，效能取捨留B7量測。SDK清記憶體使用3.5.0 internal status API，升級時須重新核對。
+本環境直接write root是F，C寫入／build需sandbox escalation；先把精確腳本置於F `.superpowers/sdd/.../transfer`讓Root檢閱執行。不刪SDK、Gradle/cache、logs、clusters或plan workspace，不用git clean。沿用SDD＋Ponytail full，逐項與最後審查。
 
-目前已接上找房、精選、收藏、區域四主入口、詳情／歷史與帳號頁；使用fixture已驗證主要流程。正式Supabase／Google／RLS未驗收，不能視為可交付成品。
+- C `androidView/spec.md`頂端最新裁定優先於舊Google／會員段落。
+- `androidView/plans/03-anonymous-v1-plan.md`：已完成匿名v1交付；完整人工B7仍OPEN。
+- `androidView/plans/04-icons-plan.md`：最新圖示工作；F transfer `task-icons-brief.md`／`task-icons-report.md`（後者進行中）。
+- `androidView/validation/acceptance.md`：詳細實際結果、APK hash、14 AC與未完成範圍。
+- F transfer `anonymous-final-review.md`：最後來源與UX修正通過；`anonymous-app-report.md`／`anonymous-final-fix-report.md`及SQL對應report保留歷史。
+- C `.superpowers/sdd/03-anonymous-v1-plan/progress.md`與04-icons-plan ledger；舊02-app-plan/progress.md保留B1–B7與原始591失敗，不能重做已完成項。
 
-## 驗證與接續
-- B2完整檢查：34個JVM、8個API26登入裝置測試、lint及Debug APK成功。後續callback／帳號選擇器修改經focused auth JVM＋8裝置測試驗證。
-- B2審查修正：13個SessionController JVM＋4個API26儲存測試通過（含實際刪除失敗），複查規格及品質通過。沒有重跑未受影響的整套測試；lint最近結果0 errors／21 warnings，版本／icon／UseKtx提示。
-- [完整B2報告](C:/Users/David/.codex/worktrees/9611/HouseLens/.superpowers/sdd/02-app-plan/task-B2-report.md)、[執行ledger](C:/Users/David/.codex/worktrees/9611/HouseLens/.superpowers/sdd/02-app-plan/progress.md)。不要重做已完成任務。
-- B3完整檢查48個JVM、2個API26收藏操作、lint／Debug APK成功；後續兩輪刷新修正經10個SavedViewModel測試及test-host編譯通過。詳見 .superpowers/sdd/02-app-plan/task-B3-report.md。
-- B3使用已安裝OkioStorage處理Windows原子檔案替換，維持真實檔案持久化測試；帳號命名空間、generation／寫入鎖防止登出後回填。refreshVisible更新可見集合，retry(id)僅重試單卡。
-- B4完整檢查61個JVM、API26三項360dp／200%字級＋一項48dp觸控檢查、lint／Debug APK通過；後續初始化刷新修正經12個FindViewModel測試通過。報告 .superpowers/sdd/02-app-plan/task-B4-report.md。
-- B5完整驗證71個JVM、5個API26詳情／導航測試、lint0 errors／22 warnings、Debug APK成功；帳號說明修正另跑指定測試1/1。搬至固定ui／support路徑後另驗證Kotlin編譯，未重跑整套。報告task-B5-report.md記錄初始compile-only RED偏差與後續行為驗證。
-- 正式AppGraph介面由DefaultAppGraph實作；SessionResources提供session ViewModelStore、saved及find工廠。HouseLensNav位於ui/，使用NavHost entry生命週期與createSavedStateHandle；TestGraph僅在androidTest/support。收藏返回不自動重抓已有狀態項目，仍可明確retry。
-- B6完整驗證81個JVM、9個API26相關畫面／導覽、lint0 errors／22 warnings與Debug APK通過；最後callback獨立性調整另跑focused1/1。task-B6-report.md已揭露初始完整JVM RED log誤覆寫，只剩實際觀察摘錄，後續null RED等log完整保留。
-- 契約已銜接：topRated額外只讀viewer_district_stats.district補空區；DropDto.dropPercent可null並顯示未提供、NULL排序在後；區域跳找房使用PropertyQuery(districts=listOf(name))重設其他條件／在售，保留單次undo。
-- S1五個檔案位於androidView/supabase。PostgreSQL17.11驗證47項角色／資料斷言、12項漂移拒絕、重跑安裝／回滾／停止讀權與writer相容性；合成設定獨立App複本81 JVM通過。報告 .superpowers/sdd/01-supabase-plan/task-S1-report.md。
-- S1每次建立獨立loopback cluster（55439），已全部停止，資料／logs留在該plan workspace；原01-api-plan工具／資料未改。安裝腳本會拒絕未知權限／policy／owner／default grants等漂移，正式前仍須重新清查。安裝會短暫取得表鎖（10秒鎖等待）。
-- B4待整體review：成功保存後舊錯誤提示未清、共用Theme預設surface角色偏紫；另一次既有收藏快速連點測試逾時，原碼重跑通過，可能是Flow先發布而in-flight guard未釋放，紀錄b4-fix1-unrelated-favorite-failure.log。不可把該失敗run當通過。
-- 待整體review：B3 undo失敗後缺重試入口；B4保存錯誤未清／主題淡紫／收藏連點偶發逾時；B5 DetailScreenTest的retry測試直接呼叫vm.refresh掩蓋callback，另有Uri.parse提示。完整ledger保留證據，沒有默認已修復。
-- 下一步B7：讀task-B7-brief.md，完成本機整體旅程／release輸入guard／交付檢查與可檢閱S2部署內容；正式安全設定、Google／外網、release簽署及實機量測不足仍明列未完成。整體branch review尚未執行。
+## 交付與裝置保護
 
-## 環境
-| 設定 | 值（相對worktree） |
-| --- | --- |
-| JAVA_HOME | C:/Program Files/Android/openjdk/jdk-21.0.8 |
-| ANDROID_HOME | .superpowers/sdd/02-app-plan/tools/sdk |
-| GRADLE_USER_HOME | .superpowers/sdd/02-app-plan/gradle-home |
-| ANDROID_USER_HOME | .superpowers/sdd/02-app-plan/android-user |
-| ANDROID_AVD_HOME | ANDROID_USER_HOME/avd |
-| SDK／AVD | platform36、build-tools35.0.0、API26 google_apis x86_64；viewer-api26、emulator-5580 |
-| 本機PostgreSQL | .superpowers/sdd/01-api-plan/pgsql/bin；隔離庫127.0.0.1:55437，未啟動 |
+APK：`C:/Users/David/Downloads/HouseLens/HouseLens-0.1.0.apk`（12,333,745bytes）；同目錄.sha256。
+SHA256：`7776FD77EBEA3BC454C964D8160A8F0CEF464380053753B5CD433412BDA9C5E5`。
+package tw.houselens.viewer，versionCode1／name0.1.0，min26／target36，非debug；正式憑證SHA256 `de6fe3b9729224098250683aed7c1a2cdb9f3d4f28ac4a19848903b51c4d27ee`。
 
-API26模擬器與Gradle daemon目前正在使用；保留ignored工具／本機設定。模擬器Hidden啟動參數：-avd viewer-api26 -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader_indirect -port 5580；須確認sys.boot_completed=1及package service。手動UI驗證前明確安裝APK。
+**S25+現在已安裝正式App，可能已有使用者收藏。不得再對此手機跑connectedDebugAndroidTest、解除安裝或清資料。** v0.1.1需versionCode2、同一簽章，以install-r更新保留資料；簽章衝突就停止，不能用解除安裝解決。Root已告知使用者可拔USB，更新前重新確認是否連線。
 
-完整檢查：androidView/gradlew.bat -p androidView :app:testDebugUnitTest :app:connectedDebugAndroidTest :app:lintDebug :app:assembleDebug --max-workers=2。PowerShell的-Pandroid.testInstrumentationRunnerArguments.class=...須整段加引號，指定method用Class#method。
+私有身分位於`C:/Users/David/AppData/Local/HouseLens/Signing`，owner-only ACL已核對；keystore繼承受保護父目錄，recovery／ignored signing.local.properties只有目前Windows使用者。不要讀出密碼／備份內容。發佈檔放Downloads，不進Git；F原分支沒有忽略`.superpowers/delivery`，不要把APK改放那裡。
 
-本次sandbox只可寫F:/SourceCode/HouseLens；開發worktree寫入／build需require_escalated。曾有子代理授權請求停滯，必要時由實作者將精確腳本暫存F:/SourceCode/HouseLens/.superpowers/sdd/02-app-plan/transfer，主agent檢閱後仍以require_escalated在指定worktree執行；不得繞過授權。
+目前AppGraph／ViewerContent是真正匿名瀏覽root，沒有Auth/member/fakeAuthorized/bypass；資訊取代帳號。本機namespace project＋local-device-v1，舊登入owner檔不匯入、不刪除。圖片client與Supabase憑證隔離，清單20筆、歷史分批、收藏最多3並行。
 
-Supabase公開設定已在ignored androidView/supabase.local.properties（supabase.url／supabase.publishableKey），重用不重新索取；DB管理憑證不得放APK。S1腳本已就緒，但正式RLS／exposed schema／Google provider／callback allowlist與核准成員尚待S2；正式變更前重新核對owner／grants／policies。真實Google登入、行動網路、真機效能、release簽署與整體review均未完成。
+## 驗證與正式環境
 
+C `.superpowers/sdd/02-app-plan/`：
+- 最終Full `b7-resume-anonymous-Full-20261107-204758-993`：67 JVM＋23 API26UI PASS，lint0errors／21warnings；360dp/font2。
+- 最終乾淨Landscape `b7-resume-anonymous-Landscape-20261107-205053-037`：3／3 PASS，IME、完整標籤/editor、clipped48dp；對應PNG已Root及reviewer看過。
+- S25+ SM-S9360 Android17/API37 OneUI9：`anonymous-phone-ui-20261107-204103-480`3／3 PASS，未改顯示設定／不擷取手機截圖；Espresso3.5曾API37反射失敗，現test-only明確3.7已解決。
+- 真實SDK sample `anonymous-live-sdk-20261107-191008-256`；完整業務DTO `anonymous-live-business-20261107-204455-790`：11GET／9端點，properties20/687、top8區37、drops20/28、stats8、latest7來源、detail1來源3歷史；不輸出房源內容。臨時測試已刪且src hashes一致。
+- guard8／8：`anonymous-Guards-20261107-190200-239`。
+- signed artifact：`anonymous-release-20261107-205448-344`；批准憑證／APK hash匹配。
+- 正式手機安裝／啟動：`anonymous-release-phone-20261107-210035-110`。原/dev/tty未提供XML，後續受控暫存XML只抽App節點／count687且已刪；最終證據F transfer `anonymous-release-phone-live.json`。
 
+正式匿名SQL SHA `C1DDA8912FB1D362E11E3608FEA773BAA266E47546A9A4100A845A60F12F2D09`已審查部署；六非FORCE RLS／六anon SELECT／四invoker，API寫權0、houselens routines0，未改房源或Auth列。F SQL transfer `anonymous-deploy-runs/20261107T105812075Z-3bc820570427`為Apply；`20261107T110749839Z-d77ab82493b7`為exposed REST200且metadata仍最小權限。SQL隔離測試39notice／19漂移／rollback／revoke／restore通過，cluster停止並保留。停用讀權只用已審查revoke.sql，不能全schema REVOKE或DROP。
 
+目前沒有active build／test／remote部署操作；接續時仍先看process/log。JDK21 `C:/Program Files/Android/openjdk/jdk-21.0.8`；SDK／Gradle cache／Android user dir在C `.superpowers/sdd/02-app-plan/`，emulator-5580/API26。所有模擬器runner明確限定device並還原size/font/orientation/IME。不要無serial的connected測試。
 
+## 最新圖示工作
 
-## 使用者提供的實機與簽署資訊
-- Samsung S25+，One UI9.0、Android17（使用者提供，待ADB實際核對）。驗收前需USB連線並允許USB偵錯；不記錄實機序號於交接。
-- 目前沒有release簽署設定。須準備可檢閱的新金鑰／本機設定建立流程，保留長期更新身分；不得以debug key當release交付。
+實作者`/root/viewer_icons`，要求原生vector、不加套件；參考網站App.vue的house、PropertyCard.vue的heart/star。品牌#FF385C／white／#222222／#717171；文字互動保留可讀#E31C5F。配置四tab、品牌標誌、資訊、篩選／排序／刷新、收藏／評分／歷史、返回與外連、adaptive launcher。保留文字/語意、48dp與既有callbacks/pending state，避免glyph/emoji。versionCode2／name0.1.1；不改資料或登入。
 
+Root保管docs/ledger/release/install；新agent只產生F精確patch，C mutation/build由Root escalation。先正常字級與200%／橫向檢視PNG，再獨立review、同key簽署／hash、install-r。手機上已有正式App，所以只用模擬器instrumentation。
+
+## 限制／不可抹掉的紀錄
+
+最後review1–7（來源4、merged、undo重試、篩選舊error、pending愛心、palette、真正retrycallback）與實際橫向雙重IMEpadding／欄位裁切都已關閉。焦點已取得時避免在IME重排中重複tap是測試準備，不改產品行為；無固定sleep／圖片同步作弊。
+
+舊591漏選原`b7-full-green.log`仍FAIL且原因未證實；後續全通過＋逐chip斷言不等於因果修復。所有失敗與首次測試compile錯誤／簽署wrapper未引用-J參數失敗均保留；不要把失敗run重命名成PASS。
+
+完整B7仍OPEN：真TalkBack、手勢／多視窗、程序真正終止、手機200%字級、行動網路／電腦關機，以及受控P95／frame／ANR未全部完成。不能用fixture、Activity recreation或220ms Activity launch冒充這些驗收。可用v0.1.0試用交付已完成；接續做最新icon需求與未驗收項，不重做Auth或S1–B6。
+
+Computer Use瀏覽器host與原生pipe在本session皆不可用；使用者已手動完成Dashboard，沒有持續設定阻擋。Supabase管理plugin未連接。不要重複要求URL/key或重啟整個設置流程。

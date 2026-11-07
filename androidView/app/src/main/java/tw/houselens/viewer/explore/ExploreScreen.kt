@@ -97,7 +97,7 @@ import tw.houselens.viewer.data.*
         Text("當次降價後：${event.newPrice.stripTrailingZeros().toPlainString()} 萬",fontSize=26.sp)
         Text("${event.dropPercent?.let { "降幅 ${formatDrop(it.abs().negate())}" } ?: "降幅未提供"} · 降額 ${event.dropAmount?.stripTrailingZeros()?.toPlainString() ?: "—"} 萬",color=Color(0xFFC13515))
         Text("觀測：${formatTaipeiTime(event.capturedAt)}")
-        Text("目前狀態：${when(event.status) { 0->"在售";1->"已下架";else->"未知" }}")
+        Text("目前狀態：${statusLabel(event.status)}")
         TextButton(onClick={ onOpen(event.id,true) },modifier=Modifier.heightIn(min=48.dp)) { Text("價格歷史") }
        }
       }

@@ -32,5 +32,5 @@ internal fun runSummary(run:CrawlRunDto?):List<String> {
  if(run==null) return listOf("尚無紀錄")
  val status=when(run.status) { 0->"進行中";1->"已完成";2->"失敗";else->"未知狀態" }
  return listOf("最近資料擷取作業：$status","開始：${formatTaipeiTime(run.startedAt)}",run.finishedAt?.let { "結束：${formatTaipeiTime(it)}" } ?: "尚無結束時間","新增 ${run.newCount} 筆 · 下架 ${run.delistedCount} 筆 · 大降價 ${run.bigDropCount} 筆","僅代表此輪擷取作業；各平台結果如下") +
-  if(run.sources.isEmpty()) listOf("尚無來源結果") else run.sources.map { source -> "${listOf("591","樂屋網","信義房屋","永慶房屋","好房網","住商不動產","中信房屋").getOrElse(source.sourceSite) { "來源 ${source.sourceSite}" }}：${if(source.success) "成功" else "失敗"}（${source.fetchedCount} 筆）" }
+  if(run.sources.isEmpty()) listOf("尚無來源結果") else run.sources.map { source -> "${sourceName(source.sourceSite)}：${if(source.success) "成功" else "失敗"}（${source.fetchedCount} 筆）" }
 }

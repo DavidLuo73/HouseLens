@@ -9,12 +9,6 @@ CREATE ROLE anon NOLOGIN;
 CREATE ROLE authenticated NOLOGIN;
 CREATE ROLE s1_worker NOLOGIN;
 CREATE ROLE s1_bypass NOLOGIN BYPASSRLS;
-CREATE SCHEMA auth;
-CREATE TABLE auth.users (id uuid PRIMARY KEY);
-CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS
-  $$ SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
-GRANT USAGE ON SCHEMA auth TO authenticated, s1_worker;
-GRANT REFERENCES ON auth.users TO s1_worker;
 CREATE SCHEMA houselens AUTHORIZATION s1_worker;
 SET ROLE s1_worker;
 CREATE TABLE houselens."Properties" (
@@ -47,6 +41,7 @@ CREATE TABLE houselens."DistrictConfigs" (
 CREATE TABLE houselens."SourceRunResults" (
  "Id" uuid PRIMARY KEY, "CrawlRunId" uuid NOT NULL REFERENCES houselens."CrawlRuns",
  "SourceSite" integer NOT NULL, "Success" boolean NOT NULL, "FetchedCount" integer NOT NULL, "ErrorMessage" varchar(1000));
+CREATE TABLE houselens."ViewerMembers" ("UserId" uuid PRIMARY KEY);
 CREATE TABLE houselens."NotificationLogs" ("Id" uuid PRIMARY KEY, "ErrorMessage" text);
 CREATE TABLE houselens."TrackingCriteria" ("Id" integer PRIMARY KEY, "Districts" text);
 CREATE TABLE houselens."ScoringConfigs" ("Id" integer PRIMARY KEY);

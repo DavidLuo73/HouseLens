@@ -140,6 +140,10 @@ class SavedViewModelTest {
             vm.undo();waitFor { vm.state.value.storageError!=null }
             assertTrue(vm.state.value.entries.isEmpty());assertEquals(7L,vm.state.value.undoEntry!!.savedAtEpochMillis)
             assertTrue(store.observe(owner).first().isEmpty())
+            blocker.deleteRecursively();vm.undo()
+            waitFor { vm.state.value.undoEntry==null && vm.state.value.entries.size==1 }
+            assertNull(vm.state.value.storageError)
+            assertEquals(7L,store.observe(owner).first().single().savedAtEpochMillis)
         } finally { scope.cancel();directory.deleteRecursively() }
     }
     @Test fun scrolling_skips_obsolete_queued_requests_but_allows_them_when_visible_again() = runBlocking {

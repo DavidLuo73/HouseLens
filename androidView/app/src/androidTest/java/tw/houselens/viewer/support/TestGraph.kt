@@ -24,9 +24,6 @@ class TestGraph:AppGraph {
     var detailRequests=0
     var fail=false
     var opened:String?=null
-    var signedOut=false
-    var version=1L
-    var active by mutableStateOf(true)
     val properties=(1..30).map { PropertyDto("$it",BigDecimal("1200.25"),title="房源 $it",district="中正區",address="臺北市中正區很長很長的完整地址一二三四五六七八九十號",areaPing=BigDecimal("28.5"),floor="3／5",ageYears=20,score=BigDecimal("0.9"),firstSeenAt="2026-01-01T00:00:00Z",lastSeenAt="2026-11-01T00:00:00Z") }
     val api=object:HouseLensData {
         override suspend fun properties(query:PropertyQuery,page:Int):PropertyPage {
@@ -58,10 +55,7 @@ class TestGraph:AppGraph {
             return CrawlRunDto("r","2026-11-07T00:00:00Z",status=1,newCount=1,delistedCount=0,bigDropCount=0,sources=listOf(SourceResultDto(2,false,0)))
         }
     }
-    var session=SessionResources(context,owner,version,api,favorites,FilterPreferences(directory.resolve("filters"),scope))
-    override fun authorizedSession(owner:OwnerKey)=session.takeIf { active && it.owner==owner }
-    override fun accountEmail(owner:OwnerKey)="member@example.com"
-    override suspend fun signOut() { signedOut=true;session.close();active=false }
+    override val session=SessionResources(context,owner,api,favorites,FilterPreferences(directory.resolve("filters"),scope))
     fun dispose() { session.close();scope.cancel();directory.deleteRecursively() }
 }
 

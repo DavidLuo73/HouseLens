@@ -95,7 +95,7 @@ fun FindScreen(viewModel: FindViewModel,onOpen: (String,Boolean) -> Unit) {
                     }
                 }
                 items(state.items,key={ it.id }) { property ->
-                    PropertyCard(property.toSnapshot(),property.id in state.favoriteIds,{ open(property.id,false) },{ viewModel.toggleFavorite(property) },{ open(property.id,true) })
+                    PropertyCard(property.toSnapshot(),property.id in state.favoriteIds,{ open(property.id,false) },{ viewModel.toggleFavorite(property) },{ open(property.id,true) },saveEnabled=property.id !in state.pendingFavoriteIds)
                 }
                 item {
                     Column {

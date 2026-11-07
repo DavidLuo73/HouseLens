@@ -13,12 +13,11 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import tw.houselens.viewer.data.*
 
-internal val sourceLabels=listOf("591","樂屋網","信義房屋","永慶房屋","好房網","住商不動產","中信房屋")
 internal val sortLabels=linkedMapOf("score" to "系統評分優先","price" to "總價低到高","unitPrice" to "單價排序（未提供優先）","newest" to "最近收錄")
 internal data class QueryChip(val label: String,val removed: PropertyQuery)
 internal fun queryChips(query: PropertyQuery): List<QueryChip> = buildList {
     query.districts.forEach { name -> add(QueryChip(name,query.copy(districts=query.districts-name))) }
-    query.sourceSites.forEach { source -> add(QueryChip(sourceLabels.getOrElse(source) { "來源 $source" },query.copy(sourceSites=query.sourceSites-source))) }
+    query.sourceSites.forEach { source -> add(QueryChip(sourceName(source),query.copy(sourceSites=query.sourceSites-source))) }
     query.minPrice?.let { add(QueryChip("最低 ${it.toPlainString()} 萬",query.copy(minPrice=null))) }
     query.maxPrice?.let { add(QueryChip("最高 ${it.toPlainString()} 萬",query.copy(maxPrice=null))) }
     query.hasParking?.let { add(QueryChip(if(it) "有車位" else "未標示車位",query.copy(hasParking=null))) }
@@ -34,11 +33,12 @@ fun FilterSheet(initial: PropertyQuery,choices: List<DistrictChoice>,onApply: (P
     var min by remember(initial) { mutableStateOf(initial.minPrice?.toPlainString().orEmpty()) }
     var max by remember(initial) { mutableStateOf(initial.maxPrice?.toPlainString().orEmpty()) }
     var error by remember { mutableStateOf<String?>(null) }
-    ModalBottomSheet(onDismissRequest=onDismiss,sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true)) {
-        Column(Modifier.fillMaxWidth().fillMaxHeight(.95f).imePadding().padding(horizontal=16.dp)) {
-            Text("篩選房源",style=MaterialTheme.typography.headlineSmall)
-            TextButton(onClick=onDismiss,modifier=Modifier.sizeIn(minWidth=48.dp,minHeight=48.dp)) { Text("關閉篩選") }
+    ModalBottomSheet(onDismissRequest=onDismiss,sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true),
+        dragHandle=null) {
+        Column(Modifier.fillMaxWidth().fillMaxHeight(.95f).padding(horizontal=16.dp)) {
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                Text("篩選房源",style=MaterialTheme.typography.headlineSmall)
+                TextButton(onClick=onDismiss,modifier=Modifier.sizeIn(minWidth=48.dp,minHeight=48.dp)) { Text("關閉篩選") }
                 Text("行政區",style=MaterialTheme.typography.titleMedium)
                 FilterChip(selected=draft.districts.isEmpty(),onClick={ draft=draft.copy(districts=emptyList()) },label={ Text("全部行政區") },modifier=Modifier.sizeIn(minWidth=48.dp,minHeight=48.dp))
                 val available=choices+initial.districts.filter { name -> choices.none { it.name==name } }.map { DistrictChoice(it,null) }
@@ -54,7 +54,7 @@ fun FilterSheet(initial: PropertyQuery,choices: List<DistrictChoice>,onApply: (P
                 Text("平台",style=MaterialTheme.typography.titleMedium)
                 FilterChip(selected=draft.sourceSites.isEmpty(),onClick={ draft=draft.copy(sourceSites=emptyList()) },label={ Text("全部平台") },modifier=Modifier.sizeIn(minWidth=48.dp,minHeight=48.dp))
                 FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                    sourceLabels.forEachIndexed { id,label -> FilterChip(selected=id in draft.sourceSites,onClick={ draft=draft.copy(sourceSites=if(id in draft.sourceSites) draft.sourceSites-id else draft.sourceSites+id) },label={ Text(label) },modifier=Modifier.sizeIn(minWidth=48.dp,minHeight=48.dp)) }
+                    sourceNames.forEachIndexed { id,label -> FilterChip(selected=id in draft.sourceSites,onClick={ draft=draft.copy(sourceSites=if(id in draft.sourceSites) draft.sourceSites-id else draft.sourceSites+id) },label={ Text(label) },modifier=Modifier.sizeIn(minWidth=48.dp,minHeight=48.dp)) }
                 }
                 OutlinedTextField(value=min,onValueChange={ min=it;error=null },label={ Text("最低總價（萬元）") },keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal),modifier=Modifier.fillMaxWidth(),singleLine=true,isError=error!=null)
                 OutlinedTextField(value=max,onValueChange={ max=it;error=null },label={ Text("最高總價（萬元）") },keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal),modifier=Modifier.fillMaxWidth(),singleLine=true,isError=error!=null)

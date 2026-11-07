@@ -24,8 +24,7 @@ import java.net.URI
 import tw.houselens.viewer.data.*
 import tw.houselens.viewer.ui.LocalPropertyImageLoader
 
-private val platformNames=listOf("591","樂屋網","信義房屋","永慶房屋","好房網","住商不動產","中信房屋")
-private fun sourceLabel(source:SourceDto):String = "${platformNames.getOrElse(source.sourceSite) { "來源 ${source.sourceSite}" }} · ${externalListingUrl(source.url)?.let { URI(it).host } ?: "無效網址"}"
+private fun sourceLabel(source:SourceDto):String = "${sourceName(source.sourceSite)} · ${externalListingUrl(source.url)?.let { URI(it).host } ?: "無效網址"}"
 
 @Composable
 fun DetailScreen(viewModel:DetailViewModel,initiallyExpanded:Boolean,onBack:()->Unit,onOpenSource:((String)->Unit)?=null) {
@@ -89,7 +88,7 @@ fun DetailScreen(viewModel:DetailViewModel,initiallyExpanded:Boolean,onBack:()->
                 }
                 item { Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
                     Text(property.title.ifBlank { "未提供標題" },style=MaterialTheme.typography.headlineSmall)
-                    Text("${property.city}${property.district} · ${if(property.status==1) "已下架" else "在售"}")
+                    Text("${property.city}${property.district} · ${statusLabel(property.status)}")
                     Text("目前總價 ${property.currentTotalPrice.stripTrailingZeros().toPlainString()} 萬",style=MaterialTheme.typography.headlineMedium)
                     Text("目前單價 ${property.currentUnitPrice?.stripTrailingZeros()?.toPlainString() ?: "—"} 萬／坪")
                 } }

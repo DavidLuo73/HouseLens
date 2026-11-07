@@ -39,6 +39,8 @@ fun SavedScreen(viewModel: SavedViewModel,onOpen: (id: String,showHistory: Boole
         Column(Modifier.fillMaxSize().padding(padding)) {
             Text("收藏",style=MaterialTheme.typography.headlineSmall,modifier=Modifier.padding(16.dp))
             if(state.storageError != null) Text(state.storageError!!,modifier=Modifier.padding(horizontal=16.dp))
+            if(state.storageError != null && state.undoEntry != null)
+                TextButton(onClick=viewModel::undo,modifier=Modifier.padding(horizontal=16.dp).heightIn(min=48.dp)) { Text("重試復原") }
             if(state.entries.isEmpty() && state.storageError == null) Text("尚無收藏",modifier=Modifier.padding(16.dp))
             LazyColumn(state=list,modifier=Modifier.testTag("saved-list"),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
                 items(state.entries,key={ it.id }) { entry ->

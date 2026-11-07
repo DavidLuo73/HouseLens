@@ -1,38 +1,45 @@
-# Supabase 唯讀查詢
+# Supabase 匿名唯讀查詢（第一版免登入）
 
-`viewer.sql` 提供 Android Viewer 的四個 views、`ViewerMembers` 與最小 SELECT 權限。此目錄不含正式資料、使用者 ID、密碼或部署動作。S1 已在 PostgreSQL 17.11 隔離庫驗證；正式 Supabase／Google 登入與 Data API 開放仍屬 S2。
+`viewer.sql` 的匿名 v1 已於2026-11-07取得使用者明確核准後部署；使用者另在 Dashboard 開放 `houselens`，保留原有 `graphql_public`／`public`。它沿用已檢閱的四個 invoker views 與六張表的最小欄位契約，不建立 Auth 身分、不建立／讀取會員名單、不要求 Google 登入。正式 REST 零列讀取與實際 Kotlin SDK 的 `limit=1` 匿名 GET／解碼已通過；完整實機使用與效能驗收仍另行追蹤。
+
+**這是公開讀取權限。** 安裝並開放 Data API 後，任何持有可公開的 publishable key 的客戶端都能讀取下列全部列，不限 APK 持有人，不能用包在 APK 的 key 當存取秘密。App 不需要使用者 bearer JWT。未授予匿名寫入、ErrorMessage、會員身分、NotificationLogs 或管理設定權限。
 
 ## 檔案與本機驗證
 
-- `viewer.sql`：單一交易的正式候選安裝 SQL。
-- `tests/bootstrap.sql`：僅建立本機合成 EF 表結構、假 Auth identity plumbing 與測試角色。
-- `tests/verify.sql`：實際 `SET ROLE`／JWT claim 的權限與資料斷言，最後 `ROLLBACK`。
-- `Test-ViewerSql.ps1`：建立全新 cluster／database、安裝兩次、測試、注入權限漂移並確認拒絕與原子回復、停止 cluster。
+- `viewer.sql`：原 S1 的 coherent v1 replacement；保留 view 查詢內容，權限改為匿名 SELECT。舊 authenticated-v1 marker 明確拒絕，不能當成舊版正式庫的自動升級。
+- `revoke.sql`：精確撤銷本功能匿名欄位／views SELECT 與 schema USAGE；保留所有資料、views、SELECT policies 與非 FORCE RLS。
+- `tests/bootstrap.sql`：只有合成 EF 表結構與本機角色；刻意不建立 Auth schema。私有 ViewerMembers 空表僅供拒絕列舉測試。
+- `tests/verify.sql`：真正 `SET ROLE anon` 的無身分查詢、分頁／數值／日期契約、私有資料／寫入拒絕與 owner／BYPASSRLS 相容性；fixture 最後 ROLLBACK。
+- `tests/verify-revoke.sql`：實際查詢被拒絕、owner insert 與 BYPASSRLS update 保留。
+- `Test-ViewerSql.ps1`：新建獨立 cluster，安裝／重裝、權限漂移拒絕、原子回復、撤權／重複撤權、重新安裝還原，最後停止並保留 cluster。
 
-在 repository root 執行（Windows PowerShell 7；使用既有 `.superpowers/sdd/01-api-plan/pgsql/bin`，不安裝服務）：
+在 repository root 執行（PowerShell 7；使用既有 `.superpowers/sdd/01-api-plan/pgsql/bin`，不安裝服務）：
 
 ```powershell
 pwsh -NoProfile -File androidView/supabase/Test-ViewerSql.ps1 -SelfTest
 pwsh -NoProfile -File androidView/supabase/Test-ViewerSql.ps1
 ```
 
-預設僅綁定 `127.0.0.1:55439`。`-Port` 可選其他未使用的非特權埠；`-DatabaseHost` 只接受字面值 `127.0.0.1`，不接受 DNS、localhost 或其他主機。runner 拒絕占用埠，產生 `s1_test_<12 hex>` 名稱，並在任何 SQL 寫入前核對連線的 `data_directory` 是本次新建目錄。清除並於結束還原 process 的 `PG*` 環境設定；`psql -X -w -v ON_ERROR_STOP=1` 不讀啟動檔、不提示密碼。
+runner 僅接受字面值 `127.0.0.1`、非特權未占用埠（預設55439）、本次產生的 `s1_test_<12 hex>`，SQL 寫入前核對 `data_directory`。清除並於 finally 還原 process 的 PG 環境變數；`psql -X -w -v ON_ERROR_STOP=1` 不讀啟動檔、不提示密碼。每次 log 與資料保留在 `.superpowers/sdd/01-supabase-plan/runs/<UTC>-<id>/`，不覆寫失敗證據、不刪 cluster、不 drop database。loopback trust 僅用於合成資料；同機程序測試期間可連線，勿在不受信任共用主機執行。
 
-每次輸出保留在 `.superpowers/sdd/01-supabase-plan/runs/<UTC>-<id>/`；bootstrap／安裝／重裝／驗證／漂移／rollback／stop 有各自 log。失敗的 RED 不會被後續 GREEN 覆寫。cluster 以 `finally` 停止，資料目錄保留供查證；runner 不刪檔、不 drop 任何 database，不碰舊 `01-api-plan` cluster。測試庫使用 loopback trust，僅有合成資料；同機程序在測試期間可連入，勿在共用不受信任主機執行。
+## 安裝範圍與安全檢查
 
-## 安裝條件與權限
+前提：PostgreSQL15+、既有 `houselens`、`anon`／`authenticated` 角色與下列六張 ordinary tables。以 schema／六表共同既有 owner 執行，不更換 owner。只授予 `anon` schema USAGE、明列欄位 SELECT 及四個 view SELECT；`authenticated` 沒有新權限。
 
-只在 S2 檢閱實際 owner／grants／policies、worker 身分與差異後，才將 `viewer.sql` 交給已核准的目標連線執行；使用 `psql -X --set ON_ERROR_STOP=1 --file androidView/supabase/viewer.sql`，連線憑證留在維運環境。不能把 bootstrap／verify SQL 用於正式庫。
+| 表 | 唯一公開欄位 |
+| --- | --- |
+| Properties | Id, City, District, Address, AreaPing, Floor, AgeYears, HasParking, CurrentTotalPrice, CurrentUnitPrice, Status, Score, IsNew, FirstSeenAt, LastSeenAt |
+| Listings | Id, PropertyId, SourceSite, Title, Url, ImageUrl, PostedDate |
+| PriceHistoryEntries | Id, PropertyId, CapturedAt, TotalPrice, UnitPrice, SourceSite, ChangeFlag, ChangePercent, IsBigDrop |
+| DistrictConfigs | City, District, IsEnabled |
+| CrawlRuns | Id, StartedAt, FinishedAt, Status, NewCount, DelistedCount, BigDropCount |
+| SourceRunResults | CrawlRunId, SourceSite, Success, FetchedCount |
 
-前提：既有 `houselens`、`auth.users`、`auth.uid()`、`anon`／`authenticated`，以及 EF 的六張資料表。以六張表既有的共同 owner 執行；不更換 owner。owner 必須能在 `houselens` 建物件、參照 `auth.users` 與建立暫存物件。若實際 owner 不同，安裝會拒絕，先檢閱差異。
+四個公開 views 為 `viewer_properties`、`viewer_top_properties`、`viewer_big_drops`、`viewer_district_stats`，全部 `security_invoker=true`。六表啟用非 FORCE RLS，各自只有 `FOR SELECT TO anon USING (true)` policy，名稱 `viewer_public_read`。既有 owner 與 BYPASSRLS writer 的寫入路徑保留；其他 writer role 必須另行檢閱。
 
-安裝鎖住六張表（`ACCESS EXCLUSIVE`，等待上限10秒），所以應安排短暫維護時段。整包成功才 COMMIT；錯誤須中止連線／ROLLBACK。已測試後段 policy 錯誤時，前段建立的 policy／RLS 變更完全回復。
+交易要求六表 ACCESS EXCLUSIVE lock（等候最多10秒），需短暫維護時段。整包成功才 COMMIT，錯誤須中止連線／ROLLBACK。沒有 housing row、Auth identity、會員列、管理資料修改，也沒有 default grants、全表 SELECT 或 API 寫入授權。
 
-`authenticated` 僅取得 `houselens` USAGE、明列欄位 SELECT 與四個 view SELECT；沒有 INSERT／UPDATE／DELETE、全表或 default grants。`ViewerMembers` 只見自己的 `UserId`，其餘表必須有會員列。匿名不授權；沒有 claim、未核准或撤權後看不到資料。會員新增／刪除由既有維運者操作，SQL 不預填任何真實身分。`SourceRunResults.ErrorMessage`、管理設定、`NotificationLogs` 不開放。
-
-四個 view 都使用 `security_invoker=true`；RLS 不 FORCE，既有 owner 與 BYPASSRLS writer 的寫入保留。這兩項行為使用真正 PostgreSQL 角色驗證，沒有以 superuser 讀取當成 RLS 通過。[PostgreSQL invoker views](https://www.postgresql.org/docs/17/sql-createview.html)、[RLS 與 owner／BYPASSRLS](https://www.postgresql.org/docs/17/ddl-rowsecurity.html)。
-
-同名受管物件用 `houselens-viewer:v1` comment 辨識，policy 同時比對 PostgreSQL 解析後的條件、角色與命令。重跑可恢復缺少的受管 grants，不 drop/recreate 既有資料。未知 policy／table或column grant／default grant、危險 API role membership（含 NOINHERIT）、FORCE RLS、definer view 或物件碰撞都會拒絕。既有 owner／superuser／BYPASSRLS grants 視為受信任；其他角色的未辨識資料 grants 必須人工檢閱。這不是整個 Supabase project 的 RPC／extension 安全稽核。
+同名 views 與 policies 以 `houselens-viewer:anonymous-v1` 識別，policy 另比對 PostgreSQL 解析後的命令／角色／permissive／條件／WITH CHECK。重跑可還原缺少的受管 grants。未知 table／column／default grants、API sequence access、未知或改變的 policy、危險角色 membership（含 NOINHERIT）、FORCE RLS、definer view、物件碰撞都拒絕。舊 `houselens-viewer:v1` 物件拒絕並要求明確 migration review。這不是全 project RPC／extension 安全稽核。
 
 ## 查詢語意
 
@@ -47,20 +54,19 @@ pwsh -NoProfile -File androidView/supabase/Test-ViewerSql.ps1
 
 趨勢按 UTC 日期聚合目前在售房源的歷史；包含當前總價非正的在售房源，保留每個來源觀測，不做每房每日去重或補值。歷史單價缺失時使用歷史總價／目前坪數；無效觀測排除。日期順序固定；未新增索引／物化表，正式資料量的執行計畫與延遲留 S2／B7。
 
-## REST／SDK 邊界與回復
+## 正式部署狀態與回復（2026-11-07）
 
-SQL 安裝不會自行把 schema 加進 Data API。S2 需把 `houselens` 列為 exposed schema，再驗證 JWT／會員撤權、大小寫欄位、exact count／範圍、錯誤與 worker 相容性。App 使用 `Accept-Profile: houselens`；不要複製文件範例的 broad grants。[Supabase custom schemas](https://supabase.com/docs/guides/api/using-custom-schemas)
+使用者已明確核准上述最小欄位與全部列的匿名讀取及 schema 開放，並確認目前沒有執行中的 Worker。沒有啟動爬蟲，也沒有正式庫試寫。
 
-本機已執行既有 SDK `ApiContractTest`／`ApiAuthorizationTest` 與完整81個 JVM tests：由同一 HEAD 的 tracked app 建立隔離副本，寫入合成 `https://project.supabase.co`／`sb_publishable_test`，使用現有 SDK／Gradle cache offline 執行。正式 `supabase.local.properties` 未讀取、未更動。此 fixture 證明 SDK header／camelCase／count／pagination 契約，不能證明正式 REST 已開放。
+1. 部署前以 VerifyFull TLS 執行 catalog-only preflight，確認既有 `postgres` 為 schema／六表共同 owner，沒有衝突 ACL／RLS／policies；`houselens` 沒有 routines，沒有新暴露 RPC。證據：F transfer `anonymous-deploy-runs/20261107T105551072Z-8641f71fb8e5`。
+2. Root 以明確執行開關及「無執行中 Worker」確認，執行 SHA256 鎖定的已檢閱 SQL：`C1DDA8912FB1D362E11E3608FEA773BAA266E47546A9A4100A845A60F12F2D09`。Apply 成功；後置 metadata 確認六張非 FORCE RLS 表、六個 anon SELECT policies、四個 invoker views，API 寫入權限與 houselens routines 都為0。helper 沒有讀取 housing rows／Auth identities，也沒有改 exposed-schema 設定。證據：F transfer `anonymous-deploy-runs/20261107T105812075Z-3bc820570427`。
+3. 當時 REST 只回覆 `PGRST106 / Invalid schema: houselens`，無法取得原有 active schema 清單，因此沒有猜測或寫入 database／role override。使用者在 Dashboard 手動加入 `houselens`，畫面保留 `graphql_public`／`public`；後續匿名 `Accept-Profile: houselens`、`limit=0` GET 為 HTTP200。證據：F transfer `anonymous-deploy-runs/20261107T110749839Z-d77ab82493b7`。
+4. 已用安裝版本的 Kotlin SDK 對正式服務執行匿名 `limit=1` GET，HTTP200 且 `JsonObject` 解碼通過。證據：`.superpowers/sdd/02-app-plan/anonymous-live-sdk-20261107-191008-256`。這是一次受限的真實讀取，與本機合成 PostgreSQL 權限／數值契約套件分開計算，不能視為完整業務 DTO、四頁查詢、所有分頁／錯誤／撤權或實機效能驗收。
 
-若成功安裝後要暫停 Viewer，可先以 owner 撤銷此功能的會員查詢權限：
+本機 suite 已驗證 owner／BYPASSRLS writer 相容性；正式環境目前沒有 Worker，因此未宣稱正式 writer 執行驗證。未來若新增其他 writer role，須重新檢閱 RLS／grants。後續重裝或擴大公開範圍仍須重新檢查當時狀態與核准範圍。
 
-```sql
-BEGIN;
-REVOKE SELECT ("UserId") ON houselens."ViewerMembers" FROM authenticated;
-REVOKE SELECT ON houselens.viewer_properties, houselens.viewer_top_properties,
- houselens.viewer_big_drops, houselens.viewer_district_stats FROM authenticated;
-COMMIT;
-```
+暫停匿名讀取，以相同 owner 執行 `psql -X --set ON_ERROR_STOP=1 --file androidView/supabase/revoke.sql`。它只撤銷前述明列欄位、四 views 的 anon SELECT 及 houselens USAGE，不刪資料／物件／政策、不關閉 RLS、不改 writer grants。最後檢查 anonymous 沒有剩餘有效 table／column／sequence／schema 權限；若另有 PUBLIC／繼承 grant，整個撤權交易會拒絕，必須檢閱並處理漂移，不能宣稱撤權成功。
 
-在沒有額外權限漂移的已驗證配置中，基礎表 SELECT 也因 membership policy 無法讀名單而拒絕；worker 不受影響。此操作是暫停存取，不刪會員或資料，不關閉 RLS。重新檢閱後重跑 installer 可還原權限。若需完整移除物件／政策，先保存會員名單及原始 ACL／RLS snapshot，另外檢閱精確回復 SQL；不要以 CASCADE 或全 schema REVOKE／DROP 代替。
+撤權可重跑；重新檢閱後跑 `viewer.sql` 恢復。若也要還原 exposed-schema 設定，只移除此次新增的 houselens entry，保留原本設定。完整移除 views／policies／RLS 屬另外的 reviewed rollback，不使用 CASCADE 或全 schema DROP／REVOKE。
+
+已完成的正式驗證限上述 metadata、零列 REST 與 SDK 單次受限讀取；未執行正式寫入／撤權試驗。完整實機互動與網路情境、所有正式查詢／分頁／錯誤契約、真實資料量的執行計畫／延遲及整個 project 的 RPC／extension 稽核仍未由此證明；整體交付與驗收狀態見 app handoff／acceptance。

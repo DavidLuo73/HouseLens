@@ -21,7 +21,8 @@ data class FindState(
     val districtChoices: List<DistrictChoice> = emptyList(), val optionsError: String? = null,
     val fetchedAt: String? = null, val resultQuery: PropertyQuery? = null,
     val favoriteIds: Set<String> = emptySet(), val storageError: String? = null,
-    val canUndoDistrict: Boolean = false, val restored: Boolean = false
+    val canUndoDistrict: Boolean = false, val restored: Boolean = false,
+    val pendingFavoriteIds: Set<String> = emptySet()
 )
 class FindViewModel(
     private val owner: OwnerKey, private val api: HouseLensData, private val favorites: FavoriteStore,
@@ -43,7 +44,6 @@ class FindViewModel(
     private var options: Job?=null
     private var districtUndo: PropertyQuery?=null
     private val persistence=Mutex()
-    private val toggles=java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
     init {
         workScope.launch {
             val stored=try { preferences.observe(owner).first() }
@@ -78,7 +78,10 @@ class FindViewModel(
         mutableState.update { it.copy(initialLoading=it.items.isEmpty(),refreshing=it.items.isNotEmpty(),appending=false,error=null,appendError=null) }
         if(persist) preferencesWrite=workScope.launch {
             persistence.withLock {
-                if(query==state.value.query) try { preferences.save(owner,query) }
+                if(query==state.value.query) try {
+                    preferences.save(owner,query)
+                    mutableState.update { if(it.storageError=="篩選條件儲存失敗，請重新套用") it.copy(storageError=null) else it }
+                }
                 catch(e: CancellationException) { throw e }
                 catch(_: Exception) { storageFailure("篩選條件儲存失敗，請重新套用") }
             }
@@ -153,16 +156,18 @@ class FindViewModel(
         val previous=districtUndo ?: return
         apply(previous)
     }
-    fun toggleFavorite(property: PropertyDto) {
-        if(!toggles.add(property.id)) return
+    @Synchronized fun toggleFavorite(property: PropertyDto) {
+        if(property.id in state.value.pendingFavoriteIds) return
+        mutableState.update { it.copy(pendingFavoriteIds=it.pendingFavoriteIds+property.id) }
         workScope.launch {
             try {
                 if(property.id in state.value.favoriteIds) favorites.remove(owner,property.id)
                 else favorites.put(owner,FavoriteEntry(property.id,System.currentTimeMillis(),property.toSnapshot()))
-                mutableState.update { it.copy(storageError=null) }
+                val ids=favorites.observe(owner).first().map { it.id }.toSet()
+                mutableState.update { it.copy(favoriteIds=ids,storageError=if(it.storageError=="收藏儲存失敗，請重試") null else it.storageError) }
             } catch(e: CancellationException) { throw e }
             catch(_: Exception) { storageFailure("收藏儲存失敗，請重試") }
-            finally { toggles.remove(property.id) }
+            finally { mutableState.update { it.copy(pendingFavoriteIds=it.pendingFavoriteIds-property.id) } }
         }
     }
     fun rememberTarget(id: String,history: Boolean) { savedStateHandle["find.target"]=id;savedStateHandle["find.history"]=history }

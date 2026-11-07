@@ -42,8 +42,8 @@ class DetailScreenTest {
             graph.session.viewModelStore.put("direct-detail",vm)
             compose.setContent { HouseLensTheme { DetailScreen(vm,false,{}, { graph.opened=it }) } }
             compose.waitUntil(5000) { vm.state.value.error!=null }
+            compose.runOnIdle { graph.fail=false }
             compose.onNodeWithText("重試詳情").performClick()
-            compose.runOnIdle { graph.fail=false;vm.refresh() }
             compose.waitUntil(5000) { vm.state.value.details!=null }
             compose.onNodeWithText("地址：臺北市中正區很長很長的完整地址一二三四五六七八九十號").performScrollTo().assertIsDisplayed()
             compose.onNodeWithText("最後觀測：2026-11-01 08:00").performScrollTo().assertIsDisplayed()

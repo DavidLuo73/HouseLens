@@ -10,6 +10,13 @@ private val Colors = lightColorScheme(
     primaryContainer = Color(0xFFFFF0F3), onPrimaryContainer = Color(0xFF222222),
     background = Color(0xFFF7F7F7), onBackground = Color(0xFF222222),
     surface = Color.White, onSurface = Color(0xFF222222),
+    secondary = Color(0xFFE31C5F), onSecondary = Color.White,
+    secondaryContainer = Color(0xFFFFF0F3), onSecondaryContainer = Color(0xFF222222),
+    surfaceVariant = Color(0xFFF7F7F7), surfaceTint = Color.White,
+    surfaceDim = Color(0xFFF7F7F7), surfaceBright = Color.White,
+    surfaceContainerLowest = Color.White, surfaceContainerLow = Color.White,
+    surfaceContainer = Color(0xFFF7F7F7), surfaceContainerHigh = Color.White,
+    surfaceContainerHighest = Color(0xFFFFF0F3), outlineVariant = Color(0xFFDDDDDD),
     onSurfaceVariant = Color(0xFF717171), outline = Color(0xFF717171)
 )
 @Composable

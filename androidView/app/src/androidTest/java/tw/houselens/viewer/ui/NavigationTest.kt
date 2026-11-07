@@ -17,7 +17,7 @@ import tw.houselens.viewer.saved.*
 
 class NavigationTest {
     @get:Rule val compose=createEmptyComposeRule()
-    private fun mount(host:ComponentActivity,graph:TestGraph) { host.setContent { HouseLensTheme { if(graph.active) HouseLensNav(graph,graph.owner) else androidx.compose.material3.Text("已登出") } } }
+    private fun mount(host:ComponentActivity,graph:TestGraph) { host.setContent { HouseLensTheme { HouseLensNav(graph) } } }
     private fun fixture(block:(TestGraph,ActivityScenario<ComponentActivity>)->Unit) {
         val graph=TestGraph()
         val context=InstrumentationRegistry.getInstrumentation().targetContext
@@ -65,14 +65,12 @@ class NavigationTest {
         compose.waitUntil(5000) { scenario.state==androidx.lifecycle.Lifecycle.State.DESTROYED }
         assertEquals(androidx.lifecycle.Lifecycle.State.DESTROYED,scenario.state)
     }
-    @Test fun logout_disposes_old_navigation_and_account_contains_local_scope()=fixture { graph,_ ->
-        compose.onNodeWithText("帳號").performClick()
-        compose.onNodeWithText("member@example.com").assertExists()
-        compose.onNodeWithText("收藏僅儲存在此裝置、此帳號，不跨裝置同步").assertExists()
+    @Test fun information_discloses_local_favorites_without_account_actions()=fixture { graph,_ ->
+        compose.onNodeWithText("資訊").performClick()
+        compose.onNodeWithText("收藏僅儲存在此裝置，不跨裝置同步").assertExists()
         compose.onNodeWithText("清除 App 資料或解除安裝會移除收藏",substring=true).performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("登出").performScrollTo().performClick()
-        compose.onNodeWithText("已登出").assertExists()
-        compose.runOnIdle { assertTrue(graph.signedOut);assertFalse(graph.session.scope.coroutineContext[kotlinx.coroutines.Job]!!.isActive) }
+        compose.onNodeWithText("登出").assertDoesNotExist()
+        compose.onNodeWithText("登入").assertDoesNotExist()
     }
     @Test fun four_tabs_keep_explore_position_and_district_browse_can_undo()=fixture { graph,_ ->
         compose.onNodeWithText("找房",useUnmergedTree=true).assertExists()
@@ -95,8 +93,8 @@ class NavigationTest {
         compose.onNodeWithText("查看本區房源").assertIsDisplayed()
         captureScreenshot("b6-four-tabs-360-font200.png")
     }
-    @Test fun live_account_shows_source_failure_and_refreshes_only_on_request()=fixture { graph,_ ->
-        compose.onNodeWithText("帳號").performClick()
+    @Test fun information_shows_source_failure_and_refreshes_only_on_request()=fixture { graph,_ ->
+        compose.onNodeWithText("資訊").performClick()
         compose.onNodeWithText("資料狀態").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("信義房屋：失敗（0 筆）").performScrollTo().assertIsDisplayed()
         compose.runOnIdle { assertEquals(1,graph.latestRequests) }

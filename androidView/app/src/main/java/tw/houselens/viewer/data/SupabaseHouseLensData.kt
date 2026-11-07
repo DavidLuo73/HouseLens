@@ -4,9 +4,6 @@ import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.annotations.SupabaseInternal
 import io.github.jan.supabase.annotations.SupabaseExperimental
-import io.github.jan.supabase.auth.Auth
-import io.github.jan.supabase.auth.FlowType
-import io.github.jan.supabase.auth.minimalConfig
 import io.github.jan.supabase.exceptions.RestException
 import io.github.jan.supabase.postgrest.*
 import io.github.jan.supabase.postgrest.query.*
@@ -21,11 +18,9 @@ import java.time.format.DateTimeFormatter
 import java.time.Duration
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration.Companion.seconds
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 
 @OptIn(SupabaseInternal::class, SupabaseExperimental::class)
-fun createViewerClient(url: String, key: String, engine: HttpClientEngine? = null, storage: tw.houselens.viewer.auth.ViewerAuthStorage? = null): SupabaseClient {
+fun createViewerClient(url: String, key: String, engine: HttpClientEngine? = null): SupabaseClient {
     val origin = Url(url)
     require(origin.protocol.name == "https" && origin.host.isNotBlank() &&
         origin.user == null && origin.password == null &&
@@ -47,19 +42,6 @@ fun createViewerClient(url: String, key: String, engine: HttpClientEngine? = nul
                 }
             })
         }
-        install(Auth) {
-            // Auth is driven explicitly by SessionController.
-            minimalConfig()
-            checkSessionOnRequest = false
-            if (storage != null) {
-                sessionManager = storage
-                codeVerifierCache = storage
-            }
-            flowType = FlowType.PKCE
-            scheme = "tw.houselens.viewer"
-            host = "auth"
-            defaultRedirectUrl = "tw.houselens.viewer://auth/callback"
-        }
         install(Postgrest) {
             defaultSchema = "houselens"
             propertyConversionMethod = PropertyConversionMethod.SERIAL_NAME
@@ -68,62 +50,17 @@ fun createViewerClient(url: String, key: String, engine: HttpClientEngine? = nul
     }
 }
 
-class SupabaseHouseLensData(
-    private val client: SupabaseClient,
-    private val refreshSession: suspend () -> Unit,
-    private val onForbidden: suspend () -> Unit,
-    private val sessionVersion: () -> Long,
-    private val onUnauthorized: suspend () -> Unit = {},
-    private val beforeRead: suspend () -> Unit = {}
-) : HouseLensData {
-    private val refreshMutex = Mutex()
-    @Volatile private var refreshGeneration = 0L
-    private suspend fun <T> read(block: suspend () -> T): T {
-        val version = sessionVersion()
-        val initialRefresh = refreshGeneration
-        fun ensureCurrent() {
-            if (version != sessionVersion()) throw CancellationException("Session changed")
-        }
-        try {
-            beforeRead()
-            ensureCurrent()
-            repeat(2) { attempt ->
-                ensureCurrent()
-                try {
-                    val members = client.from("ViewerMembers").select(Columns.list("UserId")) { limit(1) }
-                        .decodeList<kotlinx.serialization.json.JsonObject>()
-                    ensureCurrent()
-                    if (members.isEmpty()) throw ApiException(403, null, "此帳號尚未獲得使用權限")
-                    return block().also { ensureCurrent() }
-                } catch (e: RestException) {
-                    ensureCurrent()
-                    if (e.statusCode != 401 || attempt == 1) throw e
-                    refreshMutex.withLock {
-                        ensureCurrent()
-                        if (refreshGeneration == initialRefresh) {
-                            refreshSession()
-                            ensureCurrent()
-                            refreshGeneration++
-                        }
-                    }
-                }
-            }
-            error("Unreachable retry state")
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: RestException) {
-            ensureCurrent()
-            if (e.statusCode == 403) onForbidden()
-            if (e.statusCode == 401) onUnauthorized()
-            throw ApiException(e.statusCode, retryAfter(e.response.headers["Retry-After"]), "資料讀取失敗（HTTP ${e.statusCode}），請重試")
-        } catch (e: ApiException) {
-            ensureCurrent()
-            if (e.status == 403) onForbidden()
-            throw e
-        } catch (e: Exception) {
-            ensureCurrent()
-            throw ApiException(null, null, "暫時無法取得資料，請檢查連線後重試")
-        }
+class SupabaseHouseLensData(private val client: SupabaseClient) : HouseLensData {
+    private suspend fun <T> read(block: suspend () -> T): T = try {
+        block()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: RestException) {
+        throw ApiException(e.statusCode, retryAfter(e.response.headers["Retry-After"]), "資料讀取失敗（HTTP ${e.statusCode}），請重試")
+    } catch (e: ApiException) {
+        throw e
+    } catch (_: Exception) {
+        throw ApiException(null, null, "暫時無法取得資料，請檢查連線後重試")
     }
 
     override suspend fun properties(query: PropertyQuery, page: Int): PropertyPage {

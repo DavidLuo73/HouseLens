@@ -2,78 +2,31 @@ package tw.houselens.viewer.data
 
 import io.ktor.client.engine.mock.*
 import io.ktor.http.*
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Test
 
 class ApiAuthorizationTest {
-    @Test fun concurrent_401_responses_share_one_refresh_and_retry_once() = runTest {
-        var refreshes=0
-        var attempts=0
-        var denied=0
-        val bothArrived=CompletableDeferred<Unit>()
-        val client=createViewerClient("https://project.supabase.co","sb_publishable_test", MockEngine { r ->
-            if (r.url.encodedPath.endsWith("ViewerMembers")) {
-                respond("""[{"UserId":"member"}]""",HttpStatusCode.OK,headersOf("Content-Type","application/json"))
-            } else {
-                attempts++
-                if (refreshes==0) {
-                    if(attempts==2) bothArrived.complete(Unit)
-                    bothArrived.await()
-                    respond("""{"message":"expired"}""",HttpStatusCode.Unauthorized,headersOf("Content-Type","application/json"))
-                } else respond("""[{"id":"p","currentTotalPrice":100}]""",HttpStatusCode.OK,headersOf("Content-Type","application/json"))
-            }
-        })
-        try {
-            val data=SupabaseHouseLensData(client,{ refreshes++ },{ denied++ },{0})
-            val results=awaitAll(async { data.property("p") }, async { data.property("p") })
-            assertEquals(listOf("p","p"),results.map { it?.id })
-            assertEquals(1,refreshes)
-            assertEquals(4,attempts)
-            assertEquals(0,denied)
-        } finally { client.close() }
+    @Test fun anonymous_401_and_403_are_finite_errors_without_auth_or_membership_retry() = runTest {
+        for (status in listOf(HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden)) {
+            val paths = mutableListOf<String>()
+            val client = createViewerClient("https://project.supabase.co", "sb_publishable_test", MockEngine { request ->
+                paths += request.url.encodedPath
+                respond("{\"message\":\"denied\"}", status, headersOf("Content-Type", "application/json"))
+            })
+            try {
+                try { SupabaseHouseLensData(client).property("p"); fail() }
+                catch (e: ApiException) { assertEquals(status.value, e.status) }
+                assertEquals(listOf("/rest/v1/viewer_properties"), paths)
+            } finally { client.close() }
+        }
     }
-    @Test fun persistent_401_stops_after_one_retry() = runTest {
-        var refreshes=0
-        var attempts=0
-        var signedOut=0
-        val client=createViewerClient("https://project.supabase.co","sb_publishable_test",MockEngine {
-            attempts++
-            respond("""{"message":"expired"}""",HttpStatusCode.Unauthorized,headersOf("Content-Type","application/json"))
-        })
+    @Test fun cancellation_is_not_reported_as_a_network_error() = runTest {
+        val client = createViewerClient("https://project.supabase.co", "sb_publishable_test", MockEngine { throw CancellationException("cancelled") })
         try {
-            val data=SupabaseHouseLensData(client,{refreshes++},{},{0},{signedOut++})
-            try { data.property("p"); fail() } catch(e:ApiException) { assertEquals(401,e.status) }
-            assertEquals(1,refreshes)
-            assertEquals(2,attempts)
-            assertEquals(1,signedOut)
-        } finally { client.close() }
-    }
-    @Test fun forbidden_does_not_refresh() = runTest {
-        var refreshes=0
-        var denied=0
-        val client=createViewerClient("https://project.supabase.co","sb_publishable_test",MockEngine {
-            respond("""{"message":"denied"}""",HttpStatusCode.Forbidden,headersOf("Content-Type","application/json"))
-        })
-        try {
-            val data=SupabaseHouseLensData(client,{refreshes++},{denied++},{0})
-            try { data.property("p"); fail() } catch(e:ApiException) { assertEquals(403,e.status) }
-            assertEquals(0,refreshes)
-            assertEquals(1,denied)
-        } finally { client.close() }
-    }
-    @Test fun logout_during_refresh_does_not_retry_previous_account() = runTest {
-        var version=0L
-        var attempts=0
-        val client=createViewerClient("https://project.supabase.co","sb_publishable_test",MockEngine {
-            attempts++
-            respond("""{"message":"expired"}""",HttpStatusCode.Unauthorized,headersOf("Content-Type","application/json"))
-        })
-        try {
-            val data=SupabaseHouseLensData(client,{version++},{},{version})
-            try { data.property("p"); fail() } catch(_:CancellationException) {}
-            assertEquals(1,attempts)
+            try { SupabaseHouseLensData(client).property("p"); fail() }
+            catch (_: CancellationException) { }
         } finally { client.close() }
     }
 }

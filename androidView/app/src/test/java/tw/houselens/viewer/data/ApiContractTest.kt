@@ -10,23 +10,19 @@ import org.junit.Test
 import java.math.BigDecimal
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
-import kotlin.coroutines.cancellation.CancellationException
 
 class ApiContractTest {
     private val requests = mutableListOf<HttpRequestData>()
     private fun api(
-        version: () -> Long = { 0 },
-        forbidden: suspend () -> Unit = {},
         reply: MockRequestHandleScope.(HttpRequestData) -> HttpResponseData
     ): SupabaseHouseLensData {
         val client = createViewerClient("https://project.supabase.co", "sb_publishable_test", MockEngine { r ->
             requests += r
             assertEquals(HttpMethod.Get, r.method)
             assertEquals("houselens", r.headers["Accept-Profile"])
-            if (r.url.encodedPath.endsWith("/ViewerMembers")) json("""[{"UserId":"member"}]""")
-            else reply(r)
+            reply(r)
         })
-        return SupabaseHouseLensData(client, {}, forbidden, version)
+        return SupabaseHouseLensData(client)
     }
     private fun MockRequestHandleScope.json(body: String, total: Int=0) =
         respond(body, HttpStatusCode.OK, headersOf("Content-Type" to listOf("application/json"), "Content-Range" to listOf("0-19/$total")))
@@ -128,7 +124,7 @@ class ApiContractTest {
         val groups=data.topRated()
         assertEquals(listOf("中正區","空區"),groups.map { it.district })
         assertTrue(groups.last().items.isEmpty())
-        assertEquals(2,requests.count { !it.url.encodedPath.endsWith("ViewerMembers") })
+        assertEquals(2,requests.size)
     }
     @Test fun drops_preserve_unknown_percent_and_native_page_order() = runTest {
         val data=api { r ->
@@ -142,16 +138,6 @@ class ApiContractTest {
         assertEquals(listOf("a","b","c","z"),page.items.map { it.id })
         assertNull(page.items.last().dropPercent)
     }
-    @Test fun missing_membership_denies_before_loading_data() = runTest {
-        var denied=0
-        val client=createViewerClient("https://project.supabase.co","sb_publishable_test",MockEngine {
-            assertTrue(it.url.encodedPath.endsWith("ViewerMembers"))
-            respond("[]",HttpStatusCode.OK,headersOf("Content-Type","application/json"))
-        })
-        val data=SupabaseHouseLensData(client,{}, { denied++ },{0})
-        try { data.properties(PropertyQuery(),1); fail() } catch(e: ApiException) { assertEquals(403,e.status) }
-        assertEquals(1,denied)
-    }
     @Test fun non_json_errors_preserve_status_and_retry_after() = runTest {
         for ((status,body,retry) in listOf(Triple(429,"", "12"),Triple(500,"<html>oops</html>",null))) {
             val data=api { respond(body,HttpStatusCode.fromValue(status),headersOf("Retry-After",retry ?: "")) }
@@ -164,11 +150,6 @@ class ApiContractTest {
         val date=ZonedDateTime.now(java.time.ZoneOffset.UTC).plusSeconds(60).format(DateTimeFormatter.RFC_1123_DATE_TIME)
         val data=api { respond("",HttpStatusCode.TooManyRequests,headersOf("Retry-After",date)) }
         try { data.property("p"); fail() } catch(e: ApiException) { assertTrue(e.retryAfterSeconds!! in 58..60) }
-    }
-    @Test fun stale_session_result_is_cancelled() = runTest {
-        var version=0L
-        val data=api(version={version}) { version++; json("""[{"id":"p","currentTotalPrice":1}]""") }
-        try { data.property("p"); fail() } catch (_: CancellationException) {}
     }
     @Test fun redirects_are_not_followed_with_credentials() = runTest {
         val data=api { respond("",HttpStatusCode.Found,headersOf("Location","https://evil.test/steal")) }

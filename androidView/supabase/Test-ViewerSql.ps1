@@ -67,21 +67,29 @@ try {
         Invoke-Sql 'install' @('-c','SET ROLE s1_worker','-f',$install)
         Invoke-Sql 'reinstall' @('-c','SET ROLE s1_worker','-f',$install)
     }
+    Invoke-Sql 'anon-no-login-read' @('-c','SET ROLE anon; SELECT count(*) FROM houselens.viewer_properties')
     Invoke-Sql 'verify' @('-f',(Join-Path $PSScriptRoot 'tests/verify.sql'))
     # Each probe changes this owned fixture only, then requires the installer to fail and preserve that state.
     $probes = @(
-        @('write-grant','GRANT INSERT ON houselens."Properties" TO authenticated','REVOKE INSERT ON houselens."Properties" FROM authenticated','Unexpected table grant'),
-        @('private-column','GRANT SELECT ("ErrorMessage") ON houselens."SourceRunResults" TO authenticated','REVOKE SELECT ("ErrorMessage") ON houselens."SourceRunResults" FROM authenticated','Unexpected column grant'),
+        @('write-grant','GRANT INSERT ON houselens."Properties" TO anon','REVOKE INSERT ON houselens."Properties" FROM anon','Unexpected table grant'),
+        @('private-column','GRANT SELECT ("ErrorMessage") ON houselens."SourceRunResults" TO anon','REVOKE SELECT ("ErrorMessage") ON houselens."SourceRunResults" FROM anon','Unexpected column grant'),
         @('public-grant','GRANT SELECT ("ErrorMessage") ON houselens."SourceRunResults" TO PUBLIC','REVOKE SELECT ("ErrorMessage") ON houselens."SourceRunResults" FROM PUBLIC','Unexpected column grant'),
-        @('unknown-policy','CREATE POLICY unexpected ON houselens."Properties" FOR SELECT TO authenticated USING (true)','DROP POLICY unexpected ON houselens."Properties"','Unexpected policy drift'),
-        @('altered-policy','ALTER POLICY viewer_member ON houselens."Properties" USING (true)','ALTER POLICY viewer_member ON houselens."Properties" USING (EXISTS (SELECT 1 FROM houselens."ViewerMembers" m WHERE m."UserId"=(SELECT auth.uid())))','Unexpected policy drift'),
+        @('unknown-policy','CREATE POLICY unexpected ON houselens."Properties" FOR SELECT TO anon USING (true)','DROP POLICY unexpected ON houselens."Properties"','Unexpected policy drift'),
+        @('altered-policy','ALTER POLICY viewer_public_read ON houselens."Properties" USING (false)','ALTER POLICY viewer_public_read ON houselens."Properties" USING (true)','Unexpected policy drift'),
         @('force-rls','ALTER TABLE houselens."Properties" FORCE ROW LEVEL SECURITY','ALTER TABLE houselens."Properties" NO FORCE ROW LEVEL SECURITY','without FORCE RLS'),
-        @('object-collision','COMMENT ON VIEW houselens.viewer_properties IS ''unmanaged''','COMMENT ON VIEW houselens.viewer_properties IS ''houselens-viewer:v1''','Unmanaged or unsafe object collision'),
+        @('object-collision','COMMENT ON VIEW houselens.viewer_properties IS ''unmanaged''','COMMENT ON VIEW houselens.viewer_properties IS ''houselens-viewer:anonymous-v1''','Unmanaged or unsafe object collision'),
         @('definer-view','ALTER VIEW houselens.viewer_properties SET (security_invoker=false)','ALTER VIEW houselens.viewer_properties SET (security_invoker=true)','Unmanaged or unsafe object collision'),
-        @('default-grant','ALTER DEFAULT PRIVILEGES FOR ROLE s1_worker IN SCHEMA houselens GRANT SELECT ON TABLES TO authenticated','ALTER DEFAULT PRIVILEGES FOR ROLE s1_worker IN SCHEMA houselens REVOKE SELECT ON TABLES FROM authenticated','Unexpected table default grants'),
-        @('set-role-owner','GRANT s1_worker TO authenticated WITH INHERIT FALSE','REVOKE s1_worker FROM authenticated','Unexpected API role membership'),
-        @('inherited-owner','GRANT s1_worker TO authenticated','REVOKE s1_worker FROM authenticated','Unexpected API role membership'),
-        @('member-shape','ALTER TABLE houselens."ViewerMembers" ADD COLUMN unexpected text','ALTER TABLE houselens."ViewerMembers" DROP COLUMN unexpected','Unexpected ViewerMembers structure')
+        @('default-grant','ALTER DEFAULT PRIVILEGES FOR ROLE s1_worker IN SCHEMA houselens GRANT SELECT ON TABLES TO anon','ALTER DEFAULT PRIVILEGES FOR ROLE s1_worker IN SCHEMA houselens REVOKE SELECT ON TABLES FROM anon','Unexpected table default grants'),
+        @('set-role-owner','GRANT s1_worker TO anon WITH INHERIT FALSE','REVOKE s1_worker FROM anon','Unexpected API role membership'),
+        @('inherited-owner','GRANT s1_worker TO anon','REVOKE s1_worker FROM anon','Unexpected API role membership'),
+        @('member-grant','GRANT SELECT ("UserId") ON houselens."ViewerMembers" TO anon','REVOKE SELECT ("UserId") ON houselens."ViewerMembers" FROM anon','Unexpected column grant'),
+        @('admin-grant','GRANT SELECT ON houselens."NotificationLogs" TO anon','REVOKE SELECT ON houselens."NotificationLogs" FROM anon','Unexpected table grant'),
+        @('column-write','GRANT UPDATE ("Address") ON houselens."Properties" TO anon','REVOKE UPDATE ("Address") ON houselens."Properties" FROM anon','Unexpected column grant'),
+        @('grant-option','GRANT SELECT ("Address") ON houselens."Properties" TO anon WITH GRANT OPTION','REVOKE GRANT OPTION FOR SELECT ("Address") ON houselens."Properties" FROM anon','Unexpected column grant'),
+        @('sequence-write','GRANT USAGE ON SEQUENCE houselens."DistrictConfigs_Id_seq" TO anon','REVOKE USAGE ON SEQUENCE houselens."DistrictConfigs_Id_seq" FROM anon','Unexpected API sequence access'),
+        @('legacy-installer','COMMENT ON VIEW houselens.viewer_properties IS ''houselens-viewer:v1''','COMMENT ON VIEW houselens.viewer_properties IS ''houselens-viewer:anonymous-v1''','Legacy authenticated installer detected'),
+        @('authenticated-grant','GRANT SELECT ON houselens.viewer_properties TO authenticated','REVOKE SELECT ON houselens.viewer_properties FROM authenticated','Unexpected table grant'),
+        @('schema-owner','ALTER SCHEMA houselens OWNER TO s1_admin','ALTER SCHEMA houselens OWNER TO s1_worker','Expected current role to own houselens schema')
     )
     foreach ($probe in $probes) {
         $label = $probe[0]
@@ -97,16 +105,23 @@ try {
         }
     }
     # Force a late failure after an earlier table was changed, and prove the earlier change rolls back.
-    Invoke-Sql 'rollback-setup' @('-c','ALTER TABLE houselens."Properties" DISABLE ROW LEVEL SECURITY; DROP POLICY viewer_member ON houselens."Properties"; ALTER POLICY viewer_member ON houselens."SourceRunResults" USING (true)')
+    Invoke-Sql 'rollback-setup' @('-c','ALTER TABLE houselens."Properties" DISABLE ROW LEVEL SECURITY; DROP POLICY viewer_public_read ON houselens."Properties"; ALTER POLICY viewer_public_read ON houselens."SourceRunResults" USING (false)')
     $output = & $psql -X -w -v ON_ERROR_STOP=1 -h $DatabaseHost -p $Port -U s1_admin -d $database -c 'SET ROLE s1_worker' -f $install 2>&1
     $code = $LASTEXITCODE
     $output | Set-Content -Encoding utf8 (Join-Path $run 'rollback-rejection.log')
     if ($code -ne 3 -or ($output -join "`n") -notmatch 'Unexpected policy drift on SourceRunResults') { throw 'Late rollback probe did not fail at expected table' }
     Invoke-Sql 'rollback-verify' @('-c','DO $$ BEGIN IF (SELECT relrowsecurity FROM pg_class WHERE oid=''houselens."Properties"''::regclass) OR EXISTS (SELECT 1 FROM pg_policy WHERE polrelid=''houselens."Properties"''::regclass) THEN RAISE EXCEPTION ''Partial installation survived rollback''; END IF; RAISE NOTICE ''PASS: earlier policy and RLS changes rolled back after later failure''; END $$')
-    Invoke-Sql 'rollback-cleanup' @('-c','ALTER POLICY viewer_member ON houselens."SourceRunResults" USING (EXISTS (SELECT 1 FROM houselens."ViewerMembers" m WHERE m."UserId"=(SELECT auth.uid())))')
+    Invoke-Sql 'rollback-cleanup' @('-c','ALTER POLICY viewer_public_read ON houselens."SourceRunResults" USING (true)')
     Invoke-Sql 'final-install' @('-c','SET ROLE s1_worker','-f',$install)
     Invoke-Sql 'final-verify' @('-f',(Join-Path $PSScriptRoot 'tests/verify.sql'))
-    Write-Output 'PASS: PostgreSQL role/query suite, repeat installation, drift rejection and atomic rollback'
+    $revoke = Join-Path $PSScriptRoot 'revoke.sql'
+    Invoke-Sql 'revoke' @('-c','SET ROLE s1_worker','-f',$revoke)
+    Invoke-Sql 'revoke-repeat' @('-c','SET ROLE s1_worker','-f',$revoke)
+    Invoke-Sql 'revoke-verify' @('-f',(Join-Path $PSScriptRoot 'tests/verify-revoke.sql'))
+    Invoke-Sql 'restore-after-revoke' @('-c','SET ROLE s1_worker','-f',$install)
+    Invoke-Sql 'restore-verify' @('-f',(Join-Path $PSScriptRoot 'tests/verify.sql'))
+    Write-Output 'PASS: anonymous PostgreSQL contract/denials, reinstall, drift rejection, atomic rollback, revoke and restore'
+
 } finally {
     $stopFailed = $false
     if ($started) {

@@ -1,5 +1,9 @@
 # HouseLens Android View Implementation Plan
 
+> v0.1.0匿名唯讀簽署APK已交付、S25+實際顯示687筆；最新工作是[04-icons-plan.md](plans/04-icons-plan.md)。完整人工／效能B7仍OPEN，以下舊Google/會員流程以最新spec為準。
+
+> 2026-11-07 最新使用者變更：第一版免登入，安裝 APK 直接使用，UI/UX 優先。[03-anonymous-v1-plan.md](plans/03-anonymous-v1-plan.md) 取代以下 Google／會員門檻；既有完成工作保留，S1 權限實作需依新規格調整並重新驗證。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development. The user explicitly selected subagent-driven execution on 2026-11-07. Steps use checkbox (`- [ ]`) syntax.
 
 **Goal:** 建立本人／家人可用、直接讀取 Supabase 爬取結果的原生 Android 瀏覽 App，以 UI／UX 為優先。

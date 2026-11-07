@@ -66,3 +66,13 @@ desktop.ini
 
 # Local EF command-line tools
 backend/.tools/
+
+# Android viewer local credentials and build products
+androidView/local.properties
+androidView/supabase.local.properties
+androidView/signing.local.properties
+androidView/.gradle/
+androidView/**/build/
+*.jks
+*.keystore
+*.apk

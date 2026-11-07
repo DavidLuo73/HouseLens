@@ -7,6 +7,10 @@ import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
+val sourceNames = listOf("591","樂屋網","信義房屋","永慶房屋","台灣房屋","住商不動產","中信房屋")
+fun sourceName(id: Int): String = sourceNames.getOrElse(id) { "來源 $id" }
+fun statusLabel(status: Int): String = when(status) { 0 -> "在售"; 1 -> "已下架"; 2 -> "已合併"; else -> "未知" }
+
 fun formatDrop(value: BigDecimal?): String {
     if (value == null) return "—"
     val prefix = when (value.signum()) { -1 -> "▼ "; 1 -> "▲ "; else -> "" }

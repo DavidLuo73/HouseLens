@@ -4,9 +4,8 @@ SET LOCAL timezone = 'Pacific/Honolulu';
 CREATE FUNCTION pg_temp.assert_true(ok boolean, label text) RETURNS void LANGUAGE plpgsql AS $$
 BEGIN IF ok IS DISTINCT FROM true THEN RAISE EXCEPTION 'FAIL: %', label; END IF;
 RAISE NOTICE 'PASS: %', label; END $$;
--- A missing implementation must fail here, after a successful connection/bootstrap.
 SELECT pg_temp.assert_true(to_regclass('houselens.viewer_properties') IS NOT NULL, 'viewer_properties exists');
-INSERT INTO auth.users VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'), ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb');
+SELECT pg_temp.assert_true(to_regnamespace('auth') IS NULL, 'installation does not require Supabase Auth');
 SET LOCAL ROLE s1_worker;
 INSERT INTO houselens."ViewerMembers" VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
 INSERT INTO houselens."Properties" ("Id","City","District","Address","AreaPing","HasParking","CurrentTotalPrice","CurrentUnitPrice","Status","Score","IsNew","FirstSeenAt","LastSeenAt")
@@ -39,44 +38,8 @@ INSERT INTO houselens."PriceHistoryEntries" VALUES
  ('30000000-0000-0000-0000-000000000006','00000000-0000-0000-0000-000000000020','20000000-0000-0000-0000-000000000001','2026-01-01Z',5,NULL,0,2,NULL,true),
  ('30000000-0000-0000-0000-000000000007','00000000-0000-0000-0000-000000000021','20000000-0000-0000-0000-000000000001','2026-01-01Z',5,20,0,2,-1,true),
  ('30000000-0000-0000-0000-000000000008','00000000-0000-0000-0000-000000000022','20000000-0000-0000-0000-000000000001','2026-01-01T00:30:00Z',100,NULL,0,0,NULL,false);
-RESET ROLE;
 SET LOCAL ROLE anon;
-DO $$ DECLARE t text; stmt text; BEGIN
- FOREACH t IN ARRAY ARRAY['ViewerMembers','Properties','Listings','PriceHistoryEntries','DistrictConfigs','CrawlRuns','SourceRunResults','viewer_properties','viewer_top_properties','viewer_big_drops','viewer_district_stats'] LOOP
-  BEGIN EXECUTE format('SELECT * FROM houselens.%I', t); RAISE EXCEPTION 'anon read succeeded: %',t;
-  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
- END LOOP;
- FOREACH t IN ARRAY ARRAY['ViewerMembers','Properties','Listings','PriceHistoryEntries','DistrictConfigs','CrawlRuns','SourceRunResults','viewer_properties','viewer_top_properties','viewer_big_drops','viewer_district_stats'] LOOP
-  FOREACH stmt IN ARRAY ARRAY[format('INSERT INTO houselens.%I DEFAULT VALUES',t),format('UPDATE houselens.%I SET %I=%I',t,CASE WHEN t='ViewerMembers' THEN 'UserId' WHEN t LIKE 'viewer_%' THEN 'district' ELSE 'Id' END,CASE WHEN t='ViewerMembers' THEN 'UserId' WHEN t LIKE 'viewer_%' THEN 'district' ELSE 'Id' END),format('DELETE FROM houselens.%I',t)] LOOP
-   BEGIN EXECUTE stmt; RAISE EXCEPTION 'anon write succeeded: %',stmt;
-   EXCEPTION WHEN insufficient_privilege THEN NULL; END;
-  END LOOP;
- END LOOP;
- RAISE NOTICE 'PASS: anon reads and writes denied';
-END $$;
-RESET ROLE;
-SET LOCAL ROLE authenticated;
-SELECT set_config('request.jwt.claim.sub','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',true);
-DO $$ DECLARE t text; n bigint; BEGIN
- FOREACH t IN ARRAY ARRAY['ViewerMembers','viewer_properties','viewer_top_properties','viewer_big_drops','viewer_district_stats'] LOOP
-  EXECUTE format('SELECT count(*) FROM houselens.%I',t) INTO n;
-  PERFORM pg_temp.assert_true(n=0, 'unapproved sees no '||t);
- END LOOP;
-END $$;
-SELECT set_config('request.jwt.claim.sub','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',true);
-SELECT pg_temp.assert_true((SELECT count(*)=1 FROM houselens."ViewerMembers"), 'own membership only');
-DO $$ DECLARE n bigint; q text; BEGIN
- FOREACH q IN ARRAY ARRAY['SELECT "Id" FROM houselens."Properties"','SELECT "Id" FROM houselens."Listings"','SELECT "Id" FROM houselens."PriceHistoryEntries"','SELECT "City" FROM houselens."DistrictConfigs"','SELECT "Id" FROM houselens."CrawlRuns"','SELECT "SourceSite" FROM houselens."SourceRunResults"'] LOOP
-  PERFORM set_config('request.jwt.claim.sub','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',true);
-  EXECUTE 'SELECT count(*) FROM ('||q||') x' INTO n;
-  PERFORM pg_temp.assert_true(n=0,'direct table denied to unapproved member: '||q);
- END LOOP;
- PERFORM set_config('request.jwt.claim.sub','',true);
- SELECT count(*) INTO n FROM houselens.viewer_properties;
- PERFORM pg_temp.assert_true(n=0,'missing JWT identity sees zero rows');
- PERFORM set_config('request.jwt.claim.sub','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',true);
-END $$;
-SELECT pg_temp.assert_true((SELECT count(*)=16 FROM houselens.viewer_properties), 'approved reads expected property count');
+SELECT pg_temp.assert_true((SELECT count(*)=16 FROM houselens.viewer_properties), 'anonymous without identity reads expected property count');
 SELECT pg_temp.assert_true((SELECT to_jsonb(p) ?& ARRAY['id','title','city','district','address','areaPing','floor','ageYears','hasParking','currentTotalPrice','currentUnitPrice','status','score','isNew','firstSeenAt','lastSeenAt','imageUrl','listingUrl','sourceSites','latestChangeFlag','latestChangePercent','latestIsBigDrop','hasPriceDrop'] FROM houselens.viewer_properties p WHERE id='00000000-0000-0000-0000-000000000001'), 'property JSON has exact consumer camelCase fields');
 SELECT pg_temp.assert_true((SELECT title='Primary title'  AND "imageUrl"='https://example.test/img' AND "listingUrl"='https://example.test/a' AND "sourceSites"=ARRAY[0,2] AND "latestChangeFlag"=1 AND "latestChangePercent"=.05 AND NOT "latestIsBigDrop" AND "hasPriceDrop" FROM houselens.viewer_properties WHERE id='00000000-0000-0000-0000-000000000001'), 'listing/history tie breaks and ever-drop');
 SELECT pg_temp.assert_true((SELECT title='Address 2' AND "sourceSites"=ARRAY[]::integer[] FROM houselens.viewer_properties WHERE id='00000000-0000-0000-0000-000000000002'), 'address and empty sources fallback');
@@ -103,14 +66,14 @@ SELECT pg_temp.assert_true((SELECT "propertyCount"=0 AND trend='[{"date":"2026-0
 SELECT pg_temp.assert_true((SELECT "SourceSite"=0 AND NOT "Success" AND "FetchedCount"=0 FROM houselens."SourceRunResults" WHERE "CrawlRunId"='20000000-0000-0000-0000-000000000002'), 'safe source projection and predicate');
 DO $$ DECLARE t text; stmt text; BEGIN
  FOREACH t IN ARRAY ARRAY['ViewerMembers','Properties','Listings','PriceHistoryEntries','DistrictConfigs','CrawlRuns','SourceRunResults','viewer_properties','viewer_top_properties','viewer_big_drops','viewer_district_stats'] LOOP
-  FOREACH stmt IN ARRAY ARRAY[format('INSERT INTO houselens.%I DEFAULT VALUES',t),format('UPDATE houselens.%I SET %I=%I',t,CASE WHEN t='ViewerMembers' THEN 'UserId' WHEN t LIKE 'viewer_%' THEN 'district' ELSE 'Id' END,CASE WHEN t='ViewerMembers' THEN 'UserId' WHEN t LIKE 'viewer_%' THEN 'district' ELSE 'Id' END),format('DELETE FROM houselens.%I',t)] LOOP
+  FOREACH stmt IN ARRAY ARRAY[format('INSERT INTO houselens.%I DEFAULT VALUES',t),format('UPDATE houselens.%I SET %I=%I',t,CASE WHEN t='ViewerMembers' THEN 'UserId' WHEN t LIKE 'viewer_%' THEN 'district' WHEN t='SourceRunResults' THEN 'SourceSite' ELSE 'Id' END,CASE WHEN t='ViewerMembers' THEN 'UserId' WHEN t LIKE 'viewer_%' THEN 'district' WHEN t='SourceRunResults' THEN 'SourceSite' ELSE 'Id' END),format('DELETE FROM houselens.%I',t)] LOOP
    BEGIN EXECUTE stmt; RAISE EXCEPTION 'write succeeded: %',stmt;
    EXCEPTION WHEN insufficient_privilege THEN NULL; WHEN object_not_in_prerequisite_state THEN
     IF t NOT LIKE 'viewer_%' THEN RAISE; END IF;
    END;
   END LOOP;
  END LOOP;
- FOREACH stmt IN ARRAY ARRAY['SELECT "ErrorMessage" FROM houselens."SourceRunResults"','SELECT "MaxTotalPrice" FROM houselens."DistrictConfigs"','SELECT "MissingCount" FROM houselens."Properties"','SELECT * FROM houselens."NotificationLogs"','SELECT * FROM houselens."TrackingCriteria"','SELECT * FROM houselens."ScoringConfigs"','SELECT * FROM houselens."PlatformFilterConfigs"','TRUNCATE houselens."Properties" CASCADE','CREATE TABLE houselens.unwanted(id int)'] LOOP
+ FOREACH stmt IN ARRAY ARRAY['SELECT "UserId" FROM houselens."ViewerMembers"','SELECT "ErrorMessage" FROM houselens."SourceRunResults"','SELECT "MaxTotalPrice" FROM houselens."DistrictConfigs"','SELECT "MissingCount" FROM houselens."Properties"','SELECT * FROM houselens."NotificationLogs"','SELECT * FROM houselens."TrackingCriteria"','SELECT * FROM houselens."ScoringConfigs"','SELECT * FROM houselens."PlatformFilterConfigs"','TRUNCATE houselens."Properties" CASCADE','CREATE TABLE houselens.unwanted(id int)'] LOOP
   BEGIN EXECUTE stmt; RAISE EXCEPTION 'private/write access succeeded: %',stmt;
   EXCEPTION WHEN insufficient_privilege THEN NULL; END;
  END LOOP;
@@ -119,48 +82,32 @@ END $$;
 RESET ROLE;
 SET LOCAL ROLE s1_worker;
 DELETE FROM houselens."Properties" WHERE "District"='Boundary' AND "CurrentTotalPrice" NOT IN (100.5,150.5);
-SET LOCAL ROLE authenticated;
+SET LOCAL ROLE anon;
 SELECT pg_temp.assert_true((SELECT "priceBuckets"='[{"range":"100-110","count":1},{"range":"110-120","count":0},{"range":"120-130","count":0},{"range":"130-140","count":0},{"range":"140-150","count":1}]'::jsonb FROM houselens.viewer_district_stats WHERE district='Boundary'), 'empty middle buckets retained');
 RESET ROLE;
 SET LOCAL ROLE s1_worker;
-INSERT INTO houselens."ViewerMembers" VALUES ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb');
-SET LOCAL ROLE authenticated;
-SELECT pg_temp.assert_true((SELECT count(*)=1 AND min("UserId"::text)='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' FROM houselens."ViewerMembers"), 'cannot enumerate other approved member');
-RESET ROLE;
-SET LOCAL ROLE s1_worker;
-DELETE FROM houselens."ViewerMembers" WHERE "UserId"='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 UPDATE houselens."Properties" SET "CurrentTotalPrice"=101 WHERE "Id"='00000000-0000-0000-0000-000000000001';
 SELECT pg_temp.assert_true((SELECT "CurrentTotalPrice"=101 FROM houselens."Properties" WHERE "Id"='00000000-0000-0000-0000-000000000001'), 'non-super owner still writes');
 SET LOCAL ROLE s1_bypass;
 UPDATE houselens."Properties" SET "CurrentTotalPrice"=102 WHERE "Id"='00000000-0000-0000-0000-000000000001';
 SELECT pg_temp.assert_true((SELECT "CurrentTotalPrice"=102 FROM houselens."Properties" WHERE "Id"='00000000-0000-0000-0000-000000000001'), 'existing BYPASSRLS writer still writes');
-SET LOCAL ROLE authenticated;
-DO $$ DECLARE t text; n bigint; BEGIN
- FOREACH t IN ARRAY ARRAY['ViewerMembers','viewer_properties','viewer_top_properties','viewer_big_drops','viewer_district_stats'] LOOP
-  EXECUTE format('SELECT count(*) FROM houselens.%I',t) INTO n;
-  PERFORM pg_temp.assert_true(n=0, 'revoked member sees no '||t);
+SET LOCAL ROLE anon;
+SELECT pg_temp.assert_true((SELECT "currentTotalPrice"=102 FROM houselens.viewer_properties WHERE id='00000000-0000-0000-0000-000000000001'), 'anonymous observes writer updates');
+DO $$ DECLARE t text; BEGIN
+ FOREACH t IN ARRAY ARRAY['ViewerMembers','Properties','Listings','PriceHistoryEntries','DistrictConfigs','CrawlRuns','SourceRunResults','viewer_properties','viewer_top_properties','viewer_big_drops','viewer_district_stats'] LOOP
+  PERFORM pg_temp.assert_true(NOT has_table_privilege(current_user,format('houselens.%I',t),'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'), 'no write ACL on '||t);
  END LOOP;
 END $$;
 RESET ROLE;
-SET LOCAL ROLE s1_worker;
-REVOKE SELECT ("UserId") ON houselens."ViewerMembers" FROM authenticated;
-REVOKE SELECT ON houselens.viewer_properties, houselens.viewer_top_properties,
- houselens.viewer_big_drops, houselens.viewer_district_stats FROM authenticated;
 SET LOCAL ROLE authenticated;
-SELECT set_config('request.jwt.claim.sub','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',true);
-DO $$ DECLARE q text; BEGIN
- FOREACH q IN ARRAY ARRAY['SELECT "UserId" FROM houselens."ViewerMembers"','SELECT "Id" FROM houselens."Properties"','SELECT "Id" FROM houselens."Listings"','SELECT "Id" FROM houselens."PriceHistoryEntries"','SELECT "City" FROM houselens."DistrictConfigs"','SELECT "Id" FROM houselens."CrawlRuns"','SELECT "SourceSite" FROM houselens."SourceRunResults"','SELECT * FROM houselens.viewer_properties','SELECT * FROM houselens.viewer_top_properties','SELECT * FROM houselens.viewer_big_drops','SELECT * FROM houselens.viewer_district_stats'] LOOP
-  BEGIN EXECUTE q; RAISE EXCEPTION 'Access stop allowed read: %',q;
-  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
- END LOOP;
- RAISE NOTICE 'PASS: documented access stop denies every API relation even to approved member';
+DO $$ BEGIN
+ BEGIN PERFORM id FROM houselens.viewer_properties; RAISE EXCEPTION 'unexpected authenticated grant';
+ EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+ RAISE NOTICE 'PASS: authenticated role receives no implicit grant';
 END $$;
-SET LOCAL ROLE s1_worker;
-UPDATE houselens."Properties" SET "CurrentTotalPrice"=103 WHERE "Id"='00000000-0000-0000-0000-000000000001';
-SELECT pg_temp.assert_true((SELECT "CurrentTotalPrice"=103 FROM houselens."Properties" WHERE "Id"='00000000-0000-0000-0000-000000000001'), 'access stop preserves owner writes');
 RESET ROLE;
 ROLLBACK;
 DO $$ BEGIN
- IF EXISTS (SELECT 1 FROM houselens."Properties") OR EXISTS (SELECT 1 FROM auth.users) THEN RAISE EXCEPTION 'Fixture rollback failed'; END IF;
+ IF EXISTS (SELECT 1 FROM houselens."Properties") OR EXISTS (SELECT 1 FROM houselens."ViewerMembers") THEN RAISE EXCEPTION 'Fixture rollback failed'; END IF;
  RAISE NOTICE 'PASS: fixture transaction rolled back';
 END $$;

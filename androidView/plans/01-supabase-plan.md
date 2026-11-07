@@ -1,5 +1,7 @@
 # HouseLens Supabase Read Access Implementation Plan
 
+> 歷史計畫：使用者已改第一版免登入，匿名v0.1.0已完成可用試用交付；現行規格／結果見03-anonymous-v1-plan與acceptance，最新icon工作見04。舊Google/會員/callback門檻不再適用；完整人工效能B7仍OPEN。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development. User selected this execution workflow on 2026-11-07; steps use checkbox (`- [ ]`) syntax.
 
 **Goal:** 讓核准的本人／家人透過 Supabase Kotlin SDK 讀取既有房源，無須新增 API server。

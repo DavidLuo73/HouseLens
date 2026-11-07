@@ -31,6 +31,36 @@ private open class FindApi : HouseLensData {
     override suspend fun latestRun(): CrawlRunDto? = error("unused")
 }
 class FindViewModelTest {
+    @Test fun source_four_chip_is_taiwan_realty() {
+        assertEquals("台灣房屋",queryChips(PropertyQuery(sourceSites=listOf(4))).single().label)
+    }
+    @Test fun successful_filter_retry_clears_only_filter_save_error() = runBlocking {
+        val directory=Files.createTempDirectory("filter-retry").toFile()
+        val scope=CoroutineScope(SupervisorJob()+Dispatchers.Default)
+        try {
+            val filters=directory.resolve("filters");val saved=directory.resolve("saved")
+            val prefs=FilterPreferences(filters,scope);val store=FavoriteStore(saved,scope)
+            val vm=FindViewModel(owner,FindApi(),store,prefs,SavedStateHandle(),scope)
+            waitFor { vm.state.value.loadedPage==1 }
+            val first=PropertyQuery(districts=listOf("第一區"))
+            vm.apply(first);waitFor { vm.state.value.resultQuery==first }
+            val filterBlock=java.io.File(filters.listFiles()!!.single { it.isFile }.path+".tmp")
+            filterBlock.mkdirs();filterBlock.resolve("block").writeText("blocked")
+            val second=PropertyQuery(districts=listOf("第二區"))
+            vm.apply(second);waitFor { vm.state.value.storageError=="篩選條件儲存失敗，請重新套用" }
+            filterBlock.deleteRecursively()
+            vm.apply(second);waitFor { vm.state.value.resultQuery==second && !vm.state.value.refreshing }
+            assertEquals(second,prefs.observe(owner).first());assertNull(vm.state.value.storageError)
+            store.put(owner,FavoriteEntry("seed",1,null))
+            val savedBlock=java.io.File(saved.listFiles()!!.single { it.isFile }.path+".tmp")
+            savedBlock.mkdirs();savedBlock.resolve("block").writeText("blocked")
+            vm.toggleFavorite(testProperty("blocked"));waitFor { vm.state.value.storageError=="收藏儲存失敗，請重試" }
+            val third=PropertyQuery(districts=listOf("第三區"))
+            vm.apply(third);waitFor { vm.state.value.resultQuery==third && !vm.state.value.refreshing }
+            assertEquals(third,prefs.observe(owner).first());assertEquals("收藏儲存失敗，請重試",vm.state.value.storageError)
+        } finally { scope.coroutineContext[Job]!!.cancelAndJoin();directory.deleteRecursively() }
+    }
+
     private val owner=OwnerKey("https://one.supabase.co","member")
     private suspend fun waitFor(predicate: () -> Boolean) { withTimeout(3000) { while(!predicate()) delay(10) } }
     private suspend fun fixture(block: suspend (FindApi, FindViewModel, FilterPreferences, SavedStateHandle, FavoriteStore) -> Unit) {
@@ -99,7 +129,7 @@ class FindViewModelTest {
         vm.undoDistrictChange();assertEquals(q,vm.state.value.query)
     } }
     @Test fun favorite_toggle_keeps_exact_snapshot_and_return_target() = runBlocking { fixture { _,vm,_,handle,store ->
-        val p=testProperty("saved");vm.toggleFavorite(p);waitFor { "saved" in vm.state.value.favoriteIds }
+        val p=testProperty("saved");vm.toggleFavorite(p);waitFor { "saved" in vm.state.value.favoriteIds && "saved" !in vm.state.value.pendingFavoriteIds }
         assertEquals(BigDecimal("1200.25"),store.observe(owner).first().single().snapshot!!.currentTotalPrice)
         vm.rememberTarget("saved",true);assertEquals("saved",handle.get<String>("find.target"));assertEquals(true,handle.get<Boolean>("find.history"))
         vm.toggleFavorite(p);waitFor { vm.state.value.favoriteIds.isEmpty() }
@@ -109,7 +139,7 @@ class FindViewModelTest {
         vm.apply(q);waitFor { vm.state.value.resultQuery==q };vm.loadNext();waitFor { vm.state.value.loadedPage==2 }
         val chips=queryChips(q)
         assertEquals(9,chips.size)
-        chips.filter { it.label in listOf("591","樂屋網","信義房屋","永慶房屋","好房網","住商不動產","中信房屋") }.forEach { chip ->
+        chips.filter { it.label in listOf("591","樂屋網","信義房屋","永慶房屋","台灣房屋","住商不動產","中信房屋") }.forEach { chip ->
             vm.apply(chip.removed);waitFor { vm.state.value.resultQuery==chip.removed && !vm.state.value.refreshing }
             assertEquals(1,vm.state.value.loadedPage);assertEquals(1,api.requests.last().second)
             assertEquals(listOf("歷史區"),vm.state.value.query.districts);assertEquals(false,vm.state.value.query.hasParking)

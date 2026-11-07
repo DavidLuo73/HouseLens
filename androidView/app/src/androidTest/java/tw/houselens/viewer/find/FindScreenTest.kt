@@ -56,12 +56,12 @@ class FindScreenTest {
     @Test fun closing_filter_never_applies_and_all_platforms_can_be_selected() {
         var applied:PropertyQuery?=null;var dismissed=0
         compose.setContent { HouseLensTheme { FilterSheet(PropertyQuery(),emptyList(),{applied=it},{dismissed++}) } }
-        listOf("591","樂屋網","信義房屋","永慶房屋","好房網","住商不動產","中信房屋").forEach {
-            compose.onNodeWithText(it).performScrollTo().assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp).performClick()
+        listOf("591","樂屋網","信義房屋","永慶房屋","台灣房屋","住商不動產","中信房屋").forEach {
+            compose.onNodeWithText(it).performScrollTo().assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp).performClick().assertIsSelected()
         }
         compose.onNodeWithText("套用").performClick()
         compose.runOnIdle { assertEquals(listOf(0,1,2,3,4,5,6),applied!!.sourceSites.sorted());applied=null }
-        compose.onNodeWithText("關閉篩選").performClick()
+        compose.onNodeWithText("關閉篩選").performScrollTo().performClick()
         compose.runOnIdle { assertNull(applied);assertEquals(1,dismissed) }
     }
     @Test fun list_card_favorite_history_body_are_independent_and_empty_query_can_clear() {
@@ -89,7 +89,7 @@ class FindScreenTest {
             compose.onNodeWithText("篩選").performScrollTo().performClick()
             compose.onNodeWithText("有車位").performScrollTo().performClick()
             compose.onNodeWithText("重設").performClick()
-            compose.onNodeWithText("關閉篩選").performClick()
+            compose.onNodeWithText("關閉篩選").performScrollTo().performClick()
             compose.runOnIdle { assertEquals(1,requests) }
             compose.onNodeWithContentDescription("加入收藏").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
             compose.waitUntil(5000) { "1" in vm.state.value.favoriteIds }
