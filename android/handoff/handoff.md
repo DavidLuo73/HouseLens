@@ -4,7 +4,7 @@
 
 ## 下一輪從這裡開始
 
-**Task 13 實作、測試、獨立 review 與 APK 交付已完成，停在使用者指定的逐 Task 停點；Task 14 尚未開始。** 等使用者說「繼續」，再依 [驗證 APK 實作計畫](../plans/2026-11-03-probe-apk-implementation.md) 執行 Task 14：先由使用者安裝／回報本機自檢，再逐站真機驗證。不要重做 Task1–13 或重問執行方式。
+**Task13及Task14 Step1本機驗收完成；591前景共4次仍0頁未通過，Task14整體尚未完成。** 最新0.2.1兩份ZIP都PARSE_ERROR，截圖可見中和售屋行動版列表、無當下可見驗證，但runId被裁切。已交付 **0.2.2／code4**，以15種固定F591拒絕碼取代一律PARSE_ERROR；215測試、lint、APK同簽章均驗證。下一步使用者覆蓋更新，以同條件只重試一次591前景，提供新ZIP或完整停止原因碼，即可定位URL／query／JSON／HTML哪一關拒絕。不再重問網站是否顯示；沒有宣稱修復591採集，其餘六站及背景待測。
 
 所有 Android 程式碼必須寫在 **`F:\SourceCode\HouseLens\android\`** 下（使用者本輪再次明確指定），含工程、任務及驗證紀錄。工程位於 `android/probe/`。
 
@@ -20,6 +20,7 @@
 ## 必讀入口
 
 - [驗證 APK 實作計畫](../plans/2026-11-03-probe-apk-implementation.md)：14個Task、共用介面、fixture及驗證步驟。
+- [Task14 執行紀錄](../tasks/task14.md)／[驗證摘要](../validation/summary.md)／[最新591比對](../validation/20261106-591-foreground-0.2.1/comparison.md)：本機驗收完成；591共4筆0頁未通過；0.2.2固定原因碼待真機重試。
 - [Task13 執行紀錄](../tasks/task13.md)：操作畫面、歷史／匯出、自檢、212項測試、review與APK交付。`validation/builds/task13/HouseLens-probe.apk`（0.2.0／code2）。
 - [安裝與操作說明](../validation/README.md)：無USB安裝、本機自檢、結果／圖片／匯出與回報。
 - [Task12 執行紀錄](../tasks/task12.md)：Runner／Service／生命週期、取消／存檔競態、elapsed期限、review與203項測試；末段含Task13接線契約。
@@ -55,13 +56,13 @@
 | Task10 | **完成**：中信adapter／三份合成JSON／16項來源測試，已由Task13接UI、未實站驗證 |
 | Task11 | **完成**：台灣房屋adapter／三份合成HTML／22項來源測試，已由Task13接UI、未實站驗證 |
 | Task12 | **完成**：單作業Runner、dataSync服務、生命週期／wake lock／取消與恢復，已由Task13接操作UI |
-| Task13 | **完成**：操作UI／歷史／縮圖／主動匯出／本機自檢，0.2.0 APK已簽章驗證；尚未在手機實跑 |
-| Task14 | **未開始**：尚無手機安裝、七站或背景成功證據 |
+| Task13 | **完成**：操作UI／歷史／縮圖／主動匯出／本機自檢，0.2.0 APK已簽章驗證；首次本機驗收見Task14 |
+| Task14 | **進行中**：Step1完成；591前景4次0頁未通過；0.2.2診斷版已交付，其餘六站與背景未測 |
 | Web／Supabase／正式App | 未修改或部署 |
 
 Task1 主要檔案：`probe/` 內的Gradle配置／wrapper、manifest／resources（含備份規則）、`ProbeModels.kt`、`MainActivity.kt`、`ProbeModelsTest.kt`；外層新增 `.gitignore`、`validation/.gitignore`、`tasks/task1.md`，同步計畫與入口。
 
-目前交付 APK：`android/validation/builds/task13/HouseLens-probe.apk`（**0.2.0／versionCode2**）。具操作／採集／歷史／自檢／匯出功能。SHA-256：`110E1E31CECDFB43E665595A8C3A448A189C7770C8A3670B94C8C21558AAEE18`。apksigner驗證成功，與Task1同簽章；build-info.json含工具鏈、憑證、原始碼hash。Task1的0.1.0舊APK仍保留；產物均忽略、不入Git。
+目前交付APK：`android/validation/builds/task14/0.2.2/HouseLens-probe.apk`（**0.2.2／versionCode4**）。保留0.2.1可讀性，新增591固定拒絕原因。SHA-256：`96A9E5806E73C694C59BC5F8C4D8FAC838B10FD6A590E82A25634728936F1928`。apksigner驗證成功，與0.2.1同簽章；build-info含工具鏈、憑證及81個原始碼hash。舊APK保留，產物忽略不入Git；0.2.2待真機驗證。
 
 ## Task1 歷史驗證與 review
 
@@ -234,6 +235,29 @@ Task1 主要檔案：`probe/` 內的Gradle配置／wrapper、manifest／resource
 - Review兩份已完成。修正選擇器返回早於binder連接時遺失匯出、旋轉取消本機作業後提示遺失；重建會提示檢查／刪除不完整ZIP再手動重試，不宣稱續傳。歷史版本測試改用不同的0.1.7及精確標題；自查背景新頁重用nav問題以RED→GREEN修正。原生生命週期只有編譯／lint／靜態review，沒有裝置證據。
 - **Task14入口**：使用者說繼續後先請安裝0.2.0並回報版本、裝置／WebView、本機自檢、歷史重讀與ZIP；取得實際結果才填驗證summary。之後依既定順序一次一站前景，再做B1／B2／FULL。不要因本機測試或自檢PASS就勾七站／背景成功。全部14 Task完成後仍需獨立整體review。
 - 尚未跑手機／adb／模擬器／實站／背景；原生WebView、Compose排版／大字體、通知拒絕、picker／旋轉、圖片、更新保留資料均待Task14。所有命令已結束，無阻礙；context實際百分比不可見。本輪依逐Task停點，等待使用者繼續。
+
+## Task14 目前進度與下一步
+
+- 2026-11-06使用者已要求讀交接後繼續。沿原工作區 `android/probe-bootstrap`、既有逐Task紀錄與固定交接檔執行，不重建工程／worktree；全部Android產物仍在 `android/`。
+- 交付前實際核對：`Get-FileHash -Algorithm SHA256` 比對APK及build-info列出的81個來源檔案，全部一致；`apksigner.bat verify --verbose --print-certs` exit0、憑證符合Task13；`aapt2.exe dump badging` exit0，套件 `tw.houselens.probe`／0.2.0／code2。證據位於 `validation/builds/task14/preflight.json`、`signature.log`、`apk-badging.log`，均忽略不入Git。
+- 已提供使用者首次驗收操作：安裝Task13 APK→執行本機自檢→回報App／Android／WebView與PASS／FAIL→本機歷史確認LOCAL1／798.00萬／28.50坪→關閉重開讀相同runId→主動匯出ZIP。若無法安裝／啟動，先收錯誤文字定位。
+- **已收到手機結果**：7份ZIP全部為0.2.0、LOCAL_SELF_CHECK／COMPLETED、1頁1筆LOCAL1／798.00萬／28.50坪、background NOT_TESTED。原始三檔已審查並保存於 `validation/20261106-local-selfcheck/<runId>/`，manifest記原ZIP SHA-256及UTC／台北時間；原ZIP在使用者指定 `androidtest/` 保持不動。七份是本機樣本，不能當成七站或中信採集證據。
+- 使用者明確回覆「1.對 自檢都是PASS 2.有，重開後仍可讀取」。自檢8項與重開讀取記為使用者回報通過；ZIP內容／版本／樣本記為檔案核對通過。Step1已勾選，Step2–5未完成。後續591兩筆結果如下，不影響本機驗收紀錄。
+- 實際裝置SM-S9360／Android17／SDK37／WebView156.0.8078.47，Wi-Fi、省電false、電池最佳化豁免false，build與安全更新見summary。7份只有一個processId、每份一筆RUN_COMPLETED；沒有跨程序／背景／LIVE證據。ZIP不含自檢PASS清單，不能靠COMPLETED替代使用者回報。
+- 後續使用者以2份591 ZIP更新androidtest。原樣三檔與hash存 `validation/20261106-591-foreground/`：bdddc2f3為TIMEOUT（請求後21.280秒），8aeee239已capture回傳／PAGE_PARSED 0/0後PARSE_ERROR；皆0頁0筆、無PAGE_SAVED、背景NOT_TESTED。不是3頁頁限或合法零結果。使用者看得到網站但畫面太小，無法辨認內容。
+- 唯讀診斷與主代理追查一致：目前事件未區分TIMEOUT階段／來源，也沒保存INVALID分支碼、HTTP狀態、JSON匹配數等；networkObserved=false不能推論離線。未定位根因，不改來源白名單、parser或timeout。
+- 主代理修改4個app檔（MainActivity尺寸、WebViewSession縮放、ProbeScreen提示、build版本）；無依賴、SDK、橋接、Runner、Store或後端變動。初次lint提示ConfigurationScreenWidthHeight已改LocalWindowInfo修正。最終完整Gradle exit0／212 tests 0失敗0錯誤／lint0 errors、5個既有新版提示，見 `validation/builds/task14/0.2.1/final.log`；同簽章及versionCode3驗證成功。未重跑未改動的Node橋接。
+- 可讀性獨立review沒有必修問題；保留平台內建縮放按鈕（非阻擋備註：UI已棄用，具體可用性／網站縮放限制待真機）。尺寸重算沿同一WebView與identity detach，不另建視窗或導航；簡單配置／文字不造鏡像測試。
+- 未使用adb、模擬器、Supabase或電腦代抓，未宣稱591修復／任何背景通過。所有命令與代理均已結束，下一個外部依賴是更新0.2.1後的591一次重試與畫面；若仍無法定位，再補受限固定碼診斷。Task14完成後仍須獨立整體review。Context實際百分比不可見。
+
+## 0.2.1重試與0.2.2最新交付
+
+- 使用者更新androidtest為1451b374／d9a84839兩ZIP與97155.jpg。原樣去敏匯出位於 `validation/20261106-591-foreground-0.2.1/<runId>/`，manifest記hash；原截圖只備份到忽略的 `validation/raw/20261106-591-0.2.1/`，screenshot.json記hash。不要強行關聯截圖到某筆run，因其ID被裁；不以2380萬起社區卡推論價格篩選失效。
+- 兩筆不同程序皆收到capture、networkObserved=false、PAGE_PARSED0/0→FAILED PARSE_ERROR，0頁0筆。截圖已能看見手機版列表；根因仍無法從舊ZIP重建，不能再用放大UI或猜selector當修復。
+- 主代理新增15個ProbeReason.F591_*，F591Source各INVALID gate以enum.name回evidence；Runner只在F591＋INVALID時精確匹配固定enum，保存PAGE_PARSED.reason與terminal.reason。未知字串fallback PARSE_ERROR。沒有新JSON欄位／Store白名單擴充／原始URL、HTML、BFF匯出；既有UI直接顯示停止原因。
+- 新增3個測試方法（17個parser案例涵蓋15碼、真Store重讀及ZIP、不可信evidence），RED為50項中2項預期失敗，GREEN全套215項0失敗0錯誤、lint0 errors及5個既有版本提示；最終 `validation/builds/task14/0.2.2/final.log` exit0。APK/code4/同憑證及81source hashes已核對。
+- 獨立scope／code review無必修，未放寬成功、EMPTY、CHALLENGE或資料驗證條件。只改多重文件錯誤的診斷優先序URL→PATH→QUERY。舊紀錄名稱／null照讀，不承諾舊APK降版讀新原因碼。
+- 全部命令／代理已結束，Task14仍未完成；下一步0.2.2一次591前景的ZIP／原因碼。未訪實站、未用adb、未跑未改動Node橋接、不開始背景或其他Task；沒有新增依賴。Context百分比不可見。
 
 ## 工具鏈與接續注意事項
 

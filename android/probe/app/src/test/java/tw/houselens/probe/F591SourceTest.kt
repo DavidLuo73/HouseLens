@@ -16,6 +16,35 @@ class F591SourceTest {
         RawCapture(F591Source.request(q, index).url, 200, null, listOf(CapturedJson(url, body)), 1, false)
     private fun parse(body: String) = F591Source.parse(raw(body), query, 0)
 
+    @Test fun invalidPagesIdentifyTheRejectedStageWithoutReturningRawContent() {
+        val html = captureFixture(F591Source, query, "fixtures/591/fallback.html")
+        val cases = listOf(
+            raw().copy(documentUrl = "https://other.example/?secret=private") to "F591_DOCUMENT_URL",
+            raw().copy(documentUrl = raw().documentUrl.replace("/?", "/mobile?")) to "F591_DOCUMENT_PATH",
+            raw().copy(documentUrl = raw().documentUrl.replace("section=38", "section=37")) to "F591_DOCUMENT_QUERY",
+            raw().copy(documentUrl = "https://sale.591.com.tw/") to "F591_DOCUMENT_QUERY",
+            raw().copy(statusCode = 500) to "F591_HTTP_STATUS",
+            raw(url = api.replace("Row=0", "Row=30")) to "F591_JSON_UNCORRELATED",
+            raw().copy(json = raw().json + CapturedJson(api, "{\"total\":0}")) to "F591_JSON_CONFLICT",
+            raw().copy(json = emptyList()) to "F591_NO_CONTENT",
+            raw("{private-invalid") to "F591_JSON_FORMAT",
+            raw("[]") to "F591_JSON_FORMAT",
+            raw("{\"total\":-1}") to "F591_JSON_TOTAL",
+            raw("{}") to "F591_JSON_LIST",
+            raw("{\"total\":1,\"house_list\":[]}") to "F591_JSON_COUNT",
+            raw("""{"house_list":[{"price":750}]}""") to "F591_JSON_CARD",
+            raw("""{"house_list":[{"id":1,"price":750},{"id":1,"price":750}]}""") to "F591_JSON_DUPLICATE",
+            html.copy(html = "<main>private mobile page</main>") to "F591_HTML_NO_CARDS",
+            html.copy(html = html.html!!.replace("798.00", "private price")) to "F591_HTML_CARD",
+        )
+        for ((capture, expected) in cases) {
+            val result = F591Source.parse(capture, query, 0)
+            assertEquals(expected, PageKind.INVALID, result.kind)
+            assertEquals(expected, result.evidence)
+            assertTrue(result.rawKeys.isEmpty() && result.listings.isEmpty())
+        }
+    }
+
     @Test fun requestPreservesSearchFiltersAndUsesThirtyRowOffsets() {
         val q = query.copy(maxTotalPrice = BigDecimal("1000"), maxAgeYears = 30,
             minSizePing = BigDecimal("20"), rooms = "2,3,4,5~", parkingCodes = "PF,PM")

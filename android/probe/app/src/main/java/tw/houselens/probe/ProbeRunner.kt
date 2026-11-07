@@ -203,7 +203,10 @@ class ProbeRunner(
             emit(work, ProbeEventKind.RESPONSE_RECEIVED, index, id, network = capture.networkObserved)
             val page = withContext(io) { source.parse(capture, record.query, index) }
             checkActive(work)
-            emit(work, ProbeEventKind.PAGE_PARSED, index, id, page = page)
+            val parseReason = if (source.site == Site.F591 && page.kind == PageKind.INVALID)
+                ProbeReason.entries.firstOrNull { it.name.startsWith("F591_") && it.name == page.evidence }
+            else null
+            emit(work, ProbeEventKind.PAGE_PARSED, index, id, page = page, reason = parseReason)
             val decision = nextDecision(page, seen, index, limit)
             if (decision == PageDecision.WAIT_FOR_USER) {
                 work.browserChallenge = request.browser
@@ -222,7 +225,7 @@ class ProbeRunner(
                 hold(work, true)
                 continue
             }
-            if (decision == PageDecision.FAIL) throw TransportException(ProbeReason.PARSE_ERROR)
+            if (decision == PageDecision.FAIL) throw TransportException(parseReason ?: ProbeReason.PARSE_ERROR)
             work.savingPage = true
             try {
                 disk {

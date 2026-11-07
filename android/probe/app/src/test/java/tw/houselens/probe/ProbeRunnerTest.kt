@@ -19,6 +19,43 @@ import org.junit.rules.TemporaryFolder
 class ProbeRunnerTest {
     @get:Rule val temp = TemporaryFolder()
 
+    @Test fun rejected591PageKeepsFixedReasonInEventsAndExportWithoutSavingRawPage() = runTest {
+        val h = RunnerHarness(this, temp.root)
+        val source = tw.houselens.probe.sources.F591Source
+        val rejected = source.parse(RawCapture(source.request(h.query, 0).url, 200,
+            "<main>private-cookie-and-page-content</main>", emptyList(), 1, false), h.query, 0)
+        h.pages = listOf(rejected)
+        h.runner.start(h.query, RunMode.FOREGROUND); advanceUntilIdle()
+        val record = h.store.load(h.runner.state.value!!.runId)
+        assertEquals(RunState.FAILED, record.state)
+        assertEquals("F591_HTML_NO_CARDS", record.events.single { it.kind == ProbeEventKind.PAGE_PARSED }.reason?.name)
+        assertEquals("F591_HTML_NO_CARDS", record.events.last().reason?.name)
+        assertTrue(record.savedPageIndices.isEmpty())
+        assertFalse(record.events.any { it.kind == ProbeEventKind.PAGE_SAVED })
+        val output = ByteArrayOutputStream().also { h.store.export(record.runId, it) }
+        val entries = mutableMapOf<String, String>()
+        ZipInputStream(output.toByteArray().inputStream()).use { zip ->
+            while (true) {
+                val entry = zip.nextEntry ?: break
+                entries[entry.name] = zip.readBytes().toString(Charsets.UTF_8)
+            }
+        }
+        assertTrue(entries.getValue("events.jsonl").contains("F591_HTML_NO_CARDS"))
+        assertEquals("{\"pages\":[]}", entries.getValue("sample.json"))
+        assertFalse(entries.values.any { it.contains("private-cookie-and-page-content") })
+    }
+
+    @Test fun unrecognizedParseEvidenceCannotBecomeAnExportedReason() = runTest {
+        val h = RunnerHarness(this, temp.root)
+        h.pages = listOf(h.end.copy(kind = PageKind.INVALID, evidence = "F591_private-cookie-value"))
+        h.runner.start(h.query, RunMode.FOREGROUND); advanceUntilIdle()
+        val record = h.store.load(h.runner.state.value!!.runId)
+        assertEquals(RunState.FAILED, record.state)
+        assertEquals(ProbeReason.PARSE_ERROR, record.events.last().reason)
+        assertNull(record.events.single { it.kind == ProbeEventKind.PAGE_PARSED }.reason)
+        assertTrue(record.savedPageIndices.isEmpty())
+    }
+
     @Test fun filteredThenValidThenEndUsesRawProgressAndRejectsSecondStart() = runTest {
         val h = RunnerHarness(this, temp.root)
         h.pages = listOf(h.page("A", filtered = true), h.page("B"), h.end)

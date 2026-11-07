@@ -64,6 +64,9 @@ class WebViewSession(context: Context, private val pacer: RequestPacer, private 
         view.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
+            setSupportZoom(true)
+            builtInZoomControls = true
+            displayZoomControls = true
             allowFileAccess = false
             allowContentAccess = false
             mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW

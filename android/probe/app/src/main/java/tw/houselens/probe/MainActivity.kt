@@ -17,6 +17,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.*
@@ -93,8 +95,9 @@ class MainActivity : ComponentActivity() {
                 }, busy, message, listings, history, ::loadHistory, ::refreshHistory,
                     { q, m -> start(q, m, true) }, ::selfCheck, selfChecks,
                     notifications, ::requestNotifications, ::loadImage, thumbnail, imageMessage, device) {
+                    val browserHeight = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() * 0.8f }
                     AndroidView(factory = { FrameLayout(it).also { view -> container = view; if (visible) binder?.attach(view) } },
-                        modifier = Modifier.fillMaxWidth().height(340.dp),
+                        modifier = Modifier.fillMaxWidth().height(browserHeight),
                         onRelease = { binder?.detach(it); if (container === it) container = null },
                         update = { if (visible) binder?.attach(it) })
                 }

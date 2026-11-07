@@ -85,7 +85,7 @@ fun ProbeScreen(
         }
         item {
             Text("網站驗證區", style = MaterialTheme.typography.titleMedium)
-            Text("需要人工驗證時在下方完成，再按繼續。HTTP 來源無可續用網頁時請取消重跑。")
+            Text("可用雙指或縮放按鈕放大網頁。需要人工驗證時在下方完成，再按繼續。HTTP 來源無可續用網頁時請取消重跑。")
             browser()
             if (state?.state == RunState.WAITING_FOR_USER) {
                 Button(onClick = { onResume(state.runId) }) { Text("已完成驗證，繼續同一作業") }

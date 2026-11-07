@@ -41,14 +41,17 @@ object F591Source : SourceAdapter {
 
     override fun parse(capture: RawCapture, query: ProbeQuery, pageIndex: Int): PageResult {
         val expected = params(request(query, pageIndex).url)!!
-        val document = params(capture.documentUrl) ?: return invalid()
-        if (document != expected || secureUri(capture.documentUrl)?.path != "/") return invalid()
+        val documentUri = secureUri(capture.documentUrl)
+        if (documentUri?.host != "sale.591.com.tw") return invalid(ProbeReason.F591_DOCUMENT_URL)
+        if (documentUri.path != "/") return invalid(ProbeReason.F591_DOCUMENT_PATH)
+        val document = params(capture.documentUrl) ?: return invalid(ProbeReason.F591_DOCUMENT_QUERY)
+        if (document != expected) return invalid(ProbeReason.F591_DOCUMENT_QUERY)
         val dom = capture.html?.let(Jsoup::parse)
         if (dom != null && (dom.select("iframe[src*=challenges.cloudflare.com], #challenge-form, .g-recaptcha").isNotEmpty() ||
                 Regex("請完成驗證|驗證您是人類|人機驗證|verify you are human", RegexOption.IGNORE_CASE).containsMatchIn(dom.text()))) {
             return PageResult(PageKind.CHALLENGE, emptyList(), emptyList(), emptyMap(), NextPage.UNKNOWN, "challenge")
         }
-        if (capture.statusCode != null && capture.statusCode !in 200..299) return invalid()
+        if (capture.statusCode != null && capture.statusCode !in 200..299) return invalid(ProbeReason.F591_HTTP_STATUS)
         val matching = capture.json.filter {
             val uri = secureUri(it.url)
             val p = params(it.url)
@@ -59,13 +62,14 @@ object F591Source : SourceAdapter {
                     key !in p || p[key] == expected[key]
                 }
         }.map { it.body }.distinct()
-        if (matching.size > 1) return invalid()
+        if (matching.size > 1) return invalid(ProbeReason.F591_JSON_CONFLICT)
         if (matching.isEmpty()) {
-            if (capture.json.isNotEmpty() || dom == null) return invalid()
+            if (capture.json.isNotEmpty()) return invalid(ProbeReason.F591_JSON_UNCORRELATED)
+            if (dom == null) return invalid(ProbeReason.F591_NO_CONTENT)
             return parseHtml(dom, query)
         }
-        return try { parseJson(Json.parseToJsonElement(matching.single()) as? JsonObject ?: return invalid(), query, pageIndex) }
-        catch (_: IllegalArgumentException) { invalid("parse_error") }
+        return try { parseJson(Json.parseToJsonElement(matching.single()) as? JsonObject ?: return invalid(ProbeReason.F591_JSON_FORMAT), query, pageIndex) }
+        catch (_: IllegalArgumentException) { invalid(ProbeReason.F591_JSON_FORMAT) }
     }
 
     private fun params(url: String): Map<String, String>? {
@@ -86,19 +90,19 @@ object F591Source : SourceAdapter {
         val total = totalElement?.let {
             try { decimal(scalar(it))?.intValueExact() } catch (_: ArithmeticException) { null }
         }
-        if (totalElement != null && (total == null || total < 0)) return invalid("parse_error")
+        if (totalElement != null && (total == null || total < 0)) return invalid(ProbeReason.F591_JSON_TOTAL)
         if (total == 0) return PageResult(PageKind.EMPTY, emptyList(), emptyList(), emptyMap(), NextPage.END, "zero_total")
         val cards = path(root, "data.house_list", "data.data.house_list", "house_list", "data.items", "data.rows", "rows", "items") as? JsonArray
-            ?: return invalid()
+            ?: return invalid(ProbeReason.F591_JSON_LIST)
         if (cards.isEmpty() || cards.size > 30 ||
-            (total != null && cards.size != minOf(30, total - index * 30))) return invalid()
+            (total != null && cards.size != minOf(30, total - index * 30))) return invalid(ProbeReason.F591_JSON_COUNT)
         val listings = mutableListOf<ProbeListing>()
         val rawKeys = mutableListOf<String>()
         val excluded = linkedMapOf<String, String>()
         for (element in cards) {
-            val card = element as? JsonObject ?: return invalid("parse_error")
-            val item = listing(card, query) ?: return invalid("parse_error")
-            if (item.sourceListingKey in rawKeys) return invalid("parse_error")
+            val card = element as? JsonObject ?: return invalid(ProbeReason.F591_JSON_CARD)
+            val item = listing(card, query) ?: return invalid(ProbeReason.F591_JSON_CARD)
+            if (item.sourceListingKey in rawKeys) return invalid(ProbeReason.F591_JSON_DUPLICATE)
             rawKeys.add(item.sourceListingKey)
             val reason = if (text(card, "is_newhouse") in setOf("1", "true")) "unsupported_type" else exclusionReason(item, query)
             if (reason == null) listings.add(item) else excluded[item.sourceListingKey] = reason
@@ -155,18 +159,18 @@ object F591Source : SourceAdapter {
 
     private fun parseHtml(dom: org.jsoup.nodes.Document, query: ProbeQuery): PageResult {
         val cards = listOf("ul.houseList > li.clear", "li.houseList-item", "div.house-item", "div.list-item")
-            .map { dom.select(it) }.firstOrNull { it.isNotEmpty() } ?: return invalid()
+            .map { dom.select(it) }.firstOrNull { it.isNotEmpty() } ?: return invalid(ProbeReason.F591_HTML_NO_CARDS)
         val items = mutableListOf<ProbeListing>()
         val keys = mutableListOf<String>()
         val excluded = linkedMapOf<String, String>()
         for (card in cards) {
             val href = card.select("a[href]").map { it.attr("href") }.firstOrNull {
                 Regex("/(?:home/house/)?detail/2/[0-9]+\\.html$").containsMatchIn(it)
-            } ?: return invalid("parse_error")
-            val url = safeDetailUrl(href) ?: return invalid("parse_error")
+            } ?: return invalid(ProbeReason.F591_HTML_CARD)
+            val url = safeDetailUrl(href) ?: return invalid(ProbeReason.F591_HTML_CARD)
             val id = url.substringAfterLast('/').removeSuffix(".html")
-            val title = card.selectFirst("a.houseLeft h3, h3, h2")?.text() ?: return invalid("parse_error")
-            val price = card.selectFirst("b.priceNum, .price b, .price")?.text() ?: return invalid("parse_error")
+            val title = card.selectFirst("a.houseLeft h3, h3, h2")?.text() ?: return invalid(ProbeReason.F591_HTML_CARD)
+            val price = card.selectFirst("b.priceNum, .price b, .price")?.text() ?: return invalid(ProbeReason.F591_HTML_CARD)
             val address = card.selectFirst(".add, .address")?.text()
             val details = card.select("li").map { it.ownText() }
             val obj = buildJsonObject {
@@ -176,7 +180,7 @@ object F591Source : SourceAdapter {
                 details.firstOrNull { it.endsWith("年") }?.let { put("houseage", it) }
                 details.firstOrNull { it.contains("樓") }?.let { put("floor", it) }
             }
-            val item = listing(obj, query) ?: return invalid("parse_error")
+            val item = listing(obj, query) ?: return invalid(ProbeReason.F591_HTML_CARD)
             if (id in keys) continue
             keys.add(id)
             val reason = exclusionReason(item, query)
@@ -214,6 +218,6 @@ object F591Source : SourceAdapter {
     private fun path(obj: JsonObject, vararg paths: String): JsonElement? = paths.firstNotNullOfOrNull { path ->
         path.split('.').fold(obj as JsonElement?) { value, key -> (value as? JsonObject)?.get(key) }
     }
-    private fun invalid(evidence: String = "invalid_structure") = PageResult(PageKind.INVALID,
-        emptyList(), emptyList(), emptyMap(), NextPage.UNKNOWN, evidence)
+    private fun invalid(reason: ProbeReason) = PageResult(PageKind.INVALID,
+        emptyList(), emptyList(), emptyMap(), NextPage.UNKNOWN, reason.name)
 }

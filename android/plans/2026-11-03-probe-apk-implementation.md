@@ -14,7 +14,7 @@
 
 ## Global Constraints
 
-- 更新：2026-11-06；狀態：使用者已選 Native 與逐 Task 暫停／review，Task1–13已完成實作、測試、review與APK交付，停點等待繼續Task14；Task14未開始，尚無七站真機成功證據。
+- 更新：2026-11-06；Task1–13及Task14 Step1完成。591前景4次0頁未通過，0.2.1截圖可見手機版列表；0.2.2固定拒絕碼已交付，待一次診斷重試。其餘六站與背景未測。
 - 所有 Android plan、tasks、驗證紀錄都放在 `F:\SourceCode\HouseLens\android\` 下；不修改 Web／後端程式或正式資料庫。
 - 裝置：Samsung S25+、One UI 9.0、Android 17。使用者可安裝及操作，**不開 USB 偵錯**；不可把 adb／connectedAndroidTest 列成使用者驗收前提。
 - Kotlin＋Jetpack Compose；`minSdk=26`、`compileSdk/targetSdk=37`。API 26 是工程基線，不表示已驗證 Android 8；真機結論限本 S25+ 組合。
@@ -340,11 +340,13 @@ Task11結果見 [執行紀錄](../tasks/task11.md)：22項來源測試及既有1
 
 ### Task 14: 使用者真機驗證與結論
 
+目前進度見 [Task14紀錄](../tasks/task14.md)／[驗證摘要](../validation/summary.md)：Step1完成；591共4次0頁，最新0.2.1兩筆仍PARSE_ERROR但截圖可見列表。0.2.2補固定原因碼，待一次重試定位；Step2未完成，不宣稱採集已修復。
+
 **Files:** Create `android/validation/summary.md`；由使用者回報後新增 `android/validation/<timestamp>-<site>-<case>/result.md` 與遮蔽資料；Modify `android/03-crawler-feasibility.md`、`android/handoff/handoff.md`。
 
 **Interfaces:** Consumes Task13 APK、Task3匯出以及驗證方案T0–T5。Produces 七站前景／B1／B2／B3／長輪次／中斷／圖片／人工介入矩陣；每格附APK版本和證據路徑，不生成不存在的結果。
 
-- [ ] **Step 1 — 第一輪安裝／自檢。** 使用者安裝並回報版本、裝置／WebView資訊及本機自檢結果；確認不需USB。未安裝／未回報時保持待測，不能勾選後續真機任務。
+- [x] **Step 1 — 第一輪安裝／自檢。** 使用者安裝並回報版本、裝置／WebView資訊及本機自檢結果；確認不需USB。2026-11-06已核對7份0.2.0本機ZIP，使用者明確回報自檢全PASS與重開後可讀；後續實站任務仍待測。
 - [ ] **Step 2 — 前景逐站。** 依既定七站順序，一次提供一站操作；至少兩次前景、兩頁以上、合法零筆／篩選／人工驗證與圖片；解析結果與同條件當下頁面人工核對。無法取得合法零筆時記未測，不要求使用者用不存在的資料完成案例。
 - [ ] **Step 3 — 背景與鎖屏。** 只對前景通過的站跑B1／B2各兩次，拔線且保留原設定；確認事件顯示返回App前完成新頁解析。再做B3與正常速率固定一區FULL；最後七站循序輪次。若一站無法背景，照實保留其結論，不能勾「全七站背景通過」。
 - [ ] **Step 4 — 中斷與更新。** 斷網1分鐘、取消、滑除、強制停止／重開各自記錄；有行動數據再測切網路。安裝遞增versionCode的同簽章APK後，舊run仍可讀／匯出。真機未觸發timeout／renderer回收／Doze者明列缺證，不用SIMULATED代填。
@@ -369,4 +371,4 @@ Task11結果見 [執行紀錄](../tasks/task11.md)：22項來源測試及既有1
 
 ## 執行交接
 
-使用者已選Native，不再詢問執行方式。Task1–13完成後，等待使用者繼續Task14，主代理依序實作，每Task結束暫停並review，直接覆寫 `android/handoff/handoff.md` 後等待繼續；context超過60%也先暫停覆寫同檔更新摘要。詳細停點、不可見context讀數的限制與目前進度見 [交接文件](../handoff/handoff.md)。全部實作完成後仍需獨立review；Task14的真機證據須由使用者實際操作回報。
+使用者已選Native，不再詢問執行方式。Task1–13及Task14本機驗收完成；591前景未通過，0.2.2診斷版待重試。主代理每Task結束暫停並review，直接覆寫 `android/handoff/handoff.md`；context超過60%也先在安全邊界更新同檔。不可見context讀數的限制與最新進度見 [交接文件](../handoff/handoff.md)。全部實作完成後仍需獨立review，真機證據由使用者實際操作回報。
