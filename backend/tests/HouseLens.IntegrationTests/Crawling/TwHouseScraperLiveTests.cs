@@ -26,7 +26,8 @@ public class TwHouseScraperLiveTests
         var results = await scraper.FetchAsync(districtMaxPrices, progress: null);
 
         results.Should().NotBeEmpty("台灣房屋中和區 1000萬以下應有物件");
-        results.Should().HaveCountGreaterThanOrEqualTo(10, "分頁 zip 篩選需正確生效，不應退化為城市層級推薦清單");
+        // 不寫死筆數下限：實際物件數隨市況變動（2026-11 實站僅 6~8 筆）；
+        // 「zip 篩選失效、退化為城市層級推薦清單」由下方行政區一致性檢查負責攔截
 
         results.Should().OnlyContain(r => r.District == "中和區", "地址解析出的行政區應與查詢區一致");
 
