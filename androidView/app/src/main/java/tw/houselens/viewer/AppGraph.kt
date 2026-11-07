@@ -12,16 +12,18 @@ import kotlinx.coroutines.*
 import kotlinx.serialization.json.JsonObject
 import tw.houselens.viewer.auth.*
 import tw.houselens.viewer.data.*
+import tw.houselens.viewer.saved.*
 
 class AppGraph(private val context: Context) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val storage = SecureAuthStorage(context, BuildConfig.SUPABASE_URL)
     private val client = createViewerClient(BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_PUBLISHABLE_KEY, storage = storage)
+    val favorites = FavoriteStore(java.io.File(context.filesDir, "favorites"), scope)
     private var resources: SessionResources? = null
     private var initialized = false
-    val sessions = SessionController(client, storage, { token -> verifyMembership(token) }, {
-        // B3 adds owner-scoped favorite snapshot purging to this same cleanup path.
+    val sessions = SessionController(client, storage, { token -> verifyMembership(token) }, { owner ->
         synchronized(this) { resources?.close(); resources = null }
+        if (owner != null) favorites.purgeSnapshots(owner)
     })
 
     @OptIn(SupabaseExperimental::class)
@@ -59,13 +61,14 @@ class AppGraph(private val context: Context) {
                     sessions.accessToken()
                     Unit
                 }
-            )).also { resources = it }
+            ), favorites).also { resources = it }
     }
 }
 
 @OptIn(coil3.annotation.ExperimentalCoilApi::class)
-class SessionResources(context: Context, val owner: OwnerKey, val version: Long, val data: HouseLensData) {
+class SessionResources(context: Context, val owner: OwnerKey, val version: Long, val data: HouseLensData, favorites: FavoriteStore) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    val saved = SavedViewModel(owner, data, favorites, scope)
     private val imageClient = createImageClient()
     // Keep images uncached so a late response cannot refill another session's cache.
     val imageLoader = ImageLoader.Builder(context).components {
