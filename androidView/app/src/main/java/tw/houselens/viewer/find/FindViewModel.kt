@@ -70,7 +70,7 @@ class FindViewModel(
         mutableState.update { it.copy(query=query,canUndoDistrict=false) }
         startFirst(persist=true)
     }
-    @Synchronized fun refresh() { startFirst(persist=false) }
+    @Synchronized fun refresh() { if(generation!=0L) startFirst(persist=false) }
     private fun startFirst(persist: Boolean) {
         val version=++generation;val query=state.value.query
         request?.cancel();append?.cancel()

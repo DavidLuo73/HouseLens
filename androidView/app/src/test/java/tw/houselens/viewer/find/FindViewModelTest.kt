@@ -6,6 +6,7 @@ import java.math.BigDecimal
 import java.nio.file.Files
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.StandardTestDispatcher
 import org.junit.Assert.*
 import org.junit.Test
 import tw.houselens.viewer.auth.OwnerKey
@@ -140,6 +141,40 @@ class FindViewModelTest {
             waitFor { vm.state.value.error!=null }
             assertEquals(q,preferences.observe(owner).first())
         } finally { scope.coroutineContext[Job]!!.cancelAndJoin();dispatcher.close();directory.deleteRecursively() }
+    }
+    private suspend fun beforeRestoration(saved: PropertyQuery, action: (FindViewModel) -> Unit, check: (FindViewModel,FindApi) -> Unit) {
+        val directory=Files.createTempDirectory("find-early-refresh").toFile()
+        val storageScope=CoroutineScope(SupervisorJob()+Dispatchers.IO)
+        val dispatcher=StandardTestDispatcher()
+        val sessionScope=CoroutineScope(SupervisorJob()+dispatcher)
+        try {
+            val preferences=FilterPreferences(directory.resolve("filters"),storageScope)
+            preferences.save(owner,saved)
+            val api=FindApi()
+            val vm=FindViewModel(owner,api,FavoriteStore(directory.resolve("saved"),storageScope),preferences,SavedStateHandle(),sessionScope)
+            action(vm)
+            withTimeout(3000) { while(vm.state.value.loadedPage==0) { dispatcher.scheduler.runCurrent();delay(10) } }
+            check(vm,api)
+        } finally {
+            sessionScope.cancel();dispatcher.scheduler.runCurrent()
+            storageScope.coroutineContext[Job]!!.cancelAndJoin();directory.deleteRecursively()
+        }
+    }
+    @Test fun refresh_before_initial_restoration_uses_saved_filters() = runBlocking {
+        val saved=PropertyQuery(districts=listOf("已保存區"),sortBy="price")
+        beforeRestoration(saved,{ it.refresh() }) { vm,api ->
+            assertEquals(saved,vm.state.value.query)
+            assertEquals(saved,vm.state.value.resultQuery)
+            assertEquals(listOf(saved to 1),api.requests.toList())
+        }
+    }
+    @Test fun explicit_apply_before_restoration_keeps_priority_over_saved_filters() = runBlocking {
+        val applied=PropertyQuery(districts=listOf("明確套用區"),sortBy="newest")
+        beforeRestoration(PropertyQuery(districts=listOf("已保存區")),{ it.apply(applied);it.refresh() }) { vm,api ->
+            assertEquals(applied,vm.state.value.query)
+            assertEquals(applied,vm.state.value.resultQuery)
+            assertEquals(listOf(applied to 1),api.requests.toList())
+        }
     }
 }
 
